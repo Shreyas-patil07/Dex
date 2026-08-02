@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Allow external image sources — picsum for mock poster/backdrop images
+  // Allow external image sources — picsum for mock data, TMDB for production
   images: {
     remotePatterns: [
       {
@@ -17,3 +17,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
