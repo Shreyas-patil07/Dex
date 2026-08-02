@@ -1,0 +1,346 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+/* ─── Dex Design System v1.0 ───────────────────────────────────────────── */
+/* Based on dex-theme-style-guide.md §3 §4 §6 §10 §11                       */
+
+:root {
+  /* ── Backgrounds ─────────────────────────────── */
+  --bg-base:     #0D1117;
+  --bg-surface:  #161B22;
+  --bg-elevated: #1C2333;
+  --bg-border:   #30363D;
+
+  /* ── Accents ─────────────────────────────────── */
+  --accent-primary:      #7C3AED;
+  --accent-primary-soft: #A855F7;
+  --accent-gold:         #F59E0B;
+  --accent-gold-soft:    #FCD34D;
+  --accent-teal:         #2DD4BF;
+
+  /* ── Text ────────────────────────────────────── */
+  --text-primary:   #E2E8F0;
+  --text-secondary: #8B949E;
+  --text-disabled:  #484F58;
+  --text-danger:    #F87171;
+
+  /* ── Glass ───────────────────────────────────── */
+  --glass-bg:     rgba(28, 35, 51, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur:   blur(16px);
+
+  /* ── Gradients ───────────────────────────────── */
+  --gradient-hero:   linear-gradient(135deg, #0D1117 0%, #1a0a2e 50%, #0D1117 100%);
+  --gradient-purple: linear-gradient(135deg, #7C3AED 0%, #A855F7 100%);
+  --gradient-gold:   linear-gradient(135deg, #F59E0B 0%, #FCD34D 50%, #F59E0B 100%);
+  --gradient-poster: linear-gradient(to top, rgba(13,17,23,0.95) 0%, transparent 60%);
+
+  /* ── Typography Scale (clamp = fluid, per web-typography skill) ─────── */
+  --text-display: clamp(2.5rem, 5vw, 4rem);
+  --text-h1:      clamp(1.75rem, 3vw, 2.25rem);
+  --text-h2:      clamp(1.25rem, 2vw, 1.5rem);
+  --text-h3:      1rem;
+  --text-body:    0.9375rem;
+  --text-small:   0.8125rem;
+  --text-label:   0.75rem;
+
+  /* ── Spacing Scale (8px base, per refactoring-ui skill) ─────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── Border Radius ───────────────────────────── */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   16px;
+  --radius-xl:   24px;
+  --radius-full: 9999px;
+
+  /* ── Transitions (Emil Kowalski: fast for frequent, slow for reveals) ── */
+  --transition-fast: all 0.15s ease;
+  --transition-base: all 0.25s ease;
+  --transition-slow: all 0.4s ease;
+
+  /* ── Breakpoints ─────────────────────────────── */
+  --bp-sm:  640px;
+  --bp-md:  768px;
+  --bp-lg:  1024px;
+  --bp-xl:  1280px;
+  --bp-2xl: 1536px;
+}
+
+/* ─── Base Reset ────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: var(--text-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Malewicz: dark-mode needs surface elevation, not just shadows */
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124, 58, 237, 0.12), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(45, 212, 191, 0.04), transparent);
+}
+
+/* ─── Glass Card Variants (§6) ──────────────────────────────────────────── */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+
+.glass-card-featured {
+  background: rgba(124, 58, 237, 0.15);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(124, 58, 237, 0.30);
+  border-radius: var(--radius-lg);
+}
+
+.glass-card-achievement {
+  background: rgba(245, 158, 11, 0.10);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: var(--radius-lg);
+}
+
+.glass-card-active {
+  background: rgba(45, 212, 191, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(45, 212, 191, 0.20);
+  border-radius: var(--radius-lg);
+}
+
+/* ─── Status Pills (§8) ─────────────────────────────────────────────────── */
+.status-watching {
+  background: rgba(45, 212, 191, 0.15);
+  color: #2DD4BF;
+  border: 1px solid rgba(45, 212, 191, 0.30);
+}
+.status-completed {
+  background: rgba(124, 58, 237, 0.15);
+  color: #A855F7;
+  border: 1px solid rgba(124, 58, 237, 0.30);
+}
+.status-planned {
+  background: rgba(139, 148, 158, 0.15);
+  color: #8B949E;
+  border: 1px solid rgba(139, 148, 158, 0.25);
+}
+.status-dropped {
+  background: rgba(248, 113, 113, 0.15);
+  color: #F87171;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+/* ─── Poster Card (§8) ──────────────────────────────────────────────────── */
+.poster-card {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  aspect-ratio: 2/3;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+.poster-card:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(124, 58, 237, 0.3);
+}
+.poster-card .overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--gradient-poster);
+}
+.poster-card .meta {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+}
+
+/* ─── Buttons (§8) ──────────────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--accent-primary);
+  color: #FFFFFF;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: var(--text-body);
+  cursor: pointer;
+  transition: var(--transition-fast); /* Emil: fast for frequent actions */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+.btn-primary:hover {
+  background: var(--accent-primary-soft);
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+  transform: translateY(-1px);
+}
+.btn-primary:active {
+  transform: translateY(0); /* Rauno: physically correct press feedback */
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-md);
+  padding: 10px 20px;
+  font-weight: 500;
+  font-size: var(--text-body);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+.btn-ghost:hover {
+  border-color: var(--accent-primary-soft);
+  color: var(--accent-primary-soft);
+}
+
+/* ─── Animations (§10) ──────────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeInUp 0.4s ease forwards; }
+
+/* Currently Watching teal glow pulse */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(45, 212, 191, 0.3); }
+  50%       { box-shadow: 0 0 24px rgba(45, 212, 191, 0.7); }
+}
+.glow-teal { animation: glowPulse 2s ease-in-out infinite; }
+
+/* Gold shimmer for badges */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* Stagger children fade-in */
+@keyframes staggerIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Purple ambient glow — hero background */
+@keyframes ambientPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.05); }
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb {
+  background: var(--bg-border);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }
+
+/* ─── Reduced Motion (§10 + motion-animation-design skill) ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Mobile glass simplification (§14) ────────────────────────────────── */
+@media (max-width: 768px) {
+  .glass-card, .glass-card-featured, .glass-card-achievement, .glass-card-active {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+/* ─── Typography helpers ─────────────────────────────────────────────────── */
+.text-display  { font-size: var(--text-display); font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; }
+.text-h1       { font-size: var(--text-h1); font-weight: 700; line-height: 1.2; }
+.text-h2       { font-size: var(--text-h2); font-weight: 600; line-height: 1.3; }
+.text-h3       { font-size: var(--text-h3); font-weight: 600; }
+.text-body     { font-size: var(--text-body); font-weight: 400; line-height: 1.6; }
+.text-small    { font-size: var(--text-small); font-weight: 400; }
+.text-label    { font-size: var(--text-label); font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
+
+.text-primary-color   { color: var(--text-primary); }
+.text-secondary-color { color: var(--text-secondary); }
+.text-accent          { color: var(--accent-primary-soft); }
+.text-gold            { color: var(--accent-gold); }
+.text-teal            { color: var(--accent-teal); }
+.text-danger          { color: var(--text-danger); }
+
+/* ─── Bento Grid (§7) ───────────────────────────────────────────────────── */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+  padding: 24px;
+}
+.bento-2x2  { grid-column: span 3;  grid-row: span 2; }
+.bento-3x2  { grid-column: span 4;  grid-row: span 2; }
+.bento-4x2  { grid-column: span 6;  grid-row: span 2; }
+.bento-6x2  { grid-column: span 8;  grid-row: span 2; }
+.bento-12x1 { grid-column: span 12; grid-row: span 1; }
+
+/* ─── Content type left-border accents (§13) ────────────────────────────── */
+.type-movie  { border-left: 3px solid var(--accent-primary); }
+.type-series { border-left: 3px solid var(--accent-teal); }
+.type-anime  { border-left: 3px solid var(--accent-gold); }
+
+/* ─── Badge (§9) ────────────────────────────────────────────────────────── */
+.badge-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  transition: var(--transition-base);
+}
+.badge-icon:hover {
+  transform: scale(1.1);
+}
+.badge-bronze  { color: #CD7F32; background: rgba(205,127,50,0.10); }
+.badge-silver  { color: #C0C0C0; background: rgba(192,192,192,0.10); }
+.badge-gold-b  { color: #F59E0B; background: rgba(245,158,11,0.10); }
+.badge-platinum{ color: #A855F7; background: rgba(168,85,247,0.10); }
+
+/* ─── Utility: No select on UI elements ─────────────────────────────────── */
+.no-select { user-select: none; -webkit-user-select: none; }
+
+/* ─── Card hover lift ────────────────────────────────────────────────────── */
+.card-hover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
