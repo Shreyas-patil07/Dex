@@ -254,6 +254,12 @@ body {
   50%       { opacity: 1;   transform: scale(1.05); }
 }
 
+/* Spinner — used on loading states */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ─── Scrollbar ─────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-base); }
