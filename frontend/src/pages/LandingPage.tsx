@@ -27,7 +27,7 @@ export const LandingPage: React.FC = () => {
             Memories
           </span>
         </h1>
-        <p className="mt-5 max-w-2xl text-base font-medium tracking-wide text-[#94A3B8] sm:text-lg">
+        <p className="mt-6 max-w-3xl text-xl font-medium tracking-wide text-[#94A3B8] sm:text-2xl lg:text-3xl">
           Explore yourself through what you watch.
         </p>
       </main>
