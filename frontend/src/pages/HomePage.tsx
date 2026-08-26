@@ -6,6 +6,7 @@ import { getCachedAuthState, subscribeToAuthSession } from '../lib/authSession';
 type Media = { id: number; media_type?: 'movie' | 'tv'; title?: string; name?: string; poster_path?: string | null; release_date?: string; first_air_date?: string; vote_average?: number };
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w500';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const MIN_LOADING_MS = 800;
 
 export const HomePage: React.FC = () => {
   const [items, setItems] = useState<Media[]>([]);
@@ -20,17 +21,38 @@ export const HomePage: React.FC = () => {
 
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
+    const startedAt = performance.now();
+
     setLoading(true);
     setError('');
     setItems([]);
 
-    fetch(`${API_BASE}/api/media/trending?media_type=${type}&time_window=${timeWindow}`, { signal: controller.signal })
-      .then(async response => { if (!response.ok) throw new Error('Could not load trending titles.'); return response.json(); })
-      .then(data => setItems(Array.isArray(data.results) ? data.results : []))
-      .catch((err: Error) => { if (err.name !== 'AbortError') setError(err.message); })
-      .finally(() => setLoading(false));
+    const waitForMinimumLoading = async () => {
+      const elapsed = performance.now() - startedAt;
+      const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+      if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
+    };
 
-    return () => controller.abort();
+    const load = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/media/trending?media_type=${type}&time_window=${timeWindow}`, { signal: controller.signal });
+        if (!response.ok) throw new Error('Could not load trending titles.');
+        const data = await response.json();
+        await waitForMinimumLoading();
+        if (!active) return;
+        setItems(Array.isArray(data.results) ? data.results : []);
+      } catch (err) {
+        if (!active || (err instanceof Error && err.name === 'AbortError')) return;
+        await waitForMinimumLoading();
+        if (active) setError(err instanceof Error ? err.message : 'Could not load trending titles.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { active = false; controller.abort(); };
   }, [type, timeWindow]);
 
   const visible = useMemo(() => items.filter(item => item.poster_path).slice(0, 24), [items]);
