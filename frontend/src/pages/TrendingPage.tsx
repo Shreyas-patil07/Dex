@@ -6,7 +6,6 @@ type Media = {
   title?: string;
   name?: string;
   poster_path?: string | null;
-  backdrop_path?: string | null;
   release_date?: string;
   first_air_date?: string;
   vote_average?: number;
@@ -17,7 +16,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export const TrendingPage: React.FC = () => {
   const [items, setItems] = useState<Media[]>([]);
-  const [window, setWindow] = useState<'day' | 'week'>('week');
+  const [timeWindow, setTimeWindow] = useState<'day' | 'week'>('week');
   const [type, setType] = useState<'all' | 'movie' | 'tv'>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -27,7 +26,7 @@ export const TrendingPage: React.FC = () => {
     setLoading(true);
     setError('');
 
-    fetch(`${API_BASE}/api/media/trending?media_type=${type}&time_window=${window}`, {
+    fetch(`${API_BASE}/api/media/trending?media_type=${type}&time_window=${timeWindow}`, {
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -41,36 +40,54 @@ export const TrendingPage: React.FC = () => {
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [type, window]);
+  }, [type, timeWindow]);
 
   const visible = useMemo(() => items.filter((item) => item.poster_path), [items]);
 
   return (
     <div className="min-h-screen bg-[#080810] text-white">
+<<<<<<< HEAD
       <header className="relative z-8 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5 sm:py-6">
         <img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain sm:h-12 sm:w-22" />
         <div className="flex items-center gap-3 sm:gap-5">
           <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7] transition-colors hover:text-[#C084FC]">Login</button>
           <button className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6D28D9]">Sign Up</button>
+=======
+      <header className="border-b border-white/[0.06]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:py-6">
+          <a href="/" aria-label="Dex home">
+            <img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain sm:h-12 sm:w-22" />
+          </a>
+          <div className="flex items-center gap-3 sm:gap-5">
+            <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7] transition-colors hover:text-[#C084FC]">Login</button>
+            <button className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6D28D9]">Sign Up</button>
+          </div>
+>>>>>>> 46d59f79a0f28025b652e50d009228ff6f990fd1
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-6 pb-20 pt-14">
+<<<<<<< HEAD
         <div className="flex flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xl font-semibold uppercase tracking-[0.22em] text-[#A855F7]">Dex Discover</p>
           </div>
+=======
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <p className="text-lg font-semibold uppercase tracking-[0.2em] text-[#A855F7]">Dex Discover</p>
+>>>>>>> 46d59f79a0f28025b652e50d009228ff6f990fd1
 
           <div className="flex flex-wrap gap-2">
             {(['day', 'week'] as const).map((value) => (
               <button
                 key={value}
-                onClick={() => setWindow(value)}
-                className={`rounded-lg border px-4 py-2 text-sm transition-colors ${window === value ? 'border-[#7C3AED] bg-[#7C3AED] text-white' : 'border-white/[0.08] text-[#94A3B8] hover:border-white/[0.16] hover:text-white'}`}
+                onClick={() => setTimeWindow(value)}
+                className={`rounded-lg border px-4 py-2 text-sm transition-colors ${timeWindow === value ? 'border-[#7C3AED] bg-[#7C3AED] text-white' : 'border-white/[0.08] text-[#94A3B8] hover:border-white/[0.16] hover:text-white'}`}
               >
                 {value === 'day' ? 'Today' : 'This week'}
               </button>
             ))}
+
             {(['all', 'movie', 'tv'] as const).map((value) => (
               <button
                 key={value}
@@ -85,7 +102,7 @@ export const TrendingPage: React.FC = () => {
 
         {loading && (
           <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {Array.from({ length: 12 }).map((_, index) => (
+            {Array.from({ length: 12 }, (_, index) => (
               <div key={index} className="aspect-[2/3] animate-pulse rounded-xl bg-white/[0.06]" />
             ))}
           </div>
@@ -108,6 +125,7 @@ export const TrendingPage: React.FC = () => {
             {visible.map((item) => {
               const title = item.title || item.name || 'Untitled';
               const date = item.release_date || item.first_air_date || '';
+
               return (
                 <article key={`${item.media_type || 'media'}-${item.id}`} className="group">
                   <div className="overflow-hidden rounded-xl bg-white/[0.05]">
@@ -115,7 +133,7 @@ export const TrendingPage: React.FC = () => {
                       src={`${TMDB_IMAGE}${item.poster_path}`}
                       alt={title}
                       loading="lazy"
-                      className="aspect-[2/3] w-full object-cover transition duration-300 group-hover:scale-[1.025]"
+                      className="aspect-[2/3] w-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
                     />
                   </div>
                   <h2 className="mt-3 truncate text-sm font-semibold">{title}</h2>
