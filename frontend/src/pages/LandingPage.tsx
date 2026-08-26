@@ -19,23 +19,27 @@ export const LandingPage: React.FC = () => {
           transform-box: fill-box;
           transform-origin: center;
         }
-        .dex-orbit-one { animation: dex-drift-one 12s ease-in-out infinite alternate; }
-        .dex-orbit-two { animation: dex-drift-two 16s ease-in-out infinite alternate; }
-        .dex-orbit-three { animation: dex-drift-three 20s ease-in-out infinite alternate; }
+        .dex-orbit-one { animation: dex-drift-one 22s linear infinite; }
+        .dex-orbit-two { animation: dex-drift-two 28s linear infinite; }
+        .dex-orbit-three { animation: dex-drift-three 34s linear infinite; }
         .dex-particle-one { animation: dex-pulse 5s ease-in-out infinite; }
         .dex-particle-two { animation: dex-pulse 7s ease-in-out 1s infinite; }
         .dex-particle-three { animation: dex-pulse 6s ease-in-out 2s infinite; }
+
         @keyframes dex-drift-one {
-          from { transform: translate3d(-32px, 18px, 0) rotate(-1.5deg); }
-          to { transform: translate3d(42px, -24px, 0) rotate(1.5deg); }
+          0% { transform: translate3d(-120px, 70px, 0) rotate(-2deg); }
+          50% { transform: translate3d(80px, -50px, 0) rotate(1deg); }
+          100% { transform: translate3d(260px, 40px, 0) rotate(2deg); }
         }
         @keyframes dex-drift-two {
-          from { transform: translate3d(36px, -20px, 0) rotate(0.8deg); }
-          to { transform: translate3d(-44px, 26px, 0) rotate(-1.2deg); }
+          0% { transform: translate3d(180px, -80px, 0) rotate(1.5deg); }
+          50% { transform: translate3d(-70px, 70px, 0) rotate(-1deg); }
+          100% { transform: translate3d(-300px, -30px, 0) rotate(-2deg); }
         }
         @keyframes dex-drift-three {
-          from { transform: translate3d(-18px, 24px, 0) rotate(-0.6deg); }
-          to { transform: translate3d(30px, -20px, 0) rotate(0.8deg); }
+          0% { transform: translate3d(-160px, 100px, 0) rotate(-1deg); }
+          50% { transform: translate3d(70px, -70px, 0) rotate(1deg); }
+          100% { transform: translate3d(300px, 30px, 0) rotate(1.5deg); }
         }
         @keyframes dex-pulse {
           0%, 100% { opacity: 0.15; transform: scale(0.8); }
