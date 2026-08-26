@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 import httpx
@@ -27,4 +28,13 @@ class TMDBService:
             raise ValueError("media_type must be all, movie, or tv")
         if time_window not in {"day", "week"}:
             raise ValueError("time_window must be day or week")
-        return await self.get(f"/trending/{media_type}/{time_window}")
+
+        first_page, second_page = await asyncio.gather(
+            self.get(f"/trending/{media_type}/{time_window}", {"page": 1}),
+            self.get(f"/trending/{media_type}/{time_window}", {"page": 2}),
+        )
+        results = (first_page.get("results") or []) + (second_page.get("results") or [])
+        return {
+            **first_page,
+            "results": results[:24],
+        }
