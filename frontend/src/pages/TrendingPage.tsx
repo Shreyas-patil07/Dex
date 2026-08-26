@@ -61,11 +61,7 @@ export const TrendingPage: React.FC = () => {
       <main className="mx-auto max-w-7xl px-6 pb-20 pt-14">
         <div className="flex flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[#A855F7]">Dex Discover</p>
-            <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">Trending now.</h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-[#94A3B8] sm:text-lg">
-              What people are watching right now — pulled live from TMDB.
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#A855F7]">Dex Discover</p>
           </div>
 
           <div className="flex flex-wrap gap-2">
