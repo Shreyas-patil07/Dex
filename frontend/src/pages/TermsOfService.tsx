@@ -10,7 +10,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 export const TermsOfService: React.FC = () => (
   <div className="min-h-screen bg-[#080810] text-[#F8FAFC]">
     <header className="border-b border-white/[0.06] px-6 py-5"><div className="mx-auto flex max-w-5xl items-center justify-between">
-      <a href="/" className="flex items-center gap-3"><img src="/DEXi.png" alt="Dex" className="h-16 w-16 object-contain" /></a>
+      <a href="/" className="flex items-center gap-3"><img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain" /></a>
       <a href="/" className="text-sm text-[#A855F7] hover:text-[#C084FC]">Back to Dex</a></div></header>
     <main className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
       <div className="mb-12 max-w-3xl"><p className="mb-3 text-sm font-medium uppercase tracking-[0.14em] text-[#A855F7]">Legal</p><h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Terms of Service</h1><p className="mt-4 text-sm text-[#64748B]">Effective date: August 26, 2026</p><p className="mt-6 text-base leading-7 text-[#A7AFC2]">These Terms of Service govern your access to and use of Dex websites, applications, and related services. By accessing or using Dex, you agree to these Terms.</p><p className="mt-4 text-sm leading-6 text-[#64748B]">Hacketz is the project/brand associated with Dex. The operator details should match the actual legal entity, if any, before public launch.</p></div>
