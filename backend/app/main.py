@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import re
+import secrets
 
 import jwt
 from fastapi import Depends, FastAPI, HTTPException, Query, status
@@ -54,12 +55,8 @@ async def trending(
     try:
         first_page = await tmdb.trending(media_type, time_window)
         results = first_page.get("results", [])
-        total_pages = first_page.get("total_pages", 1)
-        if total_pages >= 2:
-            second_page = await tmdb.get(
-                f"/trending/{media_type}/{time_window}",
-                {"page": 2},
-            )
+        if first_page.get("total_pages", 1) >= 2:
+            second_page = await tmdb.get(f"/trending/{media_type}/{time_window}", {"page": 2})
             results.extend(second_page.get("results", []))
         return {**first_page, "results": results[:24]}
     except ValueError as exc:
@@ -68,20 +65,20 @@ async def trending(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-def unique_username(db_usernames: set[str], email: str) -> str:
+def unique_username(existing: set[str], email: str) -> str:
     base = re.sub(r"[^a-zA-Z0-9_]", "", email.split("@", 1)[0])[:24] or "user"
     username = base
     index = 1
-    while username.lower() in db_usernames:
-        username = f"{base[:24-len(str(index))]}{index}"
+    while username.lower() in existing:
+        suffix = str(index)
+        username = f"{base[:32-len(suffix)]}{suffix}"
         index += 1
     return username
 
 
 async def find_unique_username(db: AsyncSession, email: str) -> str:
     result = await db.execute(select(User.username))
-    existing = {row[0].lower() for row in result.all()}
-    return unique_username(existing, email)
+    return unique_username({row[0].lower() for row in result.all()}, email)
 
 
 @app.post("/api/auth/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
@@ -92,9 +89,8 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)) -> U
         password_hash=hash_password(payload.password),
         display_name=payload.display_name,
     )
-    identity = AuthIdentity(provider="email", provider_subject=payload.email.lower(), user=user)
     db.add(user)
-    db.add(identity)
+    db.add(AuthIdentity(provider="email", provider_subject=payload.email.lower(), user=user))
     try:
         await db.commit()
         await db.refresh(user)
@@ -118,48 +114,32 @@ async def google_auth(payload: GoogleCredential, db: AsyncSession = Depends(get_
     if not settings.google_client_id:
         raise HTTPException(status_code=503, detail="Google authentication is not configured")
     try:
-        info = id_token.verify_oauth2_token(
-            payload.credential,
-            google_requests.Request(),
-            settings.google_client_id,
-        )
+        info = id_token.verify_oauth2_token(payload.credential, google_requests.Request(), settings.google_client_id)
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid Google credential") from None
 
     provider_subject = info.get("sub")
     email = str(info.get("email", "")).lower()
-    verified = bool(info.get("email_verified"))
-    if not provider_subject or not email or not verified:
+    if not provider_subject or not email or not info.get("email_verified"):
         raise HTTPException(status_code=401, detail="Google account email is not verified")
 
-    result = await db.execute(
-        select(AuthIdentity).where(
-            AuthIdentity.provider == "google",
-            AuthIdentity.provider_subject == provider_subject,
-        )
-    )
+    result = await db.execute(select(AuthIdentity).where(AuthIdentity.provider == "google", AuthIdentity.provider_subject == provider_subject))
     identity = result.scalar_one_or_none()
     if identity:
         return Token(access_token=create_access_token(identity.user_id))
 
-    existing_user_result = await db.execute(select(User).where(User.email == email))
-    existing_user = existing_user_result.scalar_one_or_none()
+    existing_user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if existing_user:
-        raise HTTPException(
-            status_code=409,
-            detail="A Dex account already uses this email. Sign in with email first, then connect Google from Account Settings.",
-        )
+        raise HTTPException(status_code=409, detail="A Dex account already uses this email. Sign in with email to connect Google.")
 
-    username = await find_unique_username(db, email)
     user = User(
         email=email,
-        username=username,
-        password_hash=None,
+        username=await find_unique_username(db, email),
+        password_hash=hash_password(secrets.token_urlsafe(32)),
         display_name=info.get("name"),
     )
-    identity = AuthIdentity(provider="google", provider_subject=provider_subject, user=user)
     db.add(user)
-    db.add(identity)
+    db.add(AuthIdentity(provider="google", provider_subject=provider_subject, user=user))
     try:
         await db.commit()
         await db.refresh(user)
@@ -181,11 +161,7 @@ async def current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = D
 
 
 @app.post("/api/auth/google/link", response_model=UserPublic)
-async def link_google(
-    payload: GoogleCredential,
-    user: User = Depends(current_user),
-    db: AsyncSession = Depends(get_db),
-) -> User:
+async def link_google(payload: GoogleCredential, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> User:
     if not settings.google_client_id:
         raise HTTPException(status_code=503, detail="Google authentication is not configured")
     try:
@@ -198,16 +174,10 @@ async def link_google(
     if not provider_subject or email != user.email.lower() or not info.get("email_verified"):
         raise HTTPException(status_code=400, detail="The Google account email must match your Dex email")
 
-    result = await db.execute(
-        select(AuthIdentity).where(
-            AuthIdentity.provider == "google",
-            AuthIdentity.provider_subject == provider_subject,
-        )
-    )
-    existing_identity = result.scalar_one_or_none()
-    if existing_identity and existing_identity.user_id != user.id:
+    existing = (await db.execute(select(AuthIdentity).where(AuthIdentity.provider == "google", AuthIdentity.provider_subject == provider_subject))).scalar_one_or_none()
+    if existing and existing.user_id != user.id:
         raise HTTPException(status_code=409, detail="This Google account is already linked to another Dex account")
-    if not existing_identity:
+    if not existing:
         db.add(AuthIdentity(provider="google", provider_subject=provider_subject, user_id=user.id))
         try:
             await db.commit()
@@ -218,13 +188,10 @@ async def link_google(
 
 
 @app.post("/api/auth/password", response_model=UserPublic)
-async def set_password(
-    payload: PasswordCreate,
-    user: User = Depends(current_user),
-    db: AsyncSession = Depends(get_db),
-) -> User:
+async def set_password(payload: PasswordCreate, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> User:
     user.password_hash = hash_password(payload.password)
-    if not any(identity.provider == "email" for identity in user.identities):
+    identity = (await db.execute(select(AuthIdentity).where(AuthIdentity.provider == "email", AuthIdentity.user_id == user.id))).scalar_one_or_none()
+    if not identity:
         db.add(AuthIdentity(provider="email", provider_subject=user.email.lower(), user_id=user.id))
     await db.commit()
     await db.refresh(user)
