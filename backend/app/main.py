@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google.api_core.exceptions import AlreadyExists
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from pydantic import BaseModel, Field
 
@@ -178,7 +179,10 @@ async def set_username(
         if existing_uid != firebase_uid:
             raise HTTPException(status_code=409, detail="That username is already taken.")
     else:
-        await registry_ref.create({"firebase_uid": firebase_uid, "created_at": datetime.now(timezone.utc)})
+        try:
+            await registry_ref.create({"firebase_uid": firebase_uid, "created_at": datetime.now(timezone.utc)})
+        except AlreadyExists:
+            raise HTTPException(status_code=409, detail="That username is already taken.") from None
 
     old_username = data.get("username")
     await user_ref(db, firebase_uid).update({"username": username})
@@ -214,7 +218,10 @@ async def add_watch(
 
     data = payload.model_dump()
     data["created_at"] = datetime.now(timezone.utc)
-    await ref.create(data)
+    try:
+        await ref.create(data)
+    except AlreadyExists:
+        raise HTTPException(status_code=409, detail="This title is already in your library") from None
     return watch_public(doc_id, data)
 
 
