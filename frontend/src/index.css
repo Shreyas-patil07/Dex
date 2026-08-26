@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-cinema: #08080C;
+    --bg-surface-1: #0F0F17;
+    --bg-surface-2: #161622;
+    --bg-surface-3: #1F1F30;
+    --bg-card: rgba(22, 22, 34, 0.7);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-highlight: rgba(124, 58, 237, 0.35);
+    
+    --brand-purple: #7C3AED;
+    --brand-purple-light: #A855F7;
+    --brand-purple-dark: #5B21B6;
+    --accent-teal: #2DD4BF;
+    --accent-gold: #F59E0B;
+    --accent-rose: #F43F5E;
+    
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+  }
+
+  body {
+    background-color: var(--bg-cinema);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Outfit', 'Inter', sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #08080C;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1F1F30;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #7C3AED;
+}
+
+/* Glassmorphism helpers with performance restraint */
+.glass-panel {
+  background: rgba(15, 15, 23, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.glass-nav {
+  background: rgba(8, 8, 12, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-card {
+  background: rgba(22, 22, 34, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  border-color: rgba(124, 58, 237, 0.35);
+  background: rgba(26, 26, 42, 0.8);
+  transform: translateY(-2px);
+}
+
+/* Cinematic Glow & Gradients */
+.purple-glow {
+  box-shadow: 0 0 30px -5px rgba(124, 58, 237, 0.3);
+}
+
+.purple-glow-sm {
+  box-shadow: 0 0 15px -3px rgba(124, 58, 237, 0.25);
+}
+
+.teal-glow-sm {
+  box-shadow: 0 0 15px -3px rgba(45, 212, 191, 0.25);
+}
+
+.gold-glow-sm {
+  box-shadow: 0 0 15px -3px rgba(245, 158, 11, 0.25);
+}
+
+/* Keyframes for Orbit Logo & Taste Update Animations */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes taste-bar-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px rgba(124, 58, 237, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.8));
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
+}
+
+.animate-taste-glow {
+  animation: taste-bar-glow 2s ease-in-out infinite;
+}
