@@ -1,0 +1,144 @@
+import React, { useEffect, useMemo, useState } from 'react';
+
+type Media = {
+  id: number;
+  media_type?: 'movie' | 'tv';
+  title?: string;
+  name?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  release_date?: string;
+  first_air_date?: string;
+  vote_average?: number;
+};
+
+const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w500';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+export const TrendingPage: React.FC = () => {
+  const [items, setItems] = useState<Media[]>([]);
+  const [window, setWindow] = useState<'day' | 'week'>('week');
+  const [type, setType] = useState<'all' | 'movie' | 'tv'>('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+
+    fetch(`${API_BASE}/api/media/trending?media_type=${type}&time_window=${window}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Could not load trending titles.');
+        return response.json();
+      })
+      .then((data) => setItems(data.results ?? []))
+      .catch((err: Error) => {
+        if (err.name !== 'AbortError') setError(err.message);
+      })
+      .finally(() => setLoading(false));
+
+    return () => controller.abort();
+  }, [type, window]);
+
+  const visible = useMemo(() => items.filter((item) => item.poster_path), [items]);
+
+  return (
+    <div className="min-h-screen bg-[#080810] text-white">
+      <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#080810]/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <a href="/" aria-label="Dex home">
+            <img src="/DEXi.png" alt="Dex" className="h-12 w-12 object-contain" />
+          </a>
+          <a href="/about-me" className="text-sm font-medium text-[#94A3B8] transition-colors hover:text-white">
+            About Dex
+          </a>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-6 pb-20 pt-14">
+        <div className="flex flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[#A855F7]">Dex Discover</p>
+            <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">Trending now.</h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-[#94A3B8] sm:text-lg">
+              What people are watching right now — pulled live from TMDB.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {(['day', 'week'] as const).map((value) => (
+              <button
+                key={value}
+                onClick={() => setWindow(value)}
+                className={`rounded-lg border px-4 py-2 text-sm transition-colors ${window === value ? 'border-[#7C3AED] bg-[#7C3AED] text-white' : 'border-white/[0.08] text-[#94A3B8] hover:border-white/[0.16] hover:text-white'}`}
+              >
+                {value === 'day' ? 'Today' : 'This week'}
+              </button>
+            ))}
+            {(['all', 'movie', 'tv'] as const).map((value) => (
+              <button
+                key={value}
+                onClick={() => setType(value)}
+                className={`rounded-lg border px-4 py-2 text-sm transition-colors ${type === value ? 'border-[#A855F7]/70 bg-[#A855F7]/10 text-[#D8B4FE]' : 'border-white/[0.08] text-[#94A3B8] hover:border-white/[0.16] hover:text-white'}`}
+              >
+                {value === 'all' ? 'All' : value === 'movie' ? 'Movies' : 'Series'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading && (
+          <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {Array.from({ length: 12 }).map((_, index) => (
+              <div key={index} className="aspect-[2/3] animate-pulse rounded-xl bg-white/[0.06]" />
+            ))}
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="mt-12 rounded-2xl border border-red-400/20 bg-red-400/[0.05] p-6 text-sm text-red-200">
+            {error} Make sure the FastAPI server is running and TMDB_API_KEY is configured.
+          </div>
+        )}
+
+        {!loading && !error && visible.length === 0 && (
+          <div className="mt-12 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-10 text-center text-[#94A3B8]">
+            No trending titles are available right now.
+          </div>
+        )}
+
+        {!loading && !error && visible.length > 0 && (
+          <section className="mt-12 grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {visible.map((item) => {
+              const title = item.title || item.name || 'Untitled';
+              const date = item.release_date || item.first_air_date || '';
+              return (
+                <article key={`${item.media_type || 'media'}-${item.id}`} className="group">
+                  <div className="overflow-hidden rounded-xl bg-white/[0.05]">
+                    <img
+                      src={`${TMDB_IMAGE}${item.poster_path}`}
+                      alt={title}
+                      loading="lazy"
+                      className="aspect-[2/3] w-full object-cover transition duration-300 group-hover:scale-[1.025]"
+                    />
+                  </div>
+                  <h2 className="mt-3 truncate text-sm font-semibold">{title}</h2>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-[#64748B]">
+                    <span>{item.media_type === 'tv' ? 'Series' : 'Movie'}</span>
+                    {date && <span>• {date.slice(0, 4)}</span>}
+                    {typeof item.vote_average === 'number' && item.vote_average > 0 && (
+                      <span>• {item.vote_average.toFixed(1)}</span>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        )}
+      </main>
+    </div>
+  );
+};
