@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .config import settings
 from .db import Base, engine, get_db
 from .models import AuthIdentity, User, Watch
-from .schemas import UserPublic, WatchCreate, WatchPublic
+from .schemas import UserPublic, UsernameRequest, WatchCreate, WatchPublic
 from .services.firebase_auth import verify_firebase_token
 from .services.tmdb import TMDBError, TMDBService
 
@@ -22,7 +22,6 @@ bearer = HTTPBearer(auto_error=False)
 
 
 class AuthSyncRequest(BaseModel):
-    username: str | None = Field(default=None, min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_]+$")
     display_name: str | None = Field(default=None, max_length=80)
 
 
@@ -34,7 +33,7 @@ async def lifespan(_: FastAPI):
     await engine.dispose()
 
 
-app = FastAPI(title=settings.app_name, version="0.3.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.4.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_url],
@@ -67,20 +66,23 @@ async def trending(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-def unique_username(existing: set[str], email: str) -> str:
-    base = re.sub(r"[^a-zA-Z0-9_]", "", email.split("@", 1)[0])[:24] or "user"
-    username = base
+def normalize_username(value: str) -> str:
+    return value.strip().lower()
+
+
+async def username_exists(db: AsyncSession, username: str) -> bool:
+    return (await db.execute(select(User.id).where(User.username == normalize_username(username)))).scalar_one_or_none() is not None
+
+
+async def temporary_username(db: AsyncSession, firebase_uid: str) -> str:
+    base = f"user_{re.sub(r'[^a-z0-9]', '', firebase_uid.lower())}"[:25]
+    candidate = base
     index = 1
-    while username.lower() in existing:
+    while await username_exists(db, candidate):
         suffix = str(index)
-        username = f"{base[:32 - len(suffix)]}{suffix}"
+        candidate = f"{base[:32-len(suffix)]}{suffix}"
         index += 1
-    return username
-
-
-async def find_unique_username(db: AsyncSession, email: str) -> str:
-    result = await db.execute(select(User.username))
-    return unique_username({row[0].lower() for row in result.all()}, email)
+    return candidate
 
 
 async def current_user(
@@ -143,18 +145,12 @@ async def sync_auth_user(
 
     user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if user:
-        existing_username = (await db.execute(select(User).where(User.username == payload.username))).scalar_one_or_none() if payload.username else None
-        if existing_username and existing_username.id != user.id:
-            raise HTTPException(status_code=409, detail="Username already exists")
         if payload.display_name and not user.display_name:
             user.display_name = payload.display_name
     else:
-        username = payload.username or await find_unique_username(db, email)
-        if (await db.execute(select(User).where(User.username == username))).scalar_one_or_none():
-            raise HTTPException(status_code=409, detail="Username already exists")
         user = User(
             email=email,
-            username=username,
+            username=await temporary_username(db, firebase_uid),
             password_hash=None,
             display_name=payload.display_name or decoded.get("name"),
         )
@@ -168,6 +164,33 @@ async def sync_auth_user(
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status_code=409, detail="Could not synchronize your Dex account") from None
+    return user
+
+
+@app.get("/api/auth/username/available")
+async def username_available(
+    username: str = Query(..., min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]+$"),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, bool]:
+    return {"available": not await username_exists(db, username)}
+
+
+@app.post("/api/auth/username", response_model=UserPublic)
+async def set_username(
+    payload: UsernameRequest,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    username = normalize_username(payload.username)
+    if await username_exists(db, username) and user.username != username:
+        raise HTTPException(status_code=409, detail="That username is already taken.")
+    user.username = username
+    try:
+        await db.commit()
+        await db.refresh(user)
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="That username is already taken.") from None
     return user
 
 
