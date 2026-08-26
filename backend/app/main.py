@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 
 import jwt
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
@@ -13,9 +13,11 @@ from .db import Base, engine, get_db
 from .models import User, Watch
 from .schemas import LoginRequest, Token, UserCreate, UserPublic, WatchCreate, WatchPublic
 from .security import create_access_token, decode_access_token, hash_password, verify_password
+from .services.tmdb import TMDBError, TMDBService
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+tmdb = TMDBService(settings.tmdb_api_key, settings.tmdb_base_url)
 
 
 @asynccontextmanager
@@ -39,6 +41,19 @@ app.add_middleware(
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "dex-api"}
+
+
+@app.get("/api/media/trending")
+async def trending(
+    media_type: str = Query("all", pattern="^(all|movie|tv)$"),
+    time_window: str = Query("week", pattern="^(day|week)$"),
+) -> dict:
+    try:
+        return await tmdb.trending(media_type, time_window)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except TMDBError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.post("/api/auth/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
