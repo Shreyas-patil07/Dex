@@ -55,21 +55,15 @@ export const LandingPage: React.FC = () => {
             Welcome to your{' '}
             <span className="bg-gradient-to-r from-[#A855F7] via-[#C084FC] to-[#2DD4BF] bg-clip-text text-transparent">Memories</span>
           </h1>
-          <p className="mt-6 max-w-3xl text-xl font-medium tracking-wide text-[#94A3B8] sm:text-2xl lg:text-3xl">
-            Explore yourself through what you watch.
-          </p>
-          <button className="mt-9 rounded-xl bg-[#7C3AED] px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#6D28D9]">
-            Start exploring
-          </button>
+          <p className="mt-6 max-w-3xl text-xl font-medium tracking-wide text-[#94A3B8] sm:text-2xl lg:text-3xl">Explore yourself through what you watch.</p>
+          <button className="mt-9 rounded-xl bg-[#7C3AED] px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#6D28D9]">Start exploring</button>
         </section>
 
         <section className="mx-auto max-w-6xl px-6 py-24 sm:py-32">
           <div className="max-w-2xl">
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-[#A855F7]">What is Dex?</p>
             <h2 className="text-3xl font-bold tracking-tight sm:text-5xl">More than a watchlist.</h2>
-            <p className="mt-5 text-base leading-7 text-[#94A3B8] sm:text-lg">
-              Dex turns your watch history into an evolving picture of your entertainment taste. The more you watch, the more Dex understands what you like, what you avoid, and what you might discover next.
-            </p>
+            <p className="mt-5 text-base leading-7 text-[#94A3B8] sm:text-lg">Dex turns your watch history into an evolving picture of your entertainment taste. The more you watch, the more Dex understands what you like, what you avoid, and what you might discover next.</p>
           </div>
         </section>
 
@@ -94,9 +88,7 @@ export const LandingPage: React.FC = () => {
         <section className="mx-auto max-w-6xl px-6 py-24 text-center sm:py-32">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#A855F7]">Your taste, over time</p>
           <h2 className="mx-auto mt-4 max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl">Every watch tells Dex a little more about you.</h2>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-[#94A3B8] sm:text-lg">
-            Build your history, understand your patterns, discover new favorites, and watch your entertainment identity evolve.
-          </p>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-[#94A3B8] sm:text-lg">Build your history, understand your patterns, discover new favorites, and watch your entertainment identity evolve.</p>
           <button className="mt-8 rounded-xl bg-[#7C3AED] px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#6D28D9]">Create your Dex</button>
         </section>
       </main>
