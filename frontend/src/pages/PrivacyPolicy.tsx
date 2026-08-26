@@ -11,7 +11,7 @@ export const PrivacyPolicy: React.FC = () => (
   <div className="min-h-screen bg-[#080810] text-[#F8FAFC]">
     <header className="border-b border-white/[0.06] px-6 py-5">
       <div className="mx-auto flex max-w-5xl items-center justify-between">
-        <a href="/" className="flex items-center gap-3"><img src="/DEXi.png" alt="Dex" className="h-12 w-12 object-contain" /><span className="text-lg font-semibold">Dex</span></a>
+        <a href="/" className="flex items-center gap-3"><img src="/DEXi.png" alt="Dex" className="h-16 w-16 object-contain" /></a>
         <a href="/" className="text-sm text-[#A855F7] hover:text-[#C084FC]">Back to Dex</a>
       </div>
     </header>
