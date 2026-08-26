@@ -19,6 +19,17 @@ from .services.tmdb import TMDBError, TMDBService
 tmdb = TMDBService(settings.tmdb_api_key, settings.tmdb_base_url)
 bearer = HTTPBearer(auto_error=False)
 
+DEFAULT_CORS_ORIGINS = (
+    "http://localhost:3000",
+    "https://dex-list.vercel.app",
+)
+
+
+def get_cors_origins() -> list[str]:
+    configured = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
+    origins = [*DEFAULT_CORS_ORIGINS, settings.frontend_url, *configured]
+    return list(dict.fromkeys(origin for origin in origins if origin))
+
 
 class AuthSyncRequest(BaseModel):
     display_name: str | None = Field(default=None, max_length=80)
@@ -35,7 +46,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title=settings.app_name, version="0.4.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
