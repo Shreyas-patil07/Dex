@@ -4,7 +4,7 @@ export const LandingPage: React.FC = () => {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#080810] flex flex-col">
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
-        <svg className="absolute -left-[20%] -top-[8%] h-[116%] w-[140%] opacity-[0.16]" viewBox="0 0 1200 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg className="absolute -left-[20%] -top-[8%] h-[116%] w-[140%] opacity-[0.19]" viewBox="0 0 1200 700" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path className="dex-orbit dex-orbit-one" d="M-700 590C-250 120 120 40 560 190C1000 340 1370 570 2050 150" stroke="#7C3AED" strokeWidth="1.2" strokeLinecap="round" />
           <path className="dex-orbit dex-orbit-two" d="M-750 210C-280 650 160 650 610 360C1050 75 1450 120 2050 520" stroke="#A855F7" strokeWidth="0.9" strokeLinecap="round" />
           <path className="dex-orbit dex-orbit-three" d="M-500 850C-100 420 300 280 700 450C1080 610 1450 420 1900 -20" stroke="#2DD4BF" strokeWidth="0.7" strokeLinecap="round" />
@@ -19,23 +19,23 @@ export const LandingPage: React.FC = () => {
           transform-box: fill-box;
           transform-origin: center;
         }
-        .dex-orbit-one { animation: dex-drift-one 18s ease-in-out infinite alternate; }
-        .dex-orbit-two { animation: dex-drift-two 24s ease-in-out infinite alternate; }
-        .dex-orbit-three { animation: dex-drift-three 30s ease-in-out infinite alternate; }
+        .dex-orbit-one { animation: dex-drift-one 12s ease-in-out infinite alternate; }
+        .dex-orbit-two { animation: dex-drift-two 16s ease-in-out infinite alternate; }
+        .dex-orbit-three { animation: dex-drift-three 20s ease-in-out infinite alternate; }
         .dex-particle-one { animation: dex-pulse 5s ease-in-out infinite; }
         .dex-particle-two { animation: dex-pulse 7s ease-in-out 1s infinite; }
         .dex-particle-three { animation: dex-pulse 6s ease-in-out 2s infinite; }
         @keyframes dex-drift-one {
-          from { transform: translate3d(-18px, 10px, 0) rotate(-1deg); }
-          to { transform: translate3d(24px, -14px, 0) rotate(1deg); }
+          from { transform: translate3d(-32px, 18px, 0) rotate(-1.5deg); }
+          to { transform: translate3d(42px, -24px, 0) rotate(1.5deg); }
         }
         @keyframes dex-drift-two {
-          from { transform: translate3d(20px, -12px, 0) rotate(0.5deg); }
-          to { transform: translate3d(-26px, 16px, 0) rotate(-0.8deg); }
+          from { transform: translate3d(36px, -20px, 0) rotate(0.8deg); }
+          to { transform: translate3d(-44px, 26px, 0) rotate(-1.2deg); }
         }
         @keyframes dex-drift-three {
-          from { transform: translate3d(-10px, 16px, 0); }
-          to { transform: translate3d(18px, -12px, 0); }
+          from { transform: translate3d(-18px, 24px, 0) rotate(-0.6deg); }
+          to { transform: translate3d(30px, -20px, 0) rotate(0.8deg); }
         }
         @keyframes dex-pulse {
           0%, 100% { opacity: 0.15; transform: scale(0.8); }
