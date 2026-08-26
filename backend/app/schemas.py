@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 class UserCreate(BaseModel):
     email: EmailStr
-    username: str = Field(min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_]+$")
+    username: str = Field(min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]+$")
     password: str = Field(min_length=8, max_length=128)
     display_name: str | None = Field(default=None, max_length=80)
 
@@ -15,7 +15,7 @@ class UserPublic(BaseModel):
 
     id: str
     email: EmailStr
-    username: str
+    username: str | None
     display_name: str | None
     tagline: str | None
     created_at: datetime
