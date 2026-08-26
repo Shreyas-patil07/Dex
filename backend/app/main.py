@@ -1,16 +1,14 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from pydantic import BaseModel, Field
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
-from .db import Base, engine, get_db
-from .models import AuthIdentity, User, Watch
+from .firestore import get_firestore
 from .schemas import UserPublic, UsernameRequest, WatchCreate, WatchPublic
 from .services.firebase_auth import verify_firebase_token
 from .services.tmdb import TMDBError, TMDBService
@@ -19,16 +17,8 @@ from .services.tmdb import TMDBError, TMDBService
 tmdb = TMDBService(settings.tmdb_api_key, settings.tmdb_base_url)
 bearer = HTTPBearer(auto_error=False)
 
-DEFAULT_CORS_ORIGINS = (
-    "http://localhost:3000",
-    "https://dex-list.vercel.app",
-)
-
-
-def get_cors_origins() -> list[str]:
-    configured = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
-    origins = [*DEFAULT_CORS_ORIGINS, settings.frontend_url, *configured]
-    return list(dict.fromkeys(origin for origin in origins if origin))
+USERS = "users"
+USERNAME_REGISTRY = "usernames"
 
 
 class AuthSyncRequest(BaseModel):
@@ -37,25 +27,75 @@ class AuthSyncRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
     yield
-    await engine.dispose()
 
 
-app = FastAPI(title=settings.app_name, version="0.4.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.5.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_cors_origins(),
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
+
+
+def normalize_username(value: str) -> str:
+    return value.strip().lower()
+
+
+def user_ref(db, firebase_uid: str):
+    return db.collection(USERS).document(firebase_uid)
+
+
+def user_public(firebase_uid: str, data: dict) -> UserPublic:
+    return UserPublic(
+        id=firebase_uid,
+        email=data.get("email", ""),
+        username=data.get("username"),
+        display_name=data.get("display_name"),
+        tagline=data.get("tagline"),
+        created_at=data.get("created_at") or datetime.now(timezone.utc),
+    )
+
+
+def watch_public(doc_id: str, data: dict) -> WatchPublic:
+    return WatchPublic(
+        id=doc_id,
+        tmdb_id=int(data["tmdb_id"]),
+        media_type=data["media_type"],
+        title=data["title"],
+        status=data.get("status", "watched"),
+        rating=data.get("rating"),
+        watched_at=data.get("watched_at"),
+        notes=data.get("notes"),
+        created_at=data.get("created_at") or datetime.now(timezone.utc),
+    )
+
+
+async def current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db=Depends(get_firestore),
+) -> tuple[str, dict]:
+    if not credentials or credentials.scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    decoded = verify_firebase_token(credentials.credentials)
+    firebase_uid = str(decoded.get("uid", ""))
+    email = str(decoded.get("email", "")).lower()
+    if not firebase_uid or not email:
+        raise HTTPException(status_code=401, detail="Firebase account is missing required identity information")
+
+    snapshot: DocumentSnapshot = await user_ref(db, firebase_uid).get()
+    if snapshot.exists:
+        return firebase_uid, snapshot.to_dict() or {}
+
+    raise HTTPException(status_code=401, detail="Dex account not synchronized")
 
 
 @app.get("/api/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "dex-api"}
+    return {"status": "ok", "service": "dex-api", "database": "firestore"}
 
 
 @app.get("/api/media/trending")
@@ -76,49 +116,12 @@ async def trending(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-def normalize_username(value: str) -> str:
-    return value.strip().lower()
-
-
-async def username_exists(db: AsyncSession, username: str) -> bool:
-    return (await db.execute(select(User.id).where(User.username == normalize_username(username)))).scalar_one_or_none() is not None
-
-
-async def current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    if not credentials or credentials.scheme.lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    decoded = verify_firebase_token(credentials.credentials)
-    firebase_uid = str(decoded.get("uid", ""))
-    email = str(decoded.get("email", "")).lower()
-    if not firebase_uid or not email:
-        raise HTTPException(status_code=401, detail="Firebase account is missing required identity information")
-
-    identity = (
-        await db.execute(
-            select(AuthIdentity).where(
-                AuthIdentity.provider == "firebase",
-                AuthIdentity.provider_subject == firebase_uid,
-            )
-        )
-    ).scalar_one_or_none()
-    if identity:
-        user = await db.get(User, identity.user_id)
-        if user:
-            return user
-
-    raise HTTPException(status_code=401, detail="Dex account not synchronized")
-
-
 @app.post("/api/auth/sync", response_model=UserPublic)
 async def sync_auth_user(
     payload: AuthSyncRequest,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
-    db: AsyncSession = Depends(get_db),
-) -> User:
+    db=Depends(get_firestore),
+) -> UserPublic:
     if not credentials or credentials.scheme.lower() != "bearer":
         raise HTTPException(status_code=401, detail="Authentication required")
 
@@ -128,90 +131,99 @@ async def sync_auth_user(
     if not firebase_uid or not email:
         raise HTTPException(status_code=401, detail="Firebase account is missing required identity information")
 
-    identity = (
-        await db.execute(
-            select(AuthIdentity).where(
-                AuthIdentity.provider == "firebase",
-                AuthIdentity.provider_subject == firebase_uid,
-            )
-        )
-    ).scalar_one_or_none()
-    if identity:
-        user = await db.get(User, identity.user_id)
-        if not user:
-            raise HTTPException(status_code=409, detail="Firebase identity points to a missing Dex account")
-        return user
+    ref = user_ref(db, firebase_uid)
+    snapshot = await ref.get()
+    if snapshot.exists:
+        data = snapshot.to_dict() or {}
+        if payload.display_name and not data.get("display_name"):
+            data["display_name"] = payload.display_name
+            await ref.update({"display_name": payload.display_name})
+        return user_public(firebase_uid, data)
 
-    user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
-    if user:
-        if payload.display_name and not user.display_name:
-            user.display_name = payload.display_name
-    else:
-        user = User(
-            email=email,
-            username=None,
-            password_hash=None,
-            display_name=payload.display_name or decoded.get("name"),
-        )
-        db.add(user)
-        await db.flush()
-
-    db.add(AuthIdentity(provider="firebase", provider_subject=firebase_uid, user_id=user.id))
-    try:
-        await db.commit()
-        await db.refresh(user)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=409, detail="Could not synchronize your Dex account") from None
-    return user
+    now = datetime.now(timezone.utc)
+    data = {
+        "email": email,
+        "username": None,
+        "display_name": payload.display_name or decoded.get("name"),
+        "tagline": None,
+        "created_at": now,
+    }
+    await ref.set(data)
+    return user_public(firebase_uid, data)
 
 
 @app.get("/api/auth/username/available")
 async def username_available(
     username: str = Query(..., min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]+$"),
-    db: AsyncSession = Depends(get_db),
+    db=Depends(get_firestore),
 ) -> dict[str, bool]:
-    return {"available": not await username_exists(db, username)}
+    key = normalize_username(username)
+    snapshot = await db.collection(USERNAME_REGISTRY).document(key).get()
+    return {"available": not snapshot.exists}
 
 
 @app.post("/api/auth/username", response_model=UserPublic)
 async def set_username(
     payload: UsernameRequest,
-    user: User = Depends(current_user),
-    db: AsyncSession = Depends(get_db),
-) -> User:
+    current=Depends(current_user),
+    db=Depends(get_firestore),
+) -> UserPublic:
+    firebase_uid, data = current
     username = normalize_username(payload.username)
-    if await username_exists(db, username) and user.username != username:
-        raise HTTPException(status_code=409, detail="That username is already taken.")
-    user.username = username
-    try:
-        await db.commit()
-        await db.refresh(user)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=409, detail="That username is already taken.") from None
-    return user
+    registry_ref = db.collection(USERNAME_REGISTRY).document(username)
+    existing = await registry_ref.get()
+
+    if existing.exists:
+        existing_uid = str((existing.to_dict() or {}).get("firebase_uid", ""))
+        if existing_uid != firebase_uid:
+            raise HTTPException(status_code=409, detail="That username is already taken.")
+    else:
+        await registry_ref.create({"firebase_uid": firebase_uid, "created_at": datetime.now(timezone.utc)})
+
+    old_username = data.get("username")
+    await user_ref(db, firebase_uid).update({"username": username})
+
+    if old_username and old_username != username:
+        old_ref = db.collection(USERNAME_REGISTRY).document(normalize_username(old_username))
+        old_snapshot = await old_ref.get()
+        if old_snapshot.exists and (old_snapshot.to_dict() or {}).get("firebase_uid") == firebase_uid:
+            await old_ref.delete()
+
+    data["username"] = username
+    return user_public(firebase_uid, data)
 
 
 @app.get("/api/me", response_model=UserPublic)
-async def me(user: User = Depends(current_user)) -> User:
-    return user
+async def me(current=Depends(current_user)) -> UserPublic:
+    firebase_uid, data = current
+    return user_public(firebase_uid, data)
 
 
 @app.post("/api/watches", response_model=WatchPublic, status_code=status.HTTP_201_CREATED)
-async def add_watch(payload: WatchCreate, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> Watch:
-    watch = Watch(user_id=user.id, **payload.model_dump())
-    db.add(watch)
-    try:
-        await db.commit()
-        await db.refresh(watch)
-    except IntegrityError:
-        await db.rollback()
-        raise HTTPException(status_code=409, detail="This title is already in your library") from None
-    return watch
+async def add_watch(
+    payload: WatchCreate,
+    current=Depends(current_user),
+    db=Depends(get_firestore),
+) -> WatchPublic:
+    firebase_uid, _ = current
+    doc_id = f"{payload.media_type}_{payload.tmdb_id}"
+    ref = user_ref(db, firebase_uid).collection("watches").document(doc_id)
+    existing = await ref.get()
+    if existing.exists:
+        raise HTTPException(status_code=409, detail="This title is already in your library")
+
+    data = payload.model_dump()
+    data["created_at"] = datetime.now(timezone.utc)
+    await ref.create(data)
+    return watch_public(doc_id, data)
 
 
 @app.get("/api/watches", response_model=list[WatchPublic])
-async def list_watches(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)) -> list[Watch]:
-    result = await db.execute(select(Watch).where(Watch.user_id == user.id).order_by(Watch.created_at.desc()))
-    return list(result.scalars().all())
+async def list_watches(
+    current=Depends(current_user),
+    db=Depends(get_firestore),
+) -> list[WatchPublic]:
+    firebase_uid, _ = current
+    snapshots = [snapshot async for snapshot in user_ref(db, firebase_uid).collection("watches").stream()]
+    snapshots.sort(key=lambda snapshot: snapshot.to_dict().get("created_at") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    return [watch_public(snapshot.id, snapshot.to_dict() or {}) for snapshot in snapshots]
