@@ -1,5 +1,6 @@
 import React from 'react';
 import { DexBackground } from './components/DexBackground';
+import { getCachedAuthState } from './lib/authSession';
 import { AboutPage } from './pages/AboutPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
@@ -9,6 +10,13 @@ import { HomePage } from './pages/HomePage';
 
 export const App: React.FC = () => {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
+  const cachedAuthState = getCachedAuthState();
+
+  if (path === '/sign-up' && cachedAuthState === 'signed_in') {
+    window.location.replace('/profile');
+    return null;
+  }
+
   const page = path === '/privacy-policy' ? <PrivacyPolicy />
     : path === '/terms-of-service' ? <TermsOfService />
     : path === '/about-me' ? <AboutPage />
