@@ -163,3 +163,35 @@
 .animate-spin-slow { animation: spin-slow 20s linear infinite; }
 .animate-pulse-subtle { animation: pulse-subtle 3s ease-in-out infinite; }
 .animate-taste-glow { animation: taste-bar-glow 2s ease-in-out infinite; }
+
+/* Shared route transition + loading indicator */
+.dex-route-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 9999;
+  height: 2px;
+  pointer-events: none;
+  transform-origin: left;
+  background: linear-gradient(90deg, transparent 0%, rgba(168, 85, 247, 0.25) 20%, #8B5CF6 50%, rgba(168, 85, 247, 0.25) 80%, transparent 100%);
+  animation: dex-route-progress 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dex-page-enter {
+  animation: dex-page-enter 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes dex-route-progress {
+  from { transform: scaleX(0); opacity: 0; }
+  15% { opacity: 1; }
+  to { transform: scaleX(1); opacity: 0; }
+}
+
+@keyframes dex-page-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dex-page-enter { animation: none; }
+  .dex-route-progress { display: none; }
+}
