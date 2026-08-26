@@ -42,14 +42,14 @@ export const TrendingPage: React.FC = () => {
     return () => controller.abort();
   }, [type, timeWindow]);
 
-  const visible = useMemo(() => items.filter((item) => item.poster_path), [items]);
+  const visible = useMemo(() => items.filter((item) => item.poster_path).slice(0, 24), [items]);
 
   return (
     <div className="min-h-screen bg-[#080810] text-white">
       <header className="border-b border-white/[0.06]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:py-6">
           <a href="/" aria-label="Dex home">
-            <img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain sm:h-10 sm:w-22" />
+            <img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain" />
           </a>
           <div className="flex items-center gap-3 sm:gap-5">
             <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7] transition-colors hover:text-[#C084FC]">
@@ -62,11 +62,9 @@ export const TrendingPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-1 pb-20 pt-6">
+      <main className="mx-auto max-w-7xl px-6 pb-20 pt-6">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <p className="text-lg font-semibold uppercase tracking-[0.2em] text-[#A855F7]">
-            Dex Discover
-          </p>
+          <p className="text-lg font-semibold uppercase tracking-[0.2em] text-[#A855F7]">Dex Discover</p>
 
           <div className="flex flex-wrap gap-2">
             {(['day', 'week'] as const).map((value) => (
@@ -101,7 +99,7 @@ export const TrendingPage: React.FC = () => {
 
         {loading && (
           <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {Array.from({ length: 12 }, (_, index) => (
+            {Array.from({ length: 24 }, (_, index) => (
               <div key={index} className="aspect-[2/3] animate-pulse rounded-xl bg-white/[0.06]" />
             ))}
           </div>
@@ -149,6 +147,17 @@ export const TrendingPage: React.FC = () => {
           </section>
         )}
       </main>
+
+      <footer className="border-t border-white/[0.06] px-6 py-6">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-xs text-[#64748B] sm:flex-row">
+          <span>© 2026 Dex. All rights reserved.</span>
+          <div className="flex items-center gap-5">
+            <a href="/privacy-policy" className="transition-colors hover:text-[#94A3B8]">Privacy Policy</a>
+            <a href="/terms-of-service" className="transition-colors hover:text-[#94A3B8]">Terms of Service</a>
+            <a href="mailto:systemrecord07@gmail.com" className="transition-colors hover:text-[#94A3B8]">Contact</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
