@@ -3,11 +3,11 @@ import React from 'react';
 export const LandingPage: React.FC = () => {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#080810] flex flex-col">
-      <header className="relative z-10 w-full max-w-7xl mx-auto px-6 py-5 sm:py-6 flex items-center justify-between">
+      <header className="relative z-8 w-full max-w-7xl mx-auto px-6 py-5 sm:py-6 flex items-center justify-between">
         <img
           src="/DEXi.png"
           alt="Dex"
-          className="h-14 w-14 sm:h-16 sm:w-16 object-contain"
+          className="h-14 w-14 sm:h-10 sm:w-22 object-contain"
         />
 
         <div className="flex items-center gap-3 sm:gap-5">
