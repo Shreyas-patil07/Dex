@@ -37,15 +37,50 @@
   }
 }
 
-/* Shared page background layering */
 .dex-route > div:first-child {
   background-color: transparent !important;
 }
 
-/* Keep every route above the decorative background */
 .dex-route > div:first-child > *:not(.pointer-events-none) {
   position: relative;
   z-index: 10;
+}
+
+.dex-line {
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.dex-line-1 {
+  animation: dex-line-one 12s ease-in-out infinite;
+}
+
+.dex-line-2 {
+  animation: dex-line-two 16s ease-in-out infinite;
+}
+
+.dex-line-3 {
+  animation: dex-line-three 20s ease-in-out infinite;
+}
+
+@keyframes dex-line-one {
+  0%, 100% { transform: translate(-220px, 90px); }
+  50% { transform: translate(220px, -90px); }
+}
+
+@keyframes dex-line-two {
+  0%, 100% { transform: translate(220px, -110px); }
+  50% { transform: translate(-220px, 110px); }
+}
+
+@keyframes dex-line-three {
+  0%, 100% { transform: translate(-160px, 120px); }
+  50% { transform: translate(160px, -120px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dex-line { animation: none; }
 }
 
 ::-webkit-scrollbar {
