@@ -21,7 +21,26 @@ export const HomePage: React.FC = () => {
     setSessionKnownSignedIn(currentUser !== null);
   }), []);
 
-  useEffect(() => { const controller = new AbortController(); setLoading(true); setError(''); fetch(`${API_BASE}/api/media/trending?media_type=${type}&time_window=${timeWindow}`, { signal: controller.signal }).then(async r => { if (!r.ok) throw new Error('Could not load trending titles.'); return r.json(); }).then(data => setItems(data.results ?? [])).catch((err: Error) => { if (err.name !== 'AbortError') setError(err.message); }).finally(() => setLoading(false)); return () => controller.abort(); }, [type, timeWindow]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    setItems([]);
+
+    fetch(`${API_BASE}/api/media/trending?media_type=${type}&time_window=${timeWindow}`, { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error('Could not load trending titles.');
+        return response.json();
+      })
+      .then(data => setItems(Array.isArray(data.results) ? data.results : []))
+      .catch((err: Error) => {
+        if (err.name !== 'AbortError') setError(err.message);
+      })
+      .finally(() => setLoading(false));
+
+    return () => controller.abort();
+  }, [type, timeWindow]);
+
   const visible = useMemo(() => items.filter(item => item.poster_path).slice(0, 24), [items]);
   const isSignedIn = user !== null || sessionKnownSignedIn;
 
