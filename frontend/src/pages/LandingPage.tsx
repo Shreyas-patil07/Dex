@@ -22,11 +22,14 @@ export const LandingPage: React.FC = () => {
 
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center">
         <h1 className="max-w-4xl text-4xl font-display font-extrabold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl">
-          Explore yourself through what you{' '}
+          Welcome to your{' '}
           <span className="bg-gradient-to-r from-[#A855F7] via-[#C084FC] to-[#2DD4BF] bg-clip-text text-transparent">
-            watch.
+            Memories
           </span>
         </h1>
+        <p className="mt-5 max-w-2xl text-base font-medium tracking-wide text-[#94A3B8] sm:text-lg">
+          Explore yourself through what you watch.
+        </p>
       </main>
 
       <footer className="relative z-10 w-full border-t border-white/[0.05] px-6 py-5 sm:py-6">
