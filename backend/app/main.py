@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-import re
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,17 +73,6 @@ async def username_exists(db: AsyncSession, username: str) -> bool:
     return (await db.execute(select(User.id).where(User.username == normalize_username(username)))).scalar_one_or_none() is not None
 
 
-async def temporary_username(db: AsyncSession, firebase_uid: str) -> str:
-    base = f"user_{re.sub(r'[^a-z0-9]', '', firebase_uid.lower())}"[:25]
-    candidate = base
-    index = 1
-    while await username_exists(db, candidate):
-        suffix = str(index)
-        candidate = f"{base[:32-len(suffix)]}{suffix}"
-        index += 1
-    return candidate
-
-
 async def current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: AsyncSession = Depends(get_db),
@@ -150,7 +138,7 @@ async def sync_auth_user(
     else:
         user = User(
             email=email,
-            username=await temporary_username(db, firebase_uid),
+            username=None,
             password_hash=None,
             display_name=payload.display_name or decoded.get("name"),
         )
