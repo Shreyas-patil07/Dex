@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: dex-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: APP_NAME
+        value: Dex API
+      - key: ENVIRONMENT
+        value: production
+      - key: FRONTEND_URL
+        value: https://dex-list.vercel.app
+      - key: CORS_ORIGINS
+        value: https://dex-list.vercel.app
+      - key: TMDB_API_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        value: dex-07
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/service-account.json
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
