@@ -9,7 +9,6 @@ import { HomePage } from './pages/HomePage';
 
 export const App: React.FC = () => {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
-
   const page = path === '/privacy-policy' ? <PrivacyPolicy />
     : path === '/terms-of-service' ? <TermsOfService />
     : path === '/about-me' ? <AboutPage />
@@ -19,7 +18,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="dex-shell relative min-h-screen overflow-x-hidden bg-[#080810]">
-      {path !== '/about-me' && <DexBackground />}
+      <DexBackground />
       <div className="dex-route relative z-10 min-h-screen">{page}</div>
     </div>
   );
