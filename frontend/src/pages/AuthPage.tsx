@@ -103,8 +103,13 @@ export const AuthPage: React.FC = () => {
     try {
       const result = await signInWithPopup(auth, new GoogleAuthProvider());
       setFullName(result.user.displayName || '');
-      await syncUser();
-      setStep('username');
+      const syncedUser = await syncUser();
+      if (syncedUser.username) {
+        localStorage.setItem('dex_access_token', await result.user.getIdToken(true));
+        window.location.href = '/profile';
+      } else {
+        setStep('username');
+      }
     } catch (error) {
       if (error instanceof FirebaseError && error.code === 'auth/account-exists-with-different-credential') {
         const credential = GoogleAuthProvider.credentialFromError(error);
@@ -141,9 +146,14 @@ export const AuthPage: React.FC = () => {
         try { await linkWithCredential(result.user, pendingGoogleCredential); setPendingGoogleCredential(null); }
         catch (error) { if (!(error instanceof FirebaseError) || error.code !== 'auth/credential-already-in-use') throw error; }
       }
-      await syncUser();
+      const syncedUser = await syncUser();
       setFullName(result.user.displayName || '');
-      setStep('username');
+      if (syncedUser.username) {
+        localStorage.setItem('dex_access_token', await result.user.getIdToken(true));
+        window.location.href = '/profile';
+      } else {
+        setStep('username');
+      }
     } catch (error) { setMessage(getFirebaseMessage(error)); }
     finally { setLoading(false); }
   }
