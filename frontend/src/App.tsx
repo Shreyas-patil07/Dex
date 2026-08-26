@@ -1,4 +1,5 @@
 import React from 'react';
+import { DexBackground } from './components/DexBackground';
 import { AboutPage } from './pages/AboutPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
@@ -9,13 +10,19 @@ import { HomePage } from './pages/HomePage';
 export const App: React.FC = () => {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
 
-  if (path === '/privacy-policy') return <PrivacyPolicy />;
-  if (path === '/terms-of-service') return <TermsOfService />;
-  if (path === '/about-me') return <AboutPage />;
-  if (path === '/sign-up') return <SignUpPage />;
-  if (path === '/profile') return <ProfilePage />;
+  const page = path === '/privacy-policy' ? <PrivacyPolicy />
+    : path === '/terms-of-service' ? <TermsOfService />
+    : path === '/about-me' ? <AboutPage />
+    : path === '/sign-up' ? <SignUpPage />
+    : path === '/profile' ? <ProfilePage />
+    : <HomePage />;
 
-  return <HomePage />;
+  return (
+    <>
+      {path !== '/about-me' && <DexBackground />}
+      {page}
+    </>
+  );
 };
 
 export default App;
