@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "sqlite+aiosqlite:///./dex.db"
     frontend_url: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,https://dex-list.vercel.app"
     tmdb_api_key: str = ""
     tmdb_base_url: str = "https://api.themoviedb.org/3"
     firebase_project_id: str = "dex-07"
