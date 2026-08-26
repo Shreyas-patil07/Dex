@@ -7,3 +7,5 @@ pydantic-settings>=2.10,<3.0
 PyJWT>=2.10,<3.0
 pwdlib[argon2]>=0.2,<1.0
 email-validator>=2.2,<3.0
+httpx>=0.28,<1.0
+google-auth>=2.40,<3.0
