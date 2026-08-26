@@ -36,9 +36,9 @@ export const LandingPage: React.FC = () => {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-xs font-mono text-[#64748B] sm:flex-row">
           <span>© 2026 Dex. All rights reserved.</span>
           <div className="flex items-center gap-4 sm:gap-5">
-            <button className="transition-colors hover:text-[#94A3B8] cursor-pointer">Privacy Policy</button>
-            <button className="transition-colors hover:text-[#94A3B8] cursor-pointer">Terms of Service</button>
-            <button className="transition-colors hover:text-[#94A3B8] cursor-pointer">Contact</button>
+            <a href="/privacy-policy" className="transition-colors hover:text-[#94A3B8]">Privacy Policy</a>
+            <a href="/terms-of-service" className="transition-colors hover:text-[#94A3B8]">Terms of Service</a>
+            <a href="mailto:[Legal Contact Email]" className="transition-colors hover:text-[#94A3B8]">Contact</a>
           </div>
         </div>
       </footer>
