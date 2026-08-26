@@ -8,6 +8,7 @@ export const App: React.FC = () => {
 
   if (path === '/privacy-policy') return <PrivacyPolicy />;
   if (path === '/terms-of-service') return <TermsOfService />;
+  if (path === '/' || path === '/about-me') return <LandingPage />;
 
   return <LandingPage />;
 };
