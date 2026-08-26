@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-=======
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
->>>>>>> 81f2792c86794e3a825f8ada0adbadad6da59b97
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -15,12 +10,6 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-<<<<<<< HEAD
-const app = initializeApp(firebaseConfig);
-
-export const auth = getAuth(app);
-=======
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
->>>>>>> 81f2792c86794e3a825f8ada0adbadad6da59b97
