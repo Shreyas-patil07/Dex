@@ -37,6 +37,8 @@ export const TermsOfService: React.FC = () => (
         <Section title="20. Contact"><p>Questions about these Terms should be sent to <strong className="text-white">systemrecord07@gmail.com</strong>.</p></Section>
       </div>
     </main>
+    <footer className="relative z-10 w-full border-t border-white/[0.05] px-6 py-5 sm:py-6"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-xs font-mono text-[#64748B] sm:flex-row">
+        <span>© 2026 Dex. All rights reserved.</span><div className="flex items-center gap-4 sm:gap-5"><a href="/about-me" className="transition-colors hover:text-[#94A3B8]">About</a><a href="/privacy-policy" className="transition-colors hover:text-[#94A3B8]">Privacy Policy</a><a href="/terms-of-service" className="transition-colors hover:text-[#94A3B8]">Terms of Service</a><a href="mailto:systemrecord07@gmail.com" className="transition-colors hover:text-[#94A3B8]">Contact</a></div></div></footer>
   </div>
 );
 

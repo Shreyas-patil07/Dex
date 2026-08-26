@@ -64,5 +64,7 @@ export const ProfilePage: React.FC = () => {
 
       <section className="mt-12 rounded-3xl border border-white/[0.07] bg-white/[0.02] p-7 sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A855F7]">Your identity</p><h2 className="mt-2 text-xl font-bold">Explore yourself through what you watch.</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-[#94A3B8]">As your watch history grows, Dex will turn it into a picture of your entertainment taste.</p><p className="mt-5 text-xs text-[#475569]">Member since {new Date(user.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</p></section>
     </main>
+    <footer className="relative z-10 w-full border-t border-white/[0.05] px-6 py-5 sm:py-6"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-xs font-mono text-[#64748B] sm:flex-row">
+        <span>© 2026 Dex. All rights reserved.</span><div className="flex items-center gap-4 sm:gap-5"><a href="/about-me" className="transition-colors hover:text-[#94A3B8]">About</a><a href="/privacy-policy" className="transition-colors hover:text-[#94A3B8]">Privacy Policy</a><a href="/terms-of-service" className="transition-colors hover:text-[#94A3B8]">Terms of Service</a><a href="mailto:systemrecord07@gmail.com" className="transition-colors hover:text-[#94A3B8]">Contact</a></div></div></footer>
   </div>;
 };
