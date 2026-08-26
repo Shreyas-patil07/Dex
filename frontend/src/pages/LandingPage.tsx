@@ -3,6 +3,49 @@ import React from 'react';
 export const LandingPage: React.FC = () => {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#080810] flex flex-col">
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <svg className="absolute -left-[12%] top-[12%] h-[76%] w-[124%] opacity-[0.16]" viewBox="0 0 1200 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path className="dex-orbit dex-orbit-one" d="M-80 520C120 150 330 80 560 190C790 300 900 620 1280 280" stroke="#7C3AED" strokeWidth="1.2" strokeLinecap="round" />
+          <path className="dex-orbit dex-orbit-two" d="M-120 300C170 570 390 580 610 360C820 150 1010 160 1300 430" stroke="#A855F7" strokeWidth="0.9" strokeLinecap="round" />
+          <path className="dex-orbit dex-orbit-three" d="M40 680C260 390 470 330 700 450C930 570 1080 520 1250 170" stroke="#2DD4BF" strokeWidth="0.7" strokeLinecap="round" />
+          <circle className="dex-particle dex-particle-one" cx="260" cy="220" r="2" fill="#A855F7" />
+          <circle className="dex-particle dex-particle-two" cx="850" cy="470" r="1.5" fill="#2DD4BF" />
+          <circle className="dex-particle dex-particle-three" cx="1020" cy="230" r="1.5" fill="#A855F7" />
+        </svg>
+      </div>
+
+      <style>{`
+        .dex-orbit {
+          transform-box: fill-box;
+          transform-origin: center;
+        }
+        .dex-orbit-one { animation: dex-drift-one 18s ease-in-out infinite alternate; }
+        .dex-orbit-two { animation: dex-drift-two 24s ease-in-out infinite alternate; }
+        .dex-orbit-three { animation: dex-drift-three 30s ease-in-out infinite alternate; }
+        .dex-particle-one { animation: dex-pulse 5s ease-in-out infinite; }
+        .dex-particle-two { animation: dex-pulse 7s ease-in-out 1s infinite; }
+        .dex-particle-three { animation: dex-pulse 6s ease-in-out 2s infinite; }
+        @keyframes dex-drift-one {
+          from { transform: translate3d(-18px, 10px, 0) rotate(-1deg); }
+          to { transform: translate3d(24px, -14px, 0) rotate(1deg); }
+        }
+        @keyframes dex-drift-two {
+          from { transform: translate3d(20px, -12px, 0) rotate(0.5deg); }
+          to { transform: translate3d(-26px, 16px, 0) rotate(-0.8deg); }
+        }
+        @keyframes dex-drift-three {
+          from { transform: translate3d(-10px, 16px, 0); }
+          to { transform: translate3d(18px, -12px, 0); }
+        }
+        @keyframes dex-pulse {
+          0%, 100% { opacity: 0.15; transform: scale(0.8); }
+          50% { opacity: 0.65; transform: scale(1.35); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .dex-orbit, .dex-particle { animation: none; }
+        }
+      `}</style>
+
       <header className="relative z-8 w-full max-w-7xl mx-auto px-6 py-5 sm:py-6 flex items-center justify-between">
         <img
           src="/DEXi.png"
