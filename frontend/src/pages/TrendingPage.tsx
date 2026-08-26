@@ -49,7 +49,7 @@ export const TrendingPage: React.FC = () => {
       <header className="border-b border-white/[0.06]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:py-6">
           <a href="/" aria-label="Dex home">
-            <img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain sm:h-12 sm:w-22" />
+            <img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain sm:h-10 sm:w-22" />
           </a>
           <div className="flex items-center gap-3 sm:gap-5">
             <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7] transition-colors hover:text-[#C084FC]">
@@ -62,7 +62,7 @@ export const TrendingPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 pb-20 pt-14">
+      <main className="mx-auto max-w-7xl px-1 pb-20 pt-6">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <p className="text-lg font-semibold uppercase tracking-[0.2em] text-[#A855F7]">
             Dex Discover
