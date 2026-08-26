@@ -18,10 +18,10 @@ export const App: React.FC = () => {
     : <HomePage />;
 
   return (
-    <>
+    <div className="dex-shell relative min-h-screen overflow-x-hidden bg-[#080810]">
       {path !== '/about-me' && <DexBackground />}
-      {page}
-    </>
+      <div className="dex-route relative z-10 min-h-screen">{page}</div>
+    </div>
   );
 };
 
