@@ -46,43 +46,38 @@ export const TrendingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#080810] text-white">
-<<<<<<< HEAD
-      <header className="relative z-8 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5 sm:py-6">
-        <img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain sm:h-12 sm:w-22" />
-        <div className="flex items-center gap-3 sm:gap-5">
-          <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7] transition-colors hover:text-[#C084FC]">Login</button>
-          <button className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6D28D9]">Sign Up</button>
-=======
       <header className="border-b border-white/[0.06]">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:py-6">
           <a href="/" aria-label="Dex home">
             <img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain sm:h-12 sm:w-22" />
           </a>
           <div className="flex items-center gap-3 sm:gap-5">
-            <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7] transition-colors hover:text-[#C084FC]">Login</button>
-            <button className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6D28D9]">Sign Up</button>
+            <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7] transition-colors hover:text-[#C084FC]">
+              Login
+            </button>
+            <button className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6D28D9]">
+              Sign Up
+            </button>
           </div>
->>>>>>> 46d59f79a0f28025b652e50d009228ff6f990fd1
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-6 pb-20 pt-14">
-<<<<<<< HEAD
-        <div className="flex flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xl font-semibold uppercase tracking-[0.22em] text-[#A855F7]">Dex Discover</p>
-          </div>
-=======
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <p className="text-lg font-semibold uppercase tracking-[0.2em] text-[#A855F7]">Dex Discover</p>
->>>>>>> 46d59f79a0f28025b652e50d009228ff6f990fd1
+          <p className="text-lg font-semibold uppercase tracking-[0.2em] text-[#A855F7]">
+            Dex Discover
+          </p>
 
           <div className="flex flex-wrap gap-2">
             {(['day', 'week'] as const).map((value) => (
               <button
                 key={value}
                 onClick={() => setTimeWindow(value)}
-                className={`rounded-lg border px-4 py-2 text-sm transition-colors ${timeWindow === value ? 'border-[#7C3AED] bg-[#7C3AED] text-white' : 'border-white/[0.08] text-[#94A3B8] hover:border-white/[0.16] hover:text-white'}`}
+                className={`rounded-lg border px-4 py-2 text-sm transition-colors ${
+                  timeWindow === value
+                    ? 'border-[#7C3AED] bg-[#7C3AED] text-white'
+                    : 'border-white/[0.08] text-[#94A3B8] hover:border-white/[0.16] hover:text-white'
+                }`}
               >
                 {value === 'day' ? 'Today' : 'This week'}
               </button>
@@ -92,7 +87,11 @@ export const TrendingPage: React.FC = () => {
               <button
                 key={value}
                 onClick={() => setType(value)}
-                className={`rounded-lg border px-4 py-2 text-sm transition-colors ${type === value ? 'border-[#A855F7]/70 bg-[#A855F7]/10 text-[#D8B4FE]' : 'border-white/[0.08] text-[#94A3B8] hover:border-white/[0.16] hover:text-white'}`}
+                className={`rounded-lg border px-4 py-2 text-sm transition-colors ${
+                  type === value
+                    ? 'border-[#A855F7]/70 bg-[#A855F7]/10 text-[#D8B4FE]'
+                    : 'border-white/[0.08] text-[#94A3B8] hover:border-white/[0.16] hover:text-white'
+                }`}
               >
                 {value === 'all' ? 'All' : value === 'movie' ? 'Movies' : 'Series'}
               </button>
