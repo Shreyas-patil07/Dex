@@ -3,13 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
-class UserCreate(BaseModel):
-    email: EmailStr
-    username: str = Field(min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]+$")
-    password: str = Field(min_length=8, max_length=128)
-    display_name: str | None = Field(default=None, max_length=80)
-
-
 class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -19,24 +12,6 @@ class UserPublic(BaseModel):
     display_name: str | None
     tagline: str | None
     created_at: datetime
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class GoogleCredential(BaseModel):
-    credential: str = Field(min_length=1)
-
-
-class PasswordCreate(BaseModel):
-    password: str = Field(min_length=8, max_length=128)
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
 
 
 class WatchCreate(BaseModel):
