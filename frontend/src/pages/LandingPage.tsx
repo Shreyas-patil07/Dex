@@ -31,7 +31,7 @@ export const LandingPage: React.FC = () => {
       `}</style>
 
       <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5 sm:py-6">
-        <img src="/DEXi.png" alt="Dex" className="h-14 w-14 object-contain sm:h-16 sm:w-16" />
+        <img src="/DEXi.png" alt="Dex" className="h-14 w-14 object-contain sm:h-12 sm:w-22" />
         <div className="flex items-center gap-3 sm:gap-5">
           <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7] transition-colors hover:text-[#C084FC]">Login</button>
           <button className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6D28D9]">Sign Up</button>
