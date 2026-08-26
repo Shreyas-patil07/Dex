@@ -47,14 +47,11 @@ export const TrendingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#080810] text-white">
-      <header className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#080810]/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <a href="/" aria-label="Dex home">
-            <img src="/DEXi.png" alt="Dex" className="h-12 w-12 object-contain" />
-          </a>
-          <a href="/about-me" className="text-sm font-medium text-[#94A3B8] transition-colors hover:text-white">
-            About Dex
-          </a>
+      <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5 sm:py-6">
+        <img src="/DEXi.png" alt="Dex" className="h-14 w-14 object-contain sm:h-16 sm:w-16" />
+        <div className="flex items-center gap-3 sm:gap-5">
+          <button className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7] transition-colors hover:text-[#C084FC]">Login</button>
+          <button className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#6D28D9]">Sign Up</button>
         </div>
       </header>
 
