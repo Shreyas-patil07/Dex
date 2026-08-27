@@ -1,6 +1,12 @@
 {
-  "name": "Dex",
+  "name": "Dex — Your Entertainment Identity",
   "short_name": "Dex",
+  "description": "Discover trending movies and series, track your watch history, and build your entertainment identity.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#08080C",
+  "background_color": "#08080C",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -14,8 +20,5 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ],
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff",
-  "display": "standalone"
+  ]
 }
