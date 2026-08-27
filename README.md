@@ -9,17 +9,19 @@ Dex is a movie and series discovery and watch-history platform. Discover what is
 - Frontend: https://dex-list.vercel.app/
 - Backend API: https://dex-connect.onrender.com/
 - API docs: https://dex-connect.onrender.com/docs
+- Health: https://dex-connect.onrender.com/api/health
 
-## What Dex does
+## Features
 
-- Browse trending movies and series powered by TMDB
-- Filter trending titles by day/week and movie/series
-- Create an account with Firebase Authentication
-- Sign in with Google or email/password
-- Link Google and email/password authentication to the same account
-- Choose a unique Dex username
-- View your profile and watch history
-- Store user and watch data in Cloud Firestore
+- Browse 24 trending movies and series powered by TMDB
+- Filter trending titles by today/week and movie/series
+- Firebase Google and email/password authentication
+- Link multiple Firebase sign-in methods to one Dex account
+- Unique Dex usernames
+- Profile and watch-history views
+- Cloud Firestore persistence
+- Shared client-side navigation with consistent transitions
+- Responsive UI with a persistent animated background
 
 ## Stack
 
@@ -39,15 +41,25 @@ Dex is a movie and series discovery and watch-history platform. Discover what is
 - Cloud Firestore
 - TMDB API
 
+### Hosting
+
+- Vercel — frontend
+- Render — backend
+- Firebase — authentication and Firestore
+
 ## Project structure
 
 ```text
 Dex/
-├── frontend/          # React + Vite application
-├── backend/           # FastAPI API
-├── favicon/           # Favicon and PWA assets
-├── Research documentation/
-├── render.yaml        # Render backend deployment
+├── frontend/                 # React + Vite application
+├── backend/                  # FastAPI API
+├── favicon/                  # Repository favicon/PWA assets
+├── Research documentation/   # Product/design research
+├── .github/workflows/        # CI
+├── render.yaml               # Render backend deployment
+├── CONTRIBUTING.md
+├── SECURITY.md
+├── .editorconfig
 └── README.md
 ```
 
@@ -60,11 +72,13 @@ cd frontend
 npm install
 ```
 
-Create `frontend/.env` from `.env.example` and add your Firebase web configuration plus:
+Create `frontend/.env` from `.env.example` and set:
 
 ```env
 VITE_API_URL=http://localhost:8000
 ```
+
+Also provide the Firebase web configuration values listed in `frontend/.env.example`.
 
 Start:
 
@@ -97,27 +111,51 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Create `backend/.env` from `.env.example` and configure your TMDB key and Firebase project settings.
+Create `backend/.env` from `.env.example`.
 
-For local Firebase Admin access, keep the service-account file at:
+For local Firebase Admin access, place the service-account JSON at:
 
 ```text
 backend/service-account.json
 ```
 
-Start the API:
+Start:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-## Authentication
+API docs:
 
-Firebase Authentication is the source of truth for sign-in sessions. The frontend sends a Firebase ID token to FastAPI, and FastAPI verifies it with the Firebase Admin SDK.
+```text
+http://localhost:8000/docs
+```
 
-After authentication, `/api/auth/sync` creates or updates the corresponding Firestore user document. Protected endpoints then use the Firebase UID to access the user's data.
+## Authentication flow
 
-## Data model
+Firebase Authentication is the source of truth for sessions.
+
+```text
+Firebase sign-in
+      ↓
+Firebase ID token
+      ↓
+FastAPI verification
+      ↓
+/api/auth/sync
+      ↓
+Firestore user document
+      ↓
+Protected Dex endpoints
+```
+
+Protected requests send:
+
+```http
+Authorization: Bearer <firebase-id-token>
+```
+
+## Firestore data model
 
 ```text
 users/{firebase_uid}
@@ -142,26 +180,77 @@ usernames/{username}
   created_at
 ```
 
-## Environment variables
+## API
 
-Never commit real `.env` files or Firebase service-account credentials.
+```text
+GET  /api/health
+GET  /api/media/trending
+POST /api/auth/sync
+GET  /api/auth/username/available
+POST /api/auth/username
+GET  /api/me
+POST /api/watches
+GET  /api/watches
+```
 
-Frontend variables are defined in `frontend/.env.example`.
-Backend variables are defined in `backend/.env.example`.
+## Environment and secrets
+
+Never commit real environment files or Firebase Admin credentials.
+
+Frontend:
+
+```text
+frontend/.env.example
+```
+
+Backend:
+
+```text
+backend/.env.example
+```
+
+Firebase web API keys are client-side configuration. Firebase Admin service-account credentials are private and must remain server-side.
+
+Local databases, credentials, private keys, and environment files are ignored by Git.
 
 ## Deployment
 
-The frontend is deployed on Vercel and the API is deployed on Render. The backend does not use SQLite; persistent application data is stored in Cloud Firestore.
+Frontend is deployed on Vercel. Backend is deployed on Render. Persistent application data is stored in Cloud Firestore.
 
-Render uses `render.yaml` for the production service configuration.
+`frontend/vercel.json` provides SPA rewrites so direct visits to client-side routes resolve to the Vite entry point.
 
-## Security notes
+`render.yaml` defines the production FastAPI service configuration.
 
-- Firebase web API keys are public configuration values and are injected through Vite environment variables.
-- Firebase Admin service-account credentials are private and must never be committed to Git.
-- Local databases, environment files, and service-account files are ignored by Git.
-- Treat previously exposed credentials or data as compromised and rotate them when necessary.
+## Quality checks
+
+GitHub Actions runs on pushes and pull requests targeting `main`:
+
+- frontend dependency install and production build
+- backend dependency install and Python compilation check
+
+Run the frontend build locally with:
+
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+Run the backend syntax check locally with:
+
+```bash
+cd backend
+python -m compileall app
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+## Security
+
+See [SECURITY.md](./SECURITY.md).
 
 ## License
 
-No license has been added yet. All rights reserved unless a license is added to this repository.
+No license has been added. Unless a license is added, all rights are reserved.
