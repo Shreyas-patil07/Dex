@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { DexBackground } from './components/DexBackground';
 import { getCachedAuthState } from './lib/authSession';
 import { AboutPage } from './pages/AboutPage';
+import { MediaDetailsPage } from './pages/MediaDetailsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { SignUpPage } from './pages/SignUpPage';
@@ -10,6 +11,7 @@ import { HomePage } from './pages/HomePage';
 
 const normalizePath = (value: string) => value.replace(/\/$/, '') || '/';
 const routes = new Set(['/','/about-me','/privacy-policy','/terms-of-service','/sign-up','/profile']);
+const mediaRoute = /^\/(movie|tv)\/\d+$/;
 
 export const App: React.FC = () => {
   const [path, setPath] = useState(() => normalizePath(window.location.pathname));
@@ -17,14 +19,9 @@ export const App: React.FC = () => {
 
   const navigate = useCallback((to: string, replace = false) => {
     const nextPath = normalizePath(to);
-    if (!routes.has(nextPath) || nextPath === path) return;
-
-    if (replace) {
-      window.history.replaceState({}, '', nextPath);
-    } else {
-      window.history.pushState({}, '', nextPath);
-    }
-
+    if ((!routes.has(nextPath) && !mediaRoute.test(nextPath)) || nextPath === path) return;
+    if (replace) window.history.replaceState({}, '', nextPath);
+    else window.history.pushState({}, '', nextPath);
     setTransitioning(true);
     setPath(nextPath);
     window.scrollTo(0, 0);
@@ -38,22 +35,17 @@ export const App: React.FC = () => {
       window.scrollTo(0, 0);
       window.setTimeout(() => setTransitioning(false), 220);
     };
-
     const onDocumentClick = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-
       const target = event.target as HTMLElement | null;
       const anchor = target?.closest('a[href]') as HTMLAnchorElement | null;
       if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
-
       const url = new URL(anchor.href, window.location.href);
       const nextPath = normalizePath(url.pathname);
-      if (url.origin !== window.location.origin || !routes.has(nextPath)) return;
-
+      if (url.origin !== window.location.origin || (!routes.has(nextPath) && !mediaRoute.test(nextPath))) return;
       event.preventDefault();
       navigate(nextPath);
     };
-
     window.addEventListener('popstate', onPopState);
     document.addEventListener('click', onDocumentClick);
     return () => {
@@ -69,12 +61,15 @@ export const App: React.FC = () => {
     }
   }, [path]);
 
-  const page = useMemo(() => path === '/privacy-policy' ? <PrivacyPolicy />
-    : path === '/terms-of-service' ? <TermsOfService />
-    : path === '/about-me' ? <AboutPage />
-    : path === '/sign-up' ? <SignUpPage />
-    : path === '/profile' ? <ProfilePage />
-    : <HomePage />, [path]);
+  const page = useMemo(() => {
+    if (path === '/privacy-policy') return <PrivacyPolicy />;
+    if (path === '/terms-of-service') return <TermsOfService />;
+    if (path === '/about-me') return <AboutPage />;
+    if (path === '/sign-up') return <SignUpPage />;
+    if (path === '/profile') return <ProfilePage />;
+    if (mediaRoute.test(path)) return <MediaDetailsPage />;
+    return <HomePage />;
+  }, [path]);
 
   return (
     <div className="dex-shell relative min-h-screen overflow-x-hidden bg-[#080810]">
