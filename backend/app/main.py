@@ -105,14 +105,22 @@ async def trending(
     time_window: str = Query("week", pattern="^(day|week)$"),
 ) -> dict:
     try:
-        first_page = await tmdb.trending(media_type, time_window)
-        results = first_page.get("results", [])
-        if first_page.get("total_pages", 1) >= 2:
-            second_page = await tmdb.get(f"/trending/{media_type}/{time_window}", {"page": 2})
-            results.extend(second_page.get("results", []))
-        return {**first_page, "results": results[:24]}
+        return await tmdb.trending(media_type, time_window)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except TMDBError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/media/{media_type}/{tmdb_id}")
+async def media_details(
+    media_type: str,
+    tmdb_id: int,
+) -> dict:
+    if media_type not in {"movie", "tv"}:
+        raise HTTPException(status_code=422, detail="media_type must be movie or tv")
+    try:
+        return await tmdb.get(f"/{media_type}/{tmdb_id}", {"append_to_response": "credits,videos"})
     except TMDBError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
