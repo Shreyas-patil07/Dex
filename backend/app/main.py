@@ -20,6 +20,7 @@ bearer = HTTPBearer(auto_error=False)
 
 USERS = "users"
 USERNAME_REGISTRY = "usernames"
+WATCH_REGION = "IN"
 
 
 class AuthSyncRequest(BaseModel):
@@ -120,7 +121,13 @@ async def media_details(
     if media_type not in {"movie", "tv"}:
         raise HTTPException(status_code=422, detail="media_type must be movie or tv")
     try:
-        return await tmdb.get(f"/{media_type}/{tmdb_id}", {"append_to_response": "credits,videos"})
+        details, providers = await tmdb.get_many(
+            f"/{media_type}/{tmdb_id}",
+            {"append_to_response": "credits,videos"},
+            f"/{media_type}/{tmdb_id}/watch/providers",
+            {"watch_region": WATCH_REGION},
+        )
+        return {**details, "watch_providers": providers.get("results", {}).get(WATCH_REGION, {})}
     except TMDBError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
