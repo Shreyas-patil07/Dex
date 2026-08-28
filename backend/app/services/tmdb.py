@@ -23,6 +23,9 @@ class TMDBService:
             raise TMDBError(f"TMDB request failed with status {response.status_code}")
         return response.json()
 
+    async def get_many(self, *requests: tuple[str, dict[str, Any] | None]) -> list[dict[str, Any]]:
+        return list(await asyncio.gather(*(self.get(path, params) for path, params in requests)))
+
     async def trending(self, media_type: str = "all", time_window: str = "day") -> dict[str, Any]:
         if media_type not in {"all", "movie", "tv"}:
             raise ValueError("media_type must be all, movie, or tv")
