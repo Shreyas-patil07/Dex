@@ -122,10 +122,8 @@ async def media_details(
         raise HTTPException(status_code=422, detail="media_type must be movie or tv")
     try:
         details, providers = await tmdb.get_many(
-            f"/{media_type}/{tmdb_id}",
-            {"append_to_response": "credits,videos"},
-            f"/{media_type}/{tmdb_id}/watch/providers",
-            {"watch_region": WATCH_REGION},
+            (f"/{media_type}/{tmdb_id}", {"append_to_response": "credits,videos"}),
+            (f"/{media_type}/{tmdb_id}/watch/providers", {"watch_region": WATCH_REGION}),
         )
         return {**details, "watch_providers": providers.get("results", {}).get(WATCH_REGION, {})}
     except TMDBError as exc:
