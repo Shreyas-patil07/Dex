@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from .config import settings
 from .firestore import get_firestore
-from .schemas import UserPublic, UsernameRequest, WatchCreate, WatchPublic
+from .schemas import UserPublic, UsernameRequest, WatchCreate, WatchPublic, WatchUpdate
 from .services.firebase_auth import verify_firebase_token
 from .services.tmdb import TMDBError, TMDBService
 
@@ -21,6 +21,12 @@ bearer = HTTPBearer(auto_error=False)
 USERS = "users"
 USERNAME_REGISTRY = "usernames"
 WATCH_REGION = "IN"
+WATCH_STATUSES = (
+    {"value": "watched", "label": "Watched"},
+    {"value": "want_to_watch", "label": "Want to Watch"},
+    {"value": "in_future", "label": "In Future"},
+)
+WATCH_STATUS_VALUES = {item["value"] for item in WATCH_STATUSES}
 
 
 class AuthSyncRequest(BaseModel):
@@ -67,7 +73,7 @@ def watch_public(doc_id: str, data: dict) -> WatchPublic:
         tmdb_id=int(data["tmdb_id"]),
         media_type=data["media_type"],
         title=data["title"],
-        status=data.get("status", "watched"),
+        status=data.get("status", "want_to_watch"),
         rating=data.get("rating"),
         watched_at=data.get("watched_at"),
         notes=data.get("notes"),
@@ -166,6 +172,11 @@ async def sync_auth_user(
     return user_public(firebase_uid, data)
 
 
+@app.get("/api/watch-statuses")
+async def watch_statuses() -> dict[str, list[dict[str, str]]]:
+    return {"statuses": list(WATCH_STATUSES)}
+
+
 @app.get("/api/auth/username/available")
 async def username_available(
     username: str = Query(..., min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]+$"),
@@ -229,6 +240,9 @@ async def add_watch(
     if existing.exists:
         raise HTTPException(status_code=409, detail="This title is already in your library")
 
+    if payload.status not in WATCH_STATUS_VALUES:
+        raise HTTPException(status_code=422, detail="Invalid watch status")
+
     data = payload.model_dump()
     data["created_at"] = datetime.now(timezone.utc)
     try:
@@ -236,6 +250,31 @@ async def add_watch(
     except AlreadyExists:
         raise HTTPException(status_code=409, detail="This title is already in your library") from None
     return watch_public(doc_id, data)
+
+
+@app.patch("/api/watches/{watch_id}", response_model=WatchPublic)
+async def update_watch(
+    watch_id: str,
+    payload: WatchUpdate,
+    current=Depends(current_user),
+    db=Depends(get_firestore),
+) -> WatchPublic:
+    firebase_uid, _ = current
+    ref = user_ref(db, firebase_uid).collection("watches").document(watch_id)
+    snapshot = await ref.get()
+    if not snapshot.exists:
+        raise HTTPException(status_code=404, detail="Watch entry not found")
+
+    changes = payload.model_dump(exclude_unset=True)
+    if "status" in changes and changes["status"] not in WATCH_STATUS_VALUES:
+        raise HTTPException(status_code=422, detail="Invalid watch status")
+    if not changes:
+        return watch_public(watch_id, snapshot.to_dict() or {})
+
+    await ref.update(changes)
+    data = snapshot.to_dict() or {}
+    data.update(changes)
+    return watch_public(watch_id, data)
 
 
 @app.get("/api/watches", response_model=list[WatchPublic])
