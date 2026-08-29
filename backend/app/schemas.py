@@ -18,7 +18,14 @@ class WatchCreate(BaseModel):
     tmdb_id: int
     media_type: str = Field(pattern=r"^(movie|tv)$")
     title: str = Field(min_length=1, max_length=255)
-    status: str = Field(default="watched", pattern=r"^(watched|want_to_watch|in_queue|watched_disliked)$")
+    status: str = Field(default="want_to_watch", pattern=r"^(watched|want_to_watch|in_future)$")
+    rating: float | None = Field(default=None, ge=0, le=10)
+    watched_at: datetime | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class WatchUpdate(BaseModel):
+    status: str | None = Field(default=None, pattern=r"^(watched|want_to_watch|in_future)$")
     rating: float | None = Field(default=None, ge=0, le=10)
     watched_at: datetime | None = None
     notes: str | None = Field(default=None, max_length=2000)
