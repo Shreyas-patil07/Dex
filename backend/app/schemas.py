@@ -22,6 +22,8 @@ class WatchCreate(BaseModel):
     rating: float | None = Field(default=None, ge=0, le=10)
     watched_at: datetime | None = None
     notes: str | None = Field(default=None, max_length=2000)
+    poster_path: str | None = None
+    backdrop_path: str | None = None
 
 
 class WatchUpdate(BaseModel):
@@ -29,6 +31,8 @@ class WatchUpdate(BaseModel):
     rating: float | None = Field(default=None, ge=0, le=10)
     watched_at: datetime | None = None
     notes: str | None = Field(default=None, max_length=2000)
+    poster_path: str | None = None
+    backdrop_path: str | None = None
 
 
 class WatchPublic(WatchCreate):
