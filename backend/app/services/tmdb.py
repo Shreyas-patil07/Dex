@@ -41,3 +41,10 @@ class TMDBService:
             **first_page,
             "results": results[:24],
         }
+
+    async def search(self, query: str, page: int = 1) -> dict[str, Any]:
+        if not query.strip():
+            return {"results": [], "total_pages": 0, "total_results": 0, "page": page}
+        
+        # We use multi search to get movies, tv shows, and people
+        return await self.get("/search/multi", {"query": query, "page": page, "include_adult": False})

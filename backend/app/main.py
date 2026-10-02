@@ -77,6 +77,8 @@ def watch_public(doc_id: str, data: dict) -> WatchPublic:
         rating=data.get("rating"),
         watched_at=data.get("watched_at"),
         notes=data.get("notes"),
+        poster_path=data.get("poster_path"),
+        backdrop_path=data.get("backdrop_path"),
         created_at=data.get("created_at") or datetime.now(timezone.utc),
     )
 
@@ -104,6 +106,18 @@ async def current_user(
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "dex-api", "database": "firestore"}
+
+
+
+@app.get("/api/search")
+async def search(query: str = Query(..., min_length=1), page: int = Query(1, ge=1)) -> dict:
+    try:
+        results = await tmdb.search(query, page)
+        # Filter out people results for now as we only support movies and tv
+        results["results"] = [r for r in results.get("results", []) if r.get("media_type") in ("movie", "tv")]
+        return results
+    except TMDBError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.get("/api/media/trending")
@@ -275,6 +289,21 @@ async def update_watch(
     data = snapshot.to_dict() or {}
     data.update(changes)
     return watch_public(watch_id, data)
+
+
+
+@app.delete("/api/watches/{watch_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_watch(
+    watch_id: str,
+    current=Depends(current_user),
+    db=Depends(get_firestore),
+):
+    firebase_uid, _ = current
+    ref = user_ref(db, firebase_uid).collection("watches").document(watch_id)
+    snapshot = await ref.get()
+    if not snapshot.exists:
+        raise HTTPException(status_code=404, detail="Watch entry not found")
+    await ref.delete()
 
 
 @app.get("/api/watches", response_model=list[WatchPublic])
