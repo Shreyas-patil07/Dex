@@ -8,9 +8,10 @@ import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { SignUpPage } from './pages/SignUpPage';
 import { TermsOfService } from './pages/TermsOfService';
 import { HomePage } from './pages/HomePage';
+import { SearchPage } from './pages/SearchPage';
 
 const normalizePath = (value: string) => value.replace(/\/$/, '') || '/';
-const routes = new Set(['/','/about-me','/privacy-policy','/terms-of-service','/sign-up','/profile']);
+const routes = new Set(['/','/about-me','/privacy-policy','/terms-of-service','/sign-up','/profile','/search']);
 const mediaRoute = /^\/(movie|tv)\/\d+$/;
 
 export const App: React.FC = () => {
@@ -67,6 +68,7 @@ export const App: React.FC = () => {
     if (path === '/about-me') return <AboutPage />;
     if (path === '/sign-up') return <SignUpPage />;
     if (path === '/profile') return <ProfilePage />;
+    if (path === '/search') return <SearchPage />;
     if (mediaRoute.test(path)) return <MediaDetailsPage />;
     return <HomePage />;
   }, [path]);

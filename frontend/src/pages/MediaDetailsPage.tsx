@@ -105,6 +105,8 @@ export const MediaDetailsPage: React.FC = () => {
           media_type: mediaType,
           title,
           status: 'want_to_watch',
+          poster_path: item.poster_path || undefined,
+          backdrop_path: item.backdrop_path || undefined,
         }),
       });
       const data = await response.json().catch(() => ({}));
