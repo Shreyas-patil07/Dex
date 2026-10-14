@@ -125,6 +125,7 @@ async def health() -> Response:
 @limiter.limit("30/minute")
 async def search(
     request: Request,
+    response: Response,
     query: str = Query(..., min_length=1, max_length=100),
     page: int = Query(1, ge=1, le=500),
     media_type: str = Query("all", pattern="^(all|movie|tv)$"),
@@ -149,6 +150,7 @@ async def search(
 @limiter.limit("60/minute")
 async def trending(
     request: Request,
+    response: Response,
     media_type: str = Query("all", pattern="^(all|movie|tv)$"),
     time_window: str = Query("week", pattern="^(day|week)$"),
 ) -> dict:
@@ -164,6 +166,7 @@ async def trending(
 @limiter.limit("60/minute")
 async def media_details(
     request: Request,
+    response: Response,
     media_type: str,
     tmdb_id: int,
 ) -> dict:
