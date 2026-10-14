@@ -71,6 +71,7 @@ class FakeFirestore:
 @pytest.fixture
 def api_client(monkeypatch):
     database = FakeFirestore()
+    main.limiter._storage.reset()
     main.app.dependency_overrides[get_firestore] = lambda: database
     monkeypatch.setattr(
         main,
