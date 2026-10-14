@@ -20,6 +20,8 @@ services:
         value: dex-07
       - key: GOOGLE_APPLICATION_CREDENTIALS
         value: /etc/secrets/service-account.json
+      - key: RATE_LIMIT_STORAGE_URI
+        value: memory://
       - key: TMDB_API_KEY
         sync: false
       - key: FIREBASE_SERVICE_ACCOUNT
