@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -117,9 +117,9 @@ async def current_user(
     raise HTTPException(status_code=401, detail="Dex account not synchronized")
 
 
-@app.get("/api/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "dex-api", "database": "firestore"}
+@app.head("/api/health")
+async def health() -> Response:
+    return Response(status_code=200)
 
 
 @app.get("/api/search")
