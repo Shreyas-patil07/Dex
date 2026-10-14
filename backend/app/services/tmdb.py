@@ -39,7 +39,7 @@ class TMDBService:
     def _cache_ttl(path: str) -> int:
         if path.startswith("/trending/"):
             return 300
-        if path == "/search/multi":
+        if path in {"/search/multi", "/search/movie", "/search/tv"}:
             return 60
         if path.endswith("/watch/providers"):
             return 1800
@@ -125,8 +125,19 @@ class TMDBService:
             "results": results[:24],
         }
 
-    async def search(self, query: str, page: int = 1) -> dict[str, Any]:
+    async def search(
+        self,
+        query: str,
+        page: int = 1,
+        media_type: str = "all",
+    ) -> dict[str, Any]:
+        if media_type not in {"all", "movie", "tv"}:
+            raise ValueError("media_type must be all, movie, or tv")
         if not query.strip():
             return {"results": [], "total_pages": 0, "total_results": 0, "page": page}
 
-        return await self.get("/search/multi", {"query": query, "page": page, "include_adult": False})
+        endpoint = "multi" if media_type == "all" else media_type
+        return await self.get(
+            f"/search/{endpoint}",
+            {"query": query, "page": page, "include_adult": False},
+        )
