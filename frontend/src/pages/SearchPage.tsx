@@ -16,6 +16,7 @@ type SearchResult = {
 
 export const SearchPage: React.FC = () => {
   const [query, setQuery] = useState('');
+  const [mediaType, setMediaType] = useState<'all' | 'movie' | 'tv'>('all');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,7 +45,8 @@ export const SearchPage: React.FC = () => {
     setLoading(true);
     setError('');
 
-    fetch(`${API_BASE}/api/search?query=${encodeURIComponent(normalizedQuery)}`, {
+    const params = new URLSearchParams({ query: normalizedQuery, media_type: mediaType });
+    fetch(`${API_BASE}/api/search?${params.toString()}`, {
       signal: controller.signal,
     })
       .then(response => {
@@ -67,7 +69,7 @@ export const SearchPage: React.FC = () => {
       active = false;
       controller.abort();
     };
-  }, [debouncedQuery]);
+  }, [debouncedQuery, mediaType]);
 
   return (
     <div className="min-h-screen bg-transparent text-white">
@@ -84,7 +86,29 @@ export const SearchPage: React.FC = () => {
       </header>
       <main className="mx-auto max-w-7xl px-6 pb-20 pt-8 sm:pt-12">
         <div className="mx-auto max-w-2xl">
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl text-center mb-8">Search</h1>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl text-center mb-3">Search Movies &amp; Series</h1>
+          <p className="mb-7 text-center text-sm text-[#94A3B8]">Choose what you want to discover.</p>
+          <div className="mb-6 flex flex-wrap justify-center gap-2" role="group" aria-label="Search category">
+            {([
+              { value: "all", label: "All titles" },
+              { value: "movie", label: "Movies" },
+              { value: "tv", label: "Series" },
+            ] as const).map(option => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={mediaType === option.value}
+                onClick={() => setMediaType(option.value)}
+                className={`rounded-xl border px-5 py-2.5 text-sm font-medium transition-colors ${
+                  mediaType === option.value
+                    ? "border-[#8B5CF6]/40 bg-[#8B5CF6]/10 text-[#C4B5FD]"
+                    : "border-white/[0.07] bg-white/[0.02] text-[#94A3B8] hover:border-white/[0.14] hover:text-white"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
@@ -93,7 +117,7 @@ export const SearchPage: React.FC = () => {
             <input
               type="text"
               className="block w-full rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 pl-12 text-[#E2E8F0] placeholder:text-[#64748B] focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED] outline-none transition-all"
-              placeholder="Search for movies, TV shows..."
+              placeholder={mediaType === 'movie' ? 'Search movies...' : mediaType === 'tv' ? 'Search series...' : 'Search movies and series...'}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               autoFocus
@@ -109,7 +133,7 @@ export const SearchPage: React.FC = () => {
             {error && <p className="text-center text-rose-400">{error}</p>}
             
             {!loading && debouncedQuery && results.length === 0 && !error && (
-              <p className="text-center text-[#94A3B8]">No results found for "{debouncedQuery}".</p>
+              <p className="text-center text-[#94A3B8]">No {mediaType === 'movie' ? 'movies' : mediaType === 'tv' ? 'series' : 'titles'} found for "{debouncedQuery}".</p>
             )}
 
             {!debouncedQuery && results.length === 0 && (
