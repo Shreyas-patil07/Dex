@@ -31,35 +31,42 @@ export const SearchPage: React.FC = () => {
 
   // Fetch results when debounced query changes
   useEffect(() => {
-    if (!debouncedQuery.trim()) {
+    const normalizedQuery = debouncedQuery.trim();
+    if (!normalizedQuery) {
       setResults([]);
+      setError('');
+      setLoading(false);
       return;
     }
 
     const controller = new AbortController();
+    let active = true;
     setLoading(true);
     setError('');
 
-    fetch(`${API_BASE}/api/search?query=${encodeURIComponent(debouncedQuery.trim())}`, {
-      signal: controller.signal
+    fetch(`${API_BASE}/api/search?query=${encodeURIComponent(normalizedQuery)}`, {
+      signal: controller.signal,
     })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch search results');
-        return res.json();
+      .then(response => {
+        if (!response.ok) throw new Error('Failed to fetch search results');
+        return response.json();
       })
       .then(data => {
-        setResults(data.results || []);
+        if (active) setResults(Array.isArray(data.results) ? data.results : []);
       })
-      .catch(err => {
-        if (err.name !== 'AbortError') {
-          setError(err.message);
+      .catch(error => {
+        if (active && error instanceof Error && error.name !== 'AbortError') {
+          setError(error.message);
         }
       })
       .finally(() => {
-        setLoading(false);
+        if (active) setLoading(false);
       });
 
-    return () => controller.abort();
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [debouncedQuery]);
 
   return (
