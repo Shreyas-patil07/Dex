@@ -170,3 +170,13 @@ def test_search_query_and_page_are_bounded(api_client):
 
     assert too_long.status_code == 422
     assert too_high.status_code == 422
+
+
+def test_public_search_is_rate_limited(api_client):
+    statuses = [
+        api_client.get("/api/search", params={"query": "Dune"}).status_code
+        for _ in range(31)
+    ]
+
+    assert statuses[-1] == 429
+    assert statuses.count(429) == 1
