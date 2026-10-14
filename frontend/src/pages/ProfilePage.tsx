@@ -56,7 +56,9 @@ export const ProfilePage: React.FC = () => {
         if (!sync.ok) { const data = await sync.json().catch(() => ({})); throw new Error(data.detail || 'Could not synchronize your Dex account.'); }
         const [profile, history] = await Promise.all([request(firebaseUser, '/api/me'), request(firebaseUser, '/api/watches')]);
         if (!profile.ok) { const data = await profile.json().catch(() => ({})); throw new Error(data.detail || 'Could not load your profile.'); }
-        if (active) { setUser(await profile.json()); setWatches(history.ok ? await history.json() : []); }
+        if (!history.ok) { const data = await history.json().catch(() => ({})); throw new Error(data.detail || 'Could not load your watch history. Please retry.'); }
+        const [profileData, historyData] = await Promise.all([profile.json(), history.json()]);
+        if (active) { setUser(profileData); setWatches(historyData); }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : 'Could not load your profile.'); }
       finally { if (active) setLoading(false); }
     })();
@@ -96,7 +98,7 @@ export const ProfilePage: React.FC = () => {
 
   if (!authReady || loading) return <div className="min-h-screen bg-transparent px-6 py-10 text-white"><div className="mx-auto max-w-6xl animate-pulse"><div className="h-10 w-24 rounded bg-white/[0.06]" /><div className="mt-10 h-64 rounded-[2rem] bg-white/[0.04]" /><div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-28 rounded-2xl bg-white/[0.035]" />)}</div></div></div>;
   if (!firebaseUser) return <div className="flex min-h-screen items-center justify-center bg-transparent px-6 text-center text-[#94A3B8]"><div><p>You need to be signed in to view your profile.</p><a href="/sign-up" className="mt-4 inline-block rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white">Sign in</a></div></div>;
-  if (error && !user) return <div className="flex min-h-screen items-center justify-center bg-transparent px-6 text-center text-[#94A3B8]"><div><p>{error || 'Profile unavailable.'}</p><a href="/" className="mt-4 inline-block text-[#A855F7]">Back to Trending</a></div></div>;
+  if (error && !user) return <div className="flex min-h-screen items-center justify-center bg-transparent px-6 text-center text-[#94A3B8]"><div><p>{error || 'Profile unavailable.'}</p><button onClick={() => window.location.reload()} className="mt-4 rounded-xl bg-[#7C3AED] px-4 py-2 text-sm font-semibold text-white">Try again</button><a href="/" className="mt-4 ml-4 inline-block text-[#A855F7]">Back to Trending</a></div></div>;
 
   return <div className="min-h-screen bg-transparent text-white">
     <header className="border-b border-white/[0.06]"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5"><a href="/" className="shrink-0"><img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain" /></a><div className="flex items-center gap-1"><a href="/" className="rounded-xl px-4 py-2 text-sm text-[#94A3B8] transition-colors hover:bg-white/[0.03] hover:text-white">Trending</a><button onClick={handleSignOut} className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm text-[#94A3B8] transition-colors hover:bg-white/[0.03] hover:text-white"><LogOut size={15} /> Sign out</button></div></div></header>
