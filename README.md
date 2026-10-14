@@ -115,7 +115,7 @@ Create `backend/.env` from `.env.example`.
 
 For local Firebase Admin access, either place the service-account JSON at `backend/service-account.json` or set `FIREBASE_SERVICE_ACCOUNT` to the full JSON contents of that file in `backend/.env`. The environment-variable option takes precedence over the file path.
 
-On Render, set the `FIREBASE_SERVICE_ACCOUNT` secret to the full service-account JSON. Do not commit this value or expose it through any `VITE_*` frontend variable.
+On Render, the preferred option is to set the `FIREBASE_SERVICE_ACCOUNT` secret to the full service-account JSON. Alternatively, upload a Render secret file named `service-account.json`; the Blueprint points `GOOGLE_APPLICATION_CREDENTIALS` to `/etc/secrets/service-account.json`. If both are configured, the JSON environment variable takes precedence. Do not commit credentials or expose them through any `VITE_*` frontend variable.
 
 Start:
 
