@@ -40,6 +40,7 @@ Dex is a movie and series discovery and watch-history platform. Discover what is
 - Firebase Admin SDK
 - Cloud Firestore
 - TMDB API
+- SlowAPI rate limiting
 
 ### Hosting
 
@@ -53,7 +54,6 @@ Dex is a movie and series discovery and watch-history platform. Discover what is
 Dex/
 ├── frontend/                 # React + Vite application
 ├── backend/                  # FastAPI API
-├── favicon/                  # Repository favicon/PWA assets
 ├── Research documentation/   # Product/design research
 ├── .github/workflows/        # CI
 ├── render.yaml               # Render backend deployment
@@ -116,6 +116,9 @@ Create `backend/.env` from `.env.example`.
 For local Firebase Admin access, either place the service-account JSON at `backend/service-account.json` or set `FIREBASE_SERVICE_ACCOUNT` to the full JSON contents of that file in `backend/.env`. The environment-variable option takes precedence over the file path.
 
 On Render, set the `FIREBASE_SERVICE_ACCOUNT` secret to the full service-account JSON. Do not commit this value or expose it through any `VITE_*` frontend variable.
+On Render, the preferred option is to set the `FIREBASE_SERVICE_ACCOUNT` secret to the full service-account JSON. Alternatively, upload a Render secret file named `service-account.json`; the Blueprint points `GOOGLE_APPLICATION_CREDENTIALS` to `/etc/secrets/service-account.json`. If both are configured, the JSON environment variable takes precedence. Do not commit credentials or expose them through any `VITE_*` frontend variable.
+
+The public TMDB endpoints are rate-limited by client IP. `RATE_LIMIT_STORAGE_URI` defaults to `memory://`, which is suitable for a single backend instance. Configure a shared Redis storage URI before scaling to multiple instances so limits are shared across workers.
 
 Start:
 
@@ -226,11 +229,12 @@ GitHub Actions runs on pushes and pull requests targeting `main`:
 - frontend dependency install, TypeScript type checking, and production build
 - backend dependency install, Python compilation, and automated tests
 
-Run the frontend build locally with:
+Run the frontend checks locally with:
 
 ```bash
 cd frontend
 npm ci
+npm run typecheck
 npm run build
 ```
 

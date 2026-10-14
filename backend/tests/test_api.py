@@ -98,6 +98,15 @@ def sync_account(client, uid, display_name=None):
     return response.json()
 
 
+def test_health_endpoint_accepts_head_only(api_client):
+    head_response = api_client.head("/api/health")
+    get_response = api_client.get("/api/health")
+
+    assert head_response.status_code == 200
+    assert head_response.content == b""
+    assert get_response.status_code == 405
+
+
 def test_account_sync_does_not_require_email_verified_claim(api_client):
     # The mocked decoded token intentionally omits email_verified. Dex has no
     # email-verification requirement, but still requires a valid bearer token.
@@ -170,3 +179,13 @@ def test_search_query_and_page_are_bounded(api_client):
 
     assert too_long.status_code == 422
     assert too_high.status_code == 422
+
+
+def test_public_search_is_rate_limited(api_client):
+    statuses = [
+        api_client.get("/api/search", params={"query": "Dune"}).status_code
+        for _ in range(31)
+    ]
+
+    assert statuses[-1] == 429
+    assert statuses.count(429) == 1
