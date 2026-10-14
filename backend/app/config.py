@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     firebase_project_id: str = "dex-07"
     firebase_service_account: str = ""
     google_application_credentials: str = "./service-account.json"
+    rate_limit_storage_uri: str = "memory://"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

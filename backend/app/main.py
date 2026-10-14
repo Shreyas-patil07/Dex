@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.api_core.exceptions import AlreadyExists
@@ -17,6 +20,11 @@ from .services.tmdb import TMDBError, TMDBService
 
 tmdb = TMDBService(settings.tmdb_api_key, settings.tmdb_base_url)
 bearer = HTTPBearer(auto_error=False)
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=settings.rate_limit_storage_uri,
+    headers_enabled=True,
+)
 
 USERS = "users"
 USERNAME_REGISTRY = "usernames"
@@ -43,6 +51,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version="0.5.0", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -107,13 +117,15 @@ async def current_user(
     raise HTTPException(status_code=401, detail="Dex account not synchronized")
 
 
-@app.get("/api/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "dex-api", "database": "firestore"}
-
+@app.head("/api/health")
+async def health() -> Response:
+    return Response(status_code=200)
 
 @app.get("/api/search")
 async def search(
+@limiter.limit("30/minute")
+async def search(
+    request: Request,
     query: str = Query(..., min_length=1, max_length=100),
     page: int = Query(1, ge=1, le=500),
 ) -> dict:
@@ -129,7 +141,9 @@ async def search(
 
 
 @app.get("/api/media/trending")
+@limiter.limit("60/minute")
 async def trending(
+    request: Request,
     media_type: str = Query("all", pattern="^(all|movie|tv)$"),
     time_window: str = Query("week", pattern="^(day|week)$"),
 ) -> dict:
@@ -142,7 +156,9 @@ async def trending(
 
 
 @app.get("/api/media/{media_type}/{tmdb_id}")
+@limiter.limit("60/minute")
 async def media_details(
+    request: Request,
     media_type: str,
     tmdb_id: int,
 ) -> dict:
