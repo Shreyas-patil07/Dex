@@ -121,8 +121,8 @@ async def current_user(
 async def health() -> Response:
     return Response(status_code=200)
 
-
 @app.get("/api/search")
+async def search(
 @limiter.limit("30/minute")
 async def search(
     request: Request,
