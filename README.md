@@ -113,11 +113,9 @@ pip install -r requirements.txt
 
 Create `backend/.env` from `.env.example`.
 
-For local Firebase Admin access, place the service-account JSON at:
+For local Firebase Admin access, either place the service-account JSON at `backend/service-account.json` or set `FIREBASE_SERVICE_ACCOUNT` to the full JSON contents of that file in `backend/.env`. The environment-variable option takes precedence over the file path.
 
-```text
-backend/service-account.json
-```
+On Render, set the `FIREBASE_SERVICE_ACCOUNT` secret to the full service-account JSON. Do not commit this value or expose it through any `VITE_*` frontend variable.
 
 Start:
 
@@ -225,8 +223,8 @@ Frontend is deployed on Vercel. Backend is deployed on Render. Persistent applic
 
 GitHub Actions runs on pushes and pull requests targeting `main`:
 
-- frontend dependency install and production build
-- backend dependency install and Python compilation check
+- frontend dependency install, TypeScript type checking, and production build
+- backend dependency install, Python compilation, and automated tests
 
 Run the frontend build locally with:
 
@@ -236,11 +234,13 @@ npm ci
 npm run build
 ```
 
-Run the backend syntax check locally with:
+Run the backend checks locally with:
 
 ```bash
 cd backend
-python -m compileall app
+pip install -r requirements-dev.txt
+python -m compileall app tests
+pytest -q
 ```
 
 ## Contributing
