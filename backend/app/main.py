@@ -35,7 +35,11 @@ class AuthSyncRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    yield
+    await tmdb.start()
+    try:
+        yield
+    finally:
+        await tmdb.close()
 
 
 app = FastAPI(title=settings.app_name, version="0.5.0", lifespan=lifespan)
@@ -44,7 +48,7 @@ app.add_middleware(
     allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
 
@@ -108,13 +112,17 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": "dex-api", "database": "firestore"}
 
 
-
 @app.get("/api/search")
-async def search(query: str = Query(..., min_length=1), page: int = Query(1, ge=1)) -> dict:
+async def search(
+    query: str = Query(..., min_length=1, max_length=100),
+    page: int = Query(1, ge=1, le=500),
+) -> dict:
     try:
         results = await tmdb.search(query, page)
-        # Filter out people results for now as we only support movies and tv
-        results["results"] = [r for r in results.get("results", []) if r.get("media_type") in ("movie", "tv")]
+        results["results"] = [
+            item for item in results.get("results", [])
+            if item.get("media_type") in ("movie", "tv")
+        ]
         return results
     except TMDBError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -140,6 +148,8 @@ async def media_details(
 ) -> dict:
     if media_type not in {"movie", "tv"}:
         raise HTTPException(status_code=422, detail="media_type must be movie or tv")
+    if tmdb_id < 1:
+        raise HTTPException(status_code=422, detail="tmdb_id must be positive")
     try:
         details, providers = await tmdb.get_many(
             (f"/{media_type}/{tmdb_id}", {"append_to_response": "credits,videos"}),
@@ -289,7 +299,6 @@ async def update_watch(
     data = snapshot.to_dict() or {}
     data.update(changes)
     return watch_public(watch_id, data)
-
 
 
 @app.delete("/api/watches/{watch_id}", status_code=status.HTTP_204_NO_CONTENT)
