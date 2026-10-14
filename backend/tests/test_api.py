@@ -98,6 +98,15 @@ def sync_account(client, uid, display_name=None):
     return response.json()
 
 
+def test_health_endpoint_accepts_head_only(api_client):
+    head_response = api_client.head("/api/health")
+    get_response = api_client.get("/api/health")
+
+    assert head_response.status_code == 200
+    assert head_response.content == b""
+    assert get_response.status_code == 405
+
+
 def test_account_sync_does_not_require_email_verified_claim(api_client):
     # The mocked decoded token intentionally omits email_verified. Dex has no
     # email-verification requirement, but still requires a valid bearer token.
