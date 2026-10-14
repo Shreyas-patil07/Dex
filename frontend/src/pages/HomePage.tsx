@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { getCachedAuthState, subscribeToAuthSession } from '../lib/authSession';
+import { Search } from 'lucide-react';
 
 type Media = { id: number; media_type?: 'movie' | 'tv'; title?: string; name?: string; poster_path?: string | null; release_date?: string; first_air_date?: string; vote_average?: number };
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w500';
@@ -46,7 +47,7 @@ export const HomePage: React.FC = () => {
   const inactiveFilter = 'border-white/[0.055] bg-transparent text-[#8490A3] hover:border-white/[0.10] hover:bg-white/[0.018] hover:text-[#AEB7C7]';
 
   return <div className="min-h-screen bg-transparent text-white">
-    <header className="border-b border-white/[0.06]"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:py-6"><a href="/"><img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain" /></a><div className="flex items-center gap-3 sm:gap-5">{isSignedIn ? <a href="/profile" className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#6D28D9]">Profile</a> : <><a href="/sign-up" className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7]">Login</a><a href="/sign-up" className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white">Sign Up</a></>}</div></div></header>
+    <header className="border-b border-white/[0.06]"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:py-6"><a href="/"><img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain" /></a><div className="flex items-center gap-2 sm:gap-5"><a href="/search" className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-2.5 text-sm font-medium text-[#C4B5FD] transition-colors hover:border-[#8B5CF6]/30 hover:bg-[#8B5CF6]/[0.07]"><Search className="h-4 w-4" />Search</a>{isSignedIn ? <a href="/profile" className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#6D28D9]">Profile</a> : <><a href="/sign-up" className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7]">Login</a><a href="/sign-up" className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white">Sign Up</a></>}</div></div></header>
     <main className="mx-auto max-w-7xl px-6 pb-20 pt-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3"><span className="h-1.5 w-1.5 rounded-full bg-[#8B5CF6]/70" /><p className="text-base font-semibold uppercase tracking-[0.28em] text-[#A78BFA]">Trending 🔥</p></div>

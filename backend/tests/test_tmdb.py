@@ -81,3 +81,24 @@ def test_invalid_upstream_json_is_normalized():
             await service.close()
 
     run(scenario())
+
+
+def test_search_uses_selected_media_type_endpoint():
+    paths = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        return httpx.Response(200, json={"results": [{"id": 1}]})
+
+    async def scenario():
+        service = TMDBService("test-key", transport=httpx.MockTransport(handler))
+        await service.start()
+        try:
+            await service.search("Dune", media_type="all")
+            await service.search("Dune", media_type="movie")
+            await service.search("Dune", media_type="tv")
+            assert paths == ["/3/search/multi", "/3/search/movie", "/3/search/tv"]
+        finally:
+            await service.close()
+
+    run(scenario())

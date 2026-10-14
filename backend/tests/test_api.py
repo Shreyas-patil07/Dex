@@ -71,6 +71,7 @@ class FakeFirestore:
 @pytest.fixture
 def api_client(monkeypatch):
     database = FakeFirestore()
+    main.limiter._storage.reset()
     main.app.dependency_overrides[get_firestore] = lambda: database
     monkeypatch.setattr(
         main,
@@ -180,7 +181,6 @@ def test_search_query_and_page_are_bounded(api_client):
     assert too_long.status_code == 422
     assert too_high.status_code == 422
 
-
 def test_public_search_is_rate_limited(api_client):
     statuses = [
         api_client.get("/api/search", params={"query": "Dune"}).status_code
@@ -189,3 +189,30 @@ def test_public_search_is_rate_limited(api_client):
 
     assert statuses[-1] == 429
     assert statuses.count(429) == 1
+
+
+def test_search_supports_all_movies_and_series(api_client, monkeypatch):
+    calls = []
+
+    async def fake_search(query, page, media_type="all"):
+        calls.append(media_type)
+        if media_type == "all":
+            return {"results": [
+                {"id": 1, "media_type": "movie"},
+                {"id": 2, "media_type": "tv"},
+                {"id": 3, "media_type": "person"},
+            ]}
+        return {"results": [{"id": 10, "title": "Filtered result"}]}
+
+    monkeypatch.setattr(main.tmdb, "search", fake_search)
+    all_results = api_client.get("/api/search", params={"query": "Dune"})
+    movie_results = api_client.get("/api/search", params={"query": "Dune", "media_type": "movie"})
+    series_results = api_client.get("/api/search", params={"query": "Dune", "media_type": "tv"})
+    invalid_type = api_client.get("/api/search", params={"query": "Dune", "media_type": "person"})
+
+    assert all_results.status_code == 200
+    assert [item["media_type"] for item in all_results.json()["results"]] == ["movie", "tv"]
+    assert movie_results.json()["results"][0]["media_type"] == "movie"
+    assert series_results.json()["results"][0]["media_type"] == "tv"
+    assert invalid_type.status_code == 422
+    assert calls == ["all", "movie", "tv"]

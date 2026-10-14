@@ -122,28 +122,35 @@ async def health() -> Response:
     return Response(status_code=200)
 
 @app.get("/api/search")
-async def search(
 @limiter.limit("30/minute")
 async def search(
     request: Request,
+    response: Response,
     query: str = Query(..., min_length=1, max_length=100),
     page: int = Query(1, ge=1, le=500),
+    media_type: str = Query("all", pattern="^(all|movie|tv)$"),
 ) -> dict:
     try:
-        results = await tmdb.search(query, page)
-        results["results"] = [
-            item for item in results.get("results", [])
-            if item.get("media_type") in ("movie", "tv")
-        ]
+        results = await tmdb.search(query, page, media_type)
+        if media_type == "all":
+            results["results"] = [
+                item for item in results.get("results", [])
+                if item.get("media_type") in ("movie", "tv")
+            ]
+        else:
+            results["results"] = [
+                {**item, "media_type": media_type}
+                for item in results.get("results", [])
+            ]
         return results
     except TMDBError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-
 
 @app.get("/api/media/trending")
 @limiter.limit("60/minute")
 async def trending(
     request: Request,
+    response: Response,
     media_type: str = Query("all", pattern="^(all|movie|tv)$"),
     time_window: str = Query("week", pattern="^(day|week)$"),
 ) -> dict:
@@ -159,6 +166,7 @@ async def trending(
 @limiter.limit("60/minute")
 async def media_details(
     request: Request,
+    response: Response,
     media_type: str,
     tmdb_id: int,
 ) -> dict:
