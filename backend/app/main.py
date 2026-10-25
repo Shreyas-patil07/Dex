@@ -346,5 +346,44 @@ async def list_watches(
 ) -> list[WatchPublic]:
     firebase_uid, _ = current
     snapshots = [snapshot async for snapshot in user_ref(db, firebase_uid).collection("watches").stream()]
-    snapshots.sort(key=lambda snapshot: snapshot.to_dict().get("created_at") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    return [watch_public(snapshot.id, snapshot.to_dict() or {}) for snapshot in snapshots]
+    entries = [(snapshot, snapshot.to_dict() or {}) for snapshot in snapshots]
+    entries.sort(
+        key=lambda entry: entry[1].get("created_at") or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+
+    # Backfill poster metadata for titles saved before poster paths were stored.
+    missing_posters = [
+        (snapshot, data)
+        for snapshot, data in entries
+        if not data.get("poster_path")
+        and data.get("media_type") in {"movie", "tv"}
+        and data.get("tmdb_id")
+    ]
+    if missing_posters:
+        try:
+            media_details = await tmdb.get_many(*[
+                (f"/{data['media_type']}/{int(data['tmdb_id'])}", None)
+                for _, data in missing_posters
+            ])
+        except TMDBError:
+            # The library should still load if TMDB is temporarily unavailable.
+            media_details = []
+
+        for (snapshot, data), details in zip(missing_posters, media_details):
+            updates = {
+                key: details[key]
+                for key in ("poster_path", "backdrop_path")
+                if not data.get(key) and details.get(key)
+            }
+            if not updates:
+                continue
+
+            data.update(updates)
+            try:
+                await snapshot.reference.update(updates)
+            except Exception:
+                # Return the image for this response even if the backfill write fails.
+                pass
+
+    return [watch_public(snapshot.id, data) for snapshot, data in entries]
