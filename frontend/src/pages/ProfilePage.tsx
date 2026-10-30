@@ -16,6 +16,18 @@ async function request(user: FirebaseUser, path: string, options: RequestInit = 
 
 const iconForStatus = (status: string) => status === 'watched' ? <Check size={17} /> : status === 'want_to_watch' ? <PlayCircle size={17} /> : <CalendarDays size={17} />;
 
+const statusTone = (status: string) => status === 'watched'
+  ? 'border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-200'
+  : status === 'want_to_watch'
+    ? 'border-violet-400/25 bg-violet-400/[0.09] text-violet-200'
+    : 'border-sky-400/20 bg-sky-400/[0.08] text-sky-200';
+
+const statusDotTone = (status: string) => status === 'watched'
+  ? 'bg-emerald-300'
+  : status === 'want_to_watch'
+    ? 'bg-violet-300'
+    : 'bg-sky-300';
+
 const TMDB_POSTER_BASE = 'https://image.tmdb.org/t/p/w342';
 
 const WatchPoster: React.FC<{ watch: Watch }> = ({ watch }) => {
@@ -51,6 +63,7 @@ export const ProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updatingWatch, setUpdatingWatch] = useState<string | null>(null);
+  const [openStatusMenu, setOpenStatusMenu] = useState<string | null>(null);
   const [linking, setLinking] = useState<'google' | 'password' | null>(null);
   const [linkMessage, setLinkMessage] = useState('');
   const [resetting, setResetting] = useState(false);
@@ -59,6 +72,24 @@ export const ProfilePage: React.FC = () => {
   const [showSecurity, setShowSecurity] = useState(false);
 
   useEffect(() => onAuthStateChanged(auth, current => { setFirebaseUser(current); setAuthReady(true); }), []);
+
+  useEffect(() => {
+    if (!openStatusMenu) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (event.target instanceof Element && !event.target.closest('[data-watch-status-menu]')) {
+        setOpenStatusMenu(null);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenStatusMenu(null);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [openStatusMenu]);
 
   useEffect(() => {
     let active = true;
@@ -215,19 +246,67 @@ export const ProfilePage: React.FC = () => {
                 <p className="mt-1 text-xs text-[#64748B]">{watch.media_type === 'tv' ? 'Series' : 'Movie'}{watch.rating !== null ? ` · ${watch.rating.toFixed(1)}` : ''}</p>
               </div>
               <div className="mt-5 flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-1.5 text-[11px] text-[#64748B]">{iconForStatus(watch.status)} {statuses.find(s => s.value === watch.status)?.label || watch.status}</span>
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#64748B]"><ArrowUpRight size={12} /> View details</span>
                 {updatingWatch === watch.id && <span className="text-[11px] text-[#A78BFA]">Saving…</span>}
               </div>
             </div>
           </a>
-          <div className="absolute right-4 top-4 z-10">
-            <div className="relative shrink-0">
-              <select value={watch.status} onChange={event => updateStatus(watch.id, event.target.value)} disabled={updatingWatch === watch.id} aria-label={`Change ${watch.title} status`} className="appearance-none rounded-lg border border-white/[0.07] bg-[#0B0B14] py-2 pl-2.5 pr-7 text-[11px] text-[#CBD5E1] outline-none focus:border-[#8B5CF6]/40">
-                <option disabled value={watch.status}>{statuses.find(s => s.value === watch.status)?.label || watch.status}</option>
-                {statuses.filter(s => s.value !== watch.status).map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-              <ChevronDown size={13} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#64748B]" />
-            </div>
+          <div className="absolute right-4 top-4 z-30" data-watch-status-menu>
+            <button
+              type="button"
+              onClick={() => setOpenStatusMenu(current => current === watch.id ? null : watch.id)}
+              disabled={updatingWatch !== null && updatingWatch !== watch.id}
+              aria-label={`Update ${watch.title} status`}
+              aria-haspopup="menu"
+              aria-expanded={openStatusMenu === watch.id}
+              className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-bold tracking-wide shadow-lg shadow-black/10 backdrop-blur-xl transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A78BFA] disabled:cursor-wait disabled:opacity-60 ${statusTone(watch.status)}`}
+            >
+              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDotTone(watch.status)}`} />
+              <span>{updatingWatch === watch.id ? 'Saving…' : statuses.find(s => s.value === watch.status)?.label || watch.status}</span>
+              <ChevronDown size={13} className={`transition-transform duration-200 ${openStatusMenu === watch.id ? 'rotate-180' : ''}`} />
+            </button>
+
+            {openStatusMenu === watch.id && (
+              <div
+                role="menu"
+                aria-label={`Change ${watch.title} status`}
+                className="absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-2xl border border-white/[0.10] bg-[#11111D]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-2xl"
+              >
+                <p className="px-3 pb-2 pt-2 text-[9px] font-bold uppercase tracking-[0.18em] text-[#64748B]">Move to list</p>
+                {statuses.map(status => {
+                  const selected = status.value === watch.status;
+                  return (
+                    <button
+                      key={status.value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={selected}
+                      onClick={() => {
+                        setOpenStatusMenu(null);
+                        if (!selected) void updateStatus(watch.id, status.value);
+                      }}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-medium transition-colors ${
+                        selected
+                          ? 'bg-white/[0.07] text-white'
+                          : 'text-[#AAB4C4] hover:bg-white/[0.045] hover:text-white'
+                      }`}
+                    >
+                      <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                        status.value === 'watched'
+                          ? 'bg-emerald-400/10 text-emerald-300'
+                          : status.value === 'want_to_watch'
+                            ? 'bg-violet-400/10 text-violet-300'
+                            : 'bg-sky-400/10 text-sky-300'
+                      }`}>
+                        {iconForStatus(status.value)}
+                      </span>
+                      <span className="flex-1">{status.label}</span>
+                      {selected && <Check size={14} className="text-[#C4B5FD]" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </article>)}</div>}
       </section>
