@@ -129,8 +129,8 @@ export const HomePage: React.FC = () => {
   return <div className="min-h-screen bg-transparent text-white">
     <header className="border-b border-white/[0.06]"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:py-6"><a href="/"><img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain" /></a><div className="flex items-center gap-2 sm:gap-5"><a href="/search" className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-2.5 text-sm font-medium text-[#C4B5FD] transition-colors hover:border-[#8B5CF6]/30 hover:bg-[#8B5CF6]/[0.07]"><Search className="h-4 w-4" />Search</a>{isSignedIn ? <a href="/profile" className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#6D28D9]">Profile</a> : <><a href="/sign-up" className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7]">Login</a><a href="/sign-up" className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white">Sign Up</a></>}</div></div></header>
     <main className="mx-auto max-w-7xl px-6 pb-20 pt-6">
-      <section className="mx-auto mb-10 max-w-4xl rounded-3xl border border-white/[0.07] bg-white/[0.025] p-5 sm:p-7">
-        <div className="mb-5 text-center">
+      <section className="mx-auto mb-7 max-w-4xl rounded-3xl border border-white/[0.07] bg-white/[0.025] px-5 py-3.5 sm:px-7 sm:py-4.5">
+        <div className="mb-3 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#A78BFA]">Discover</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Search Movies / Series</h1>
         </div>
