@@ -16,9 +16,17 @@ from .firestore import get_firestore
 from .schemas import UserPublic, UsernameRequest, WatchCreate, WatchPublic, WatchUpdate
 from .services.firebase_auth import verify_firebase_token
 from .services.tmdb import TMDBError, TMDBService
+from .services.taste import (
+    add_watch_atomically,
+    build_taste_contribution,
+    delete_watch_atomically,
+    update_watch_atomically,
+)
+from .services.tmdb_catalog import TMDBCatalog
 
 
 tmdb = TMDBService(settings.tmdb_api_key, settings.tmdb_base_url)
+tmdb_catalog = TMDBCatalog()
 bearer = HTTPBearer(auto_error=False)
 limiter = Limiter(
     key_func=get_remote_address,
@@ -283,7 +291,8 @@ async def add_watch(
 ) -> WatchPublic:
     firebase_uid, _ = current
     doc_id = f"{payload.media_type}_{payload.tmdb_id}"
-    ref = user_ref(db, firebase_uid).collection("watches").document(doc_id)
+    user_document = user_ref(db, firebase_uid)
+    ref = user_document.collection("watches").document(doc_id)
     existing = await ref.get()
     if existing.exists:
         raise HTTPException(status_code=409, detail="This title is already in your library")
@@ -293,10 +302,25 @@ async def add_watch(
 
     data = payload.model_dump()
     data["created_at"] = datetime.now(timezone.utc)
-    try:
-        await ref.create(data)
-    except AlreadyExists:
-        raise HTTPException(status_code=409, detail="This title is already in your library") from None
+    data["taste_contribution"] = None
+
+    if payload.status == "watched":
+        try:
+            features = await tmdb_catalog.get_features(
+                db, tmdb, payload.media_type, payload.tmdb_id
+            )
+        except TMDBError:
+            features = None
+        data["taste_metadata_status"] = "ready" if features is not None else "pending"
+        data["taste_features"] = features or {}
+        if features is not None:
+            data["taste_contribution"] = build_taste_contribution(payload.rating, features)
+    else:
+        data["taste_metadata_status"] = "not_applicable"
+
+    created = await add_watch_atomically(db, user_document, ref, data)
+    if not created:
+        raise HTTPException(status_code=409, detail="This title is already in your library")
     return watch_public(doc_id, data)
 
 
@@ -308,7 +332,8 @@ async def update_watch(
     db=Depends(get_firestore),
 ) -> WatchPublic:
     firebase_uid, _ = current
-    ref = user_ref(db, firebase_uid).collection("watches").document(watch_id)
+    user_document = user_ref(db, firebase_uid)
+    ref = user_document.collection("watches").document(watch_id)
     snapshot = await ref.get()
     if not snapshot.exists:
         raise HTTPException(status_code=404, detail="Watch entry not found")
@@ -319,9 +344,29 @@ async def update_watch(
     if not changes:
         return watch_public(watch_id, snapshot.to_dict() or {})
 
-    await ref.update(changes)
-    data = snapshot.to_dict() or {}
-    data.update(changes)
+    previous_data = snapshot.to_dict() or {}
+    target_status = changes.get("status", previous_data.get("status", "want_to_watch"))
+    metadata_features = None
+    metadata_status = None
+    if target_status == "watched" and previous_data.get("taste_metadata_status") != "ready":
+        try:
+            metadata_features = await tmdb_catalog.get_features(
+                db, tmdb, previous_data["media_type"], int(previous_data["tmdb_id"])
+            )
+            metadata_status = "ready"
+        except TMDBError:
+            metadata_status = "pending"
+
+    data = await update_watch_atomically(
+        db,
+        user_document,
+        ref,
+        changes,
+        metadata_features=metadata_features,
+        metadata_status=metadata_status,
+    )
+    if data is None:
+        raise HTTPException(status_code=404, detail="Watch entry not found")
     return watch_public(watch_id, data)
 
 
@@ -332,11 +377,11 @@ async def delete_watch(
     db=Depends(get_firestore),
 ):
     firebase_uid, _ = current
-    ref = user_ref(db, firebase_uid).collection("watches").document(watch_id)
-    snapshot = await ref.get()
-    if not snapshot.exists:
+    user_document = user_ref(db, firebase_uid)
+    ref = user_document.collection("watches").document(watch_id)
+    deleted = await delete_watch_atomically(db, user_document, ref)
+    if not deleted:
         raise HTTPException(status_code=404, detail="Watch entry not found")
-    await ref.delete()
 
 
 @app.get("/api/watches", response_model=list[WatchPublic])
