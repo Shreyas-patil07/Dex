@@ -216,23 +216,9 @@ export const ProfilePage: React.FC = () => {
           })}
         </div>
 
-        <div className="mt-8 flex flex-col gap-3 border-b border-white/[0.06] pb-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.17em] text-[#A78BFA]">
-              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#8B5CF6]/10">{iconForStatus(activeStatus)}</span>
-              Selected collection
-            </div>
-            <h3 className="text-xl font-bold tracking-tight text-[#F8FAFC]">
-              {statuses.find(status => status.value === activeStatus)?.label || 'Your list'}
-            </h3>
-            <p className="mt-1 text-sm text-[#64748B]">Browse and manage titles in this collection.</p>
-          </div>
-          <span className="inline-flex w-fit items-center rounded-full border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-xs font-medium text-[#CBD5E1]">
-            {filteredWatches.length} {filteredWatches.length === 1 ? 'title' : 'titles'}
-          </span>
-        </div>
+        
 
-        {filteredWatches.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-white/[0.09] bg-white/[0.012] p-12 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.035] text-[#64748B]">{iconForStatus(activeStatus)}</div><p className="mt-4 text-sm text-[#94A3B8]">No titles in {statuses.find(s => s.value === activeStatus)?.label?.toLowerCase() || 'this list'}.</p><a href="/" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Discover titles</a></div> : <div className="mt-5 grid gap-3 sm:grid-cols-2">{filteredWatches.map(watch => <article key={watch.id} className="group relative isolate overflow-visible rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#171727]/90 via-[#10101B] to-[#0A0A12] p-3 shadow-[0_12px_35px_rgba(0,0,0,0.16)] transition-all duration-300 hover:-translate-y-1 hover:border-[#A78BFA]/25 hover:shadow-[0_20px_45px_rgba(0,0,0,0.32)]">
+        {filteredWatches.length === 0 ? <div className="mt-6 rounded-2xl border border-dashed border-white/[0.09] bg-white/[0.012] p-12 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.035] text-[#64748B]">{iconForStatus(activeStatus)}</div><p className="mt-4 text-sm text-[#94A3B8]">No titles in {statuses.find(s => s.value === activeStatus)?.label?.toLowerCase() || 'this list'}.</p><a href="/" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Discover titles</a></div> : <div className="mt-6 grid gap-3 sm:grid-cols-2">{filteredWatches.map(watch => <article key={watch.id} className="group relative isolate overflow-visible rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#171727]/90 via-[#10101B] to-[#0A0A12] p-3 shadow-[0_12px_35px_rgba(0,0,0,0.16)] transition-all duration-300 hover:-translate-y-1 hover:border-[#A78BFA]/25 hover:shadow-[0_20px_45px_rgba(0,0,0,0.32)]">
           <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[#8B5CF6]/[0.07] blur-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
           <a
             href={`/${watch.media_type}/${watch.tmdb_id}`}
