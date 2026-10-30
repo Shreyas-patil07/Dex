@@ -35,7 +35,7 @@ const WatchPoster: React.FC<{ watch: Watch }> = ({ watch }) => {
   const src = watch.poster_path ? `${TMDB_POSTER_BASE}${watch.poster_path}` : '';
 
   return (
-    <div className="h-24 w-16 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-white/[0.06] to-white/[0.02] ring-1 ring-white/[0.08] transition-transform duration-200 group-hover:scale-[1.03]">
+    <div className="h-36 w-24 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-white/[0.06] to-white/[0.02] ring-1 ring-white/[0.08] shadow-xl shadow-black/30 transition-transform duration-300 group-hover:scale-[1.035]">
       {src && !failed ? (
         <img
           src={src}
@@ -232,26 +232,44 @@ export const ProfilePage: React.FC = () => {
           </span>
         </div>
 
-        {filteredWatches.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-white/[0.09] bg-white/[0.012] p-12 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.035] text-[#64748B]">{iconForStatus(activeStatus)}</div><p className="mt-4 text-sm text-[#94A3B8]">No titles in {statuses.find(s => s.value === activeStatus)?.label?.toLowerCase() || 'this list'}.</p><a href="/" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Discover titles</a></div> : <div className="mt-5 grid gap-3 sm:grid-cols-2">{filteredWatches.map(watch => <article key={watch.id} className="group relative rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/[0.11] hover:bg-white/[0.03]">
+        {filteredWatches.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-white/[0.09] bg-white/[0.012] p-12 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.035] text-[#64748B]">{iconForStatus(activeStatus)}</div><p className="mt-4 text-sm text-[#94A3B8]">No titles in {statuses.find(s => s.value === activeStatus)?.label?.toLowerCase() || 'this list'}.</p><a href="/" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Discover titles</a></div> : <div className="mt-5 grid gap-3 sm:grid-cols-2">{filteredWatches.map(watch => <article key={watch.id} className="group relative isolate overflow-visible rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#171727]/90 via-[#10101B] to-[#0A0A12] p-3 shadow-[0_12px_35px_rgba(0,0,0,0.16)] transition-all duration-300 hover:-translate-y-1 hover:border-[#A78BFA]/25 hover:shadow-[0_20px_45px_rgba(0,0,0,0.32)]">
+          <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-[#8B5CF6]/[0.07] blur-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
           <a
             href={`/${watch.media_type}/${watch.tmdb_id}`}
             aria-label={`View ${watch.title} details`}
             title={`View ${watch.title}`}
-            className="flex gap-4 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A78BFA]"
-          >
+            className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#A78BFA]"
+          />
+          <div className="pointer-events-none relative z-10 flex min-h-36 gap-4 p-1">
             <WatchPoster watch={watch} />
-            <div className="min-w-0 flex-1">
-              <div className="min-w-0 pr-24">
-                <h3 className="truncate font-semibold text-[#F8FAFC]">{watch.title}</h3>
-                <p className="mt-1 text-xs text-[#64748B]">{watch.media_type === 'tv' ? 'Series' : 'Movie'}{watch.rating !== null ? ` · ${watch.rating.toFixed(1)}` : ''}</p>
+            <div className="flex min-w-0 flex-1 flex-col py-1">
+              <div className="flex items-center gap-2">
+                <span className={`rounded-md border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] ${
+                  watch.media_type === 'tv'
+                    ? 'border-sky-300/15 bg-sky-300/[0.07] text-sky-200'
+                    : 'border-violet-300/15 bg-violet-300/[0.07] text-violet-200'
+                }`}>
+                  {watch.media_type === 'tv' ? 'TV SERIES' : 'MOVIE'}
+                </span>
+                {watch.rating !== null && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-200">
+                    <Star size={11} className="fill-amber-200/80" />
+                    {watch.rating.toFixed(1)}
+                    <span className="font-normal text-[#64748B]">your rating</span>
+                  </span>
+                )}
               </div>
-              <div className="mt-5 flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#64748B]"><ArrowUpRight size={12} /> View details</span>
-                {updatingWatch === watch.id && <span className="text-[11px] text-[#A78BFA]">Saving…</span>}
+              <h3 className="mt-3 line-clamp-2 text-base font-bold leading-snug tracking-tight text-[#F8FAFC] transition-colors group-hover:text-white sm:text-lg">
+                {watch.title}
+              </h3>
+              <div className="mt-auto flex items-center gap-2 pt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-[#8B94A8] transition-colors group-hover:text-[#C4B5FD]">
+                <span>View details</span>
+                <ArrowUpRight size={13} className="transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
               </div>
             </div>
-          </a>
-          <div className="absolute right-4 top-4 z-30" data-watch-status-menu>
+          </div>
+
+          <div className="absolute bottom-4 right-4 z-30" data-watch-status-menu>
             <button
               type="button"
               onClick={() => setOpenStatusMenu(current => current === watch.id ? null : watch.id)}
@@ -259,7 +277,7 @@ export const ProfilePage: React.FC = () => {
               aria-label={`Update ${watch.title} status`}
               aria-haspopup="menu"
               aria-expanded={openStatusMenu === watch.id}
-              className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-bold tracking-wide shadow-lg shadow-black/10 backdrop-blur-xl transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A78BFA] disabled:cursor-wait disabled:opacity-60 ${statusTone(watch.status)}`}
+              className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-bold tracking-wide shadow-lg shadow-black/20 backdrop-blur-xl transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A78BFA] disabled:cursor-wait disabled:opacity-60 ${statusTone(watch.status)}`}
             >
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusDotTone(watch.status)}`} />
               <span>{updatingWatch === watch.id ? 'Saving…' : statuses.find(s => s.value === watch.status)?.label || watch.status}</span>
@@ -270,7 +288,7 @@ export const ProfilePage: React.FC = () => {
               <div
                 role="menu"
                 aria-label={`Change ${watch.title} status`}
-                className="absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-2xl border border-white/[0.10] bg-[#11111D]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-2xl"
+                className="absolute bottom-full right-0 mb-2 w-48 overflow-hidden rounded-2xl border border-white/[0.10] bg-[#11111D]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-2xl"
               >
                 <p className="px-3 pb-2 pt-2 text-[9px] font-bold uppercase tracking-[0.18em] text-[#64748B]">Move to list</p>
                 {statuses.map(status => {
