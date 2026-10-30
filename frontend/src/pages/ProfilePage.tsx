@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, ChevronDown, Film, LogOut, PlayCircle, Plus, Settings2, ShieldCheck, Star, Tv2 } from 'lucide-react';
+import { ArrowUpRight, CalendarDays, Check, ChevronDown, Film, LogOut, PlayCircle, Plus, Settings2, ShieldCheck, Star, Tv2 } from 'lucide-react';
 import { EmailAuthProvider, GoogleAuthProvider, linkWithCredential, linkWithPopup, onAuthStateChanged, sendPasswordResetEmail, signOut, User as FirebaseUser } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { auth } from '../lib/firebase';
@@ -134,9 +134,72 @@ export const ProfilePage: React.FC = () => {
       <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{[['Total titles', watches.length], ['Movies', movies], ['Series', series], ['Avg. rating', average]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5"><p className="text-xs uppercase tracking-[0.15em] text-[#64748B]">{label}</p><p className="mt-2 inline-flex items-center gap-2 text-2xl font-bold">{value}{label === 'Avg. rating' && average !== '—' && <Star size={17} className="text-[#A78BFA]" />}</p></div>)}</section>
 
       <section className="mt-10"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#A855F7]">Library</p><h2 className="mt-2 text-2xl font-bold tracking-tight">Your lists</h2><p className="mt-1 text-sm text-[#64748B]">Everything you save, organized by its current status.</p></div><span className="hidden text-xs text-[#64748B] sm:block">{watches.length} titles</span></div>
-        <div className="mt-5 grid gap-4 lg:grid-cols-3">{statuses.slice(0, 3).map(status => { const active = activeStatus === status.value; const count = statusCounts[status.value] || 0; return <button key={status.value} onClick={() => setActiveStatus(status.value)} className={`rounded-2xl border p-5 text-left transition-all duration-200 ${active ? 'border-[#8B5CF6]/35 bg-[#8B5CF6]/[0.055] shadow-[0_12px_35px_rgba(139,92,246,0.08)]' : 'border-white/[0.07] bg-white/[0.02] hover:-translate-y-0.5 hover:border-white/[0.11] hover:bg-white/[0.03]'}`}><div className="flex items-start justify-between"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${active ? 'bg-[#8B5CF6]/15 text-[#C4B5FD]' : 'bg-white/[0.04] text-[#64748B]'}`}>{iconForStatus(status.value)}</span><span className="text-3xl font-bold">{count}</span></div><p className="mt-5 text-sm font-semibold text-[#E2E8F0]">{status.label}</p><p className="mt-1 text-xs text-[#64748B]">{count === 0 ? 'Nothing saved here yet.' : `${count} ${count === 1 ? 'title' : 'titles'}`}</p></button>; })}</div>
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
+          {statuses.slice(0, 3).map(status => {
+            const active = activeStatus === status.value;
+            const count = statusCounts[status.value] || 0;
+            const accent = status.value === 'watched'
+              ? { icon: 'bg-emerald-400/10 text-emerald-300 ring-emerald-300/15', glow: 'bg-emerald-400/10', count: 'text-emerald-200' }
+              : status.value === 'want_to_watch'
+                ? { icon: 'bg-violet-400/10 text-violet-300 ring-violet-300/15', glow: 'bg-violet-400/10', count: 'text-violet-200' }
+                : { icon: 'bg-sky-400/10 text-sky-300 ring-sky-300/15', glow: 'bg-sky-400/10', count: 'text-sky-200' };
+            const description = status.value === 'watched'
+              ? 'Movies and series you have completed'
+              : status.value === 'want_to_watch'
+                ? 'Your personal watchlist for later'
+                : 'Titles saved for the future';
 
-        <div className="mt-7 flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">{statuses.map(status => <button key={status.value} onClick={() => setActiveStatus(status.value)} className={`rounded-lg px-3 py-2 text-sm transition-colors ${activeStatus === status.value ? 'bg-white/[0.05] text-white' : 'text-[#64748B] hover:bg-white/[0.025] hover:text-[#AEB7C7]'}`}>{status.label}<span className="ml-2 text-xs text-[#64748B]">{statusCounts[status.value] || 0}</span></button>)}</div>
+            return (
+              <button
+                key={status.value}
+                type="button"
+                onClick={() => setActiveStatus(status.value)}
+                aria-pressed={active}
+                className={`group relative isolate min-h-[164px] overflow-hidden rounded-2xl border p-5 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A78BFA] ${
+                  active
+                    ? 'border-white/[0.16] bg-white/[0.055] shadow-[0_14px_38px_rgba(0,0,0,0.22)]'
+                    : 'border-white/[0.07] bg-white/[0.02] hover:-translate-y-0.5 hover:border-white/[0.13] hover:bg-white/[0.035]'
+                }`}
+              >
+                <div className={`pointer-events-none absolute -right-9 -top-10 h-36 w-36 rounded-full blur-3xl transition-opacity ${accent.glow} ${active ? 'opacity-100' : 'opacity-40 group-hover:opacity-75'}`} />
+                <div className="relative flex items-start justify-between gap-3">
+                  <span className={`flex h-11 w-11 items-center justify-center rounded-xl ring-1 transition-colors ${accent.icon}`}>
+                    {iconForStatus(status.value)}
+                  </span>
+                  <span className={`rounded-xl border border-white/[0.07] bg-black/20 px-3 py-1.5 text-lg font-bold tabular-nums ${active ? accent.count : 'text-[#CBD5E1]'}`}>
+                    {count}
+                  </span>
+                </div>
+                <div className="relative mt-5">
+                  <p className="text-base font-semibold tracking-tight text-[#F1F5F9]">{status.label}</p>
+                  <p className="mt-1 text-xs leading-5 text-[#8491A5]">{description}</p>
+                </div>
+                <div className="relative mt-4 flex items-center justify-between">
+                  <span className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${active ? 'text-[#C4B5FD]' : 'text-[#64748B]'}`}>
+                    {active ? 'Currently selected' : 'Open list'}
+                  </span>
+                  <ArrowUpRight size={15} className={`transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${active ? 'text-[#C4B5FD]' : 'text-[#64748B]'}`} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-8 flex flex-col gap-3 border-b border-white/[0.06] pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.17em] text-[#A78BFA]">
+              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#8B5CF6]/10">{iconForStatus(activeStatus)}</span>
+              Selected collection
+            </div>
+            <h3 className="text-xl font-bold tracking-tight text-[#F8FAFC]">
+              {statuses.find(status => status.value === activeStatus)?.label || 'Your list'}
+            </h3>
+            <p className="mt-1 text-sm text-[#64748B]">Browse and manage titles in this collection.</p>
+          </div>
+          <span className="inline-flex w-fit items-center rounded-full border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-xs font-medium text-[#CBD5E1]">
+            {filteredWatches.length} {filteredWatches.length === 1 ? 'title' : 'titles'}
+          </span>
+        </div>
 
         {filteredWatches.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-white/[0.09] bg-white/[0.012] p-12 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.035] text-[#64748B]">{iconForStatus(activeStatus)}</div><p className="mt-4 text-sm text-[#94A3B8]">No titles in {statuses.find(s => s.value === activeStatus)?.label?.toLowerCase() || 'this list'}.</p><a href="/" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Discover titles</a></div> : <div className="mt-5 grid gap-3 sm:grid-cols-2">{filteredWatches.map(watch => <article key={watch.id} className="group relative rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/[0.11] hover:bg-white/[0.03]">
           <a
