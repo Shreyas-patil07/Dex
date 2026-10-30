@@ -23,28 +23,21 @@ const WatchPoster: React.FC<{ watch: Watch }> = ({ watch }) => {
   const src = watch.poster_path ? `${TMDB_POSTER_BASE}${watch.poster_path}` : '';
 
   return (
-    <a
-      href={`/${watch.media_type}/${watch.tmdb_id}`}
-      aria-label={`View ${watch.title} details`}
-      title={`View ${watch.title}`}
-      className="block h-24 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/[0.08] transition duration-200 hover:scale-[1.04] hover:ring-[#A78BFA]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A78BFA]"
-    >
-      <div className="h-full w-full bg-gradient-to-br from-white/[0.06] to-white/[0.02]">
-        {src && !failed ? (
-          <img
-            src={src}
-            alt={`${watch.title} poster`}
-            loading="lazy"
-            onError={() => setFailed(true)}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-[#475569]">
-            {watch.media_type === 'tv' ? <Tv2 size={23} /> : <Film size={23} />}
-          </div>
-        )}
-      </div>
-    </a>
+    <div className="h-24 w-16 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-white/[0.06] to-white/[0.02] ring-1 ring-white/[0.08] transition-transform duration-200 group-hover:scale-[1.03]">
+      {src && !failed ? (
+        <img
+          src={src}
+          alt={`${watch.title} poster`}
+          loading="lazy"
+          onError={() => setFailed(true)}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-[#475569]">
+          {watch.media_type === 'tv' ? <Tv2 size={23} /> : <Film size={23} />}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -145,7 +138,35 @@ export const ProfilePage: React.FC = () => {
 
         <div className="mt-7 flex flex-wrap items-center gap-2 border-b border-white/[0.06] pb-3">{statuses.map(status => <button key={status.value} onClick={() => setActiveStatus(status.value)} className={`rounded-lg px-3 py-2 text-sm transition-colors ${activeStatus === status.value ? 'bg-white/[0.05] text-white' : 'text-[#64748B] hover:bg-white/[0.025] hover:text-[#AEB7C7]'}`}>{status.label}<span className="ml-2 text-xs text-[#64748B]">{statusCounts[status.value] || 0}</span></button>)}</div>
 
-        {filteredWatches.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-white/[0.09] bg-white/[0.012] p-12 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.035] text-[#64748B]">{iconForStatus(activeStatus)}</div><p className="mt-4 text-sm text-[#94A3B8]">No titles in {statuses.find(s => s.value === activeStatus)?.label?.toLowerCase() || 'this list'}.</p><a href="/" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Discover titles</a></div> : <div className="mt-5 grid gap-3 sm:grid-cols-2">{filteredWatches.map(watch => <article key={watch.id} className="group rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/[0.11] hover:bg-white/[0.03]"><div className="flex gap-4"><WatchPoster watch={watch} /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate font-semibold text-[#F8FAFC]">{watch.title}</h3><p className="mt-1 text-xs text-[#64748B]">{watch.media_type === 'tv' ? 'Series' : 'Movie'}{watch.rating !== null ? ` · ${watch.rating.toFixed(1)}` : ''}</p></div><div className="relative shrink-0"><select value={watch.status} onChange={event => updateStatus(watch.id, event.target.value)} disabled={updatingWatch === watch.id} className="appearance-none rounded-lg border border-white/[0.07] bg-[#0B0B14] py-2 pl-2.5 pr-7 text-[11px] text-[#CBD5E1] outline-none focus:border-[#8B5CF6]/40"><option disabled value={watch.status}>{statuses.find(s => s.value === watch.status)?.label || watch.status}</option>{statuses.filter(s => s.value !== watch.status).map(s => <option key={s.value} value={s.value}>{s.label}</option>)}</select><ChevronDown size={13} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#64748B]" /></div></div><div className="mt-5 flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-[11px] text-[#64748B]">{iconForStatus(watch.status)} {statuses.find(s => s.value === watch.status)?.label || watch.status}</span>{updatingWatch === watch.id && <span className="text-[11px] text-[#A78BFA]">Saving…</span>}</div></div></div></article>)}</div>}
+        {filteredWatches.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-white/[0.09] bg-white/[0.012] p-12 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.035] text-[#64748B]">{iconForStatus(activeStatus)}</div><p className="mt-4 text-sm text-[#94A3B8]">No titles in {statuses.find(s => s.value === activeStatus)?.label?.toLowerCase() || 'this list'}.</p><a href="/" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Discover titles</a></div> : <div className="mt-5 grid gap-3 sm:grid-cols-2">{filteredWatches.map(watch => <article key={watch.id} className="group relative rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/[0.11] hover:bg-white/[0.03]">
+          <a
+            href={`/${watch.media_type}/${watch.tmdb_id}`}
+            aria-label={`View ${watch.title} details`}
+            title={`View ${watch.title}`}
+            className="flex gap-4 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A78BFA]"
+          >
+            <WatchPoster watch={watch} />
+            <div className="min-w-0 flex-1">
+              <div className="min-w-0 pr-24">
+                <h3 className="truncate font-semibold text-[#F8FAFC]">{watch.title}</h3>
+                <p className="mt-1 text-xs text-[#64748B]">{watch.media_type === 'tv' ? 'Series' : 'Movie'}{watch.rating !== null ? ` · ${watch.rating.toFixed(1)}` : ''}</p>
+              </div>
+              <div className="mt-5 flex items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-[#64748B]">{iconForStatus(watch.status)} {statuses.find(s => s.value === watch.status)?.label || watch.status}</span>
+                {updatingWatch === watch.id && <span className="text-[11px] text-[#A78BFA]">Saving…</span>}
+              </div>
+            </div>
+          </a>
+          <div className="absolute right-4 top-4 z-10">
+            <div className="relative shrink-0">
+              <select value={watch.status} onChange={event => updateStatus(watch.id, event.target.value)} disabled={updatingWatch === watch.id} aria-label={`Change ${watch.title} status`} className="appearance-none rounded-lg border border-white/[0.07] bg-[#0B0B14] py-2 pl-2.5 pr-7 text-[11px] text-[#CBD5E1] outline-none focus:border-[#8B5CF6]/40">
+                <option disabled value={watch.status}>{statuses.find(s => s.value === watch.status)?.label || watch.status}</option>
+                {statuses.filter(s => s.value !== watch.status).map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              <ChevronDown size={13} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[#64748B]" />
+            </div>
+          </div>
+        </article>)}</div>}
       </section>
 
       {showSecurity && <section className="mt-12 rounded-3xl border border-white/[0.07] bg-white/[0.02] p-7 sm:p-8"><div className="flex items-start gap-4"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 text-[#C4B5FD]"><ShieldCheck size={18} /></div><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A855F7]">Account security</p><h2 className="mt-2 text-2xl font-bold">Sign-in methods</h2><p className="mt-2 text-sm text-[#94A3B8]">Connect multiple ways to sign in to the same Dex account.</p></div></div><div className="mt-6 space-y-3"><div className="flex flex-col gap-4 rounded-2xl border border-white/[0.07] bg-[#0B0B14] p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">Google</p><p className="mt-1 text-xs text-[#64748B]">{hasGoogle ? 'Connected to this account' : 'Not connected'}</p></div>{hasGoogle ? <span className="text-sm text-emerald-400">✓ Connected</span> : <button onClick={connectGoogle} disabled={linking !== null} className="rounded-xl bg-white/[0.06] px-4 py-2 text-sm font-semibold disabled:opacity-50">{linking === 'google' ? 'Connecting…' : 'Connect Google'}</button>}</div><div className="rounded-2xl border border-white/[0.07] bg-[#0B0B14] p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">Email & Password</p><p className="mt-1 text-xs text-[#64748B]">{hasPassword ? `Connected as ${firebaseUser.email}` : `Use ${firebaseUser.email || 'your email'} to sign in`}</p></div>{hasPassword && <span className="text-sm text-emerald-400">✓ Connected</span>}</div>{hasPassword ? <button onClick={resetPassword} disabled={resetting} className="mt-5 rounded-xl border border-white/[0.08] px-4 py-2.5 text-sm font-semibold text-[#C084FC] hover:bg-white/[0.04] disabled:opacity-50">{resetting ? 'Sending…' : 'Reset password'}</button> : <form onSubmit={addPassword} className="mt-5 grid gap-3 sm:grid-cols-2"><input type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder="New password" minLength={8} required className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm outline-none focus:border-[#7C3AED]" /><input type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} placeholder="Confirm password" minLength={8} required className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm outline-none focus:border-[#7C3AED]" /><button disabled={linking !== null} className="rounded-xl bg-[#7C3AED] px-4 py-3 text-sm font-semibold sm:col-span-2 disabled:opacity-50">{linking === 'password' ? 'Connecting…' : 'Add password'}</button></form>}</div></div>{linkMessage && <p className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm text-[#CBD5E1]">{linkMessage}</p>}</section>}
