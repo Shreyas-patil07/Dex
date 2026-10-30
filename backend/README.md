@@ -75,3 +75,19 @@ GET  /api/watches
 ```
 
 Authentication is handled by Firebase. Protected endpoints expect a Firebase ID token in the `Authorization: Bearer <token>` header.
+
+
+## Taste engine V1
+
+Watched titles contribute to an incrementally maintained all-time taste profile. Watchlist statuses do not contribute. A fixed rating baseline of 5.5 maps ratings to signed sentiment in [-1, 1]; an unrated watched title contributes +0.15. Each feature group is L2-normalized independently before its exact contribution is stored on the watch document.
+
+Firestore layout:
+
+- users/{uid}/taste/profile: schema/model versions and profiled watch counters.
+- users/{uid}/taste_vectors/{group}/features/{feature_id}: positive and negative all-time sums for one feature. Keeping one feature per document avoids a large growing map in a single profile document.
+- users/{uid}/watches/{media_type}_{tmdb_id}: source watch plus a snapshot of taste features and the exact contribution required to reverse an edit or delete.
+- tmdb_catalog/{media_type}_{tmdb_id}: shared feature metadata cached for 180 days.
+
+Feature groups are genres, keywords, people (movie directors or TV creators), and decades. Their scoring weights are 1.0, 1.2, 1.0, and 0.35 respectively. Edits and deletes reverse the exact contribution persisted on the watch document inside the same Firestore transaction as the watch mutation. If TMDB is unavailable, the watch action still succeeds and its taste metadata remains pending; the next edit that requires metadata can retry the lookup.
+
+Run backend tests with: python -m pytest

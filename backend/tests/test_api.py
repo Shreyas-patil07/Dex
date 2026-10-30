@@ -3,9 +3,11 @@ from copy import deepcopy
 import pytest
 from fastapi.testclient import TestClient
 from google.api_core.exceptions import AlreadyExists
+from google.cloud import firestore
 
 import app.main as main
 from app.firestore import get_firestore
+from app.services import taste
 
 
 class FakeSnapshot:
@@ -23,7 +25,7 @@ class FakeDocumentReference:
         self.database = database
         self.path = path
 
-    async def get(self):
+    async def get(self, transaction=None):
         return FakeSnapshot(self.path[-1], self.database.documents.get(self.path))
 
     async def set(self, data):
@@ -68,9 +70,43 @@ class FakeFirestore:
         return FakeCollection(self, (name,))
 
 
+class FakeTransaction:
+    def __init__(self, database):
+        self.database = database
+        self.mutations = []
+
+    def set(self, reference, data, merge=False):
+        self.mutations.append(("set", reference.path, deepcopy(data), merge))
+
+    def delete(self, reference):
+        self.mutations.append(("delete", reference.path, None, False))
+
+    def commit(self):
+        for operation, path, data, merge in self.mutations:
+            if operation == "delete":
+                self.database.documents.pop(path, None)
+                continue
+
+            document = deepcopy(self.database.documents.get(path, {})) if merge else {}
+            for key, value in data.items():
+                if isinstance(value, firestore.Increment):
+                    document[key] = float(document.get(key, 0.0) or 0.0) + value.value
+                else:
+                    document[key] = deepcopy(value)
+            self.database.documents[path] = document
+
+
 @pytest.fixture
 def api_client(monkeypatch):
     database = FakeFirestore()
+
+    async def fake_run_transaction(db, operation):
+        transaction = FakeTransaction(db)
+        result = await operation(transaction)
+        transaction.commit()
+        return result
+
+    monkeypatch.setattr(taste, "run_transaction", fake_run_transaction)
     main.limiter._storage.reset()
     main.app.dependency_overrides[get_firestore] = lambda: database
     monkeypatch.setattr(
@@ -80,6 +116,7 @@ def api_client(monkeypatch):
     )
     try:
         with TestClient(main.app) as client:
+            client.database = database
             yield client
     finally:
         main.app.dependency_overrides.clear()
@@ -172,6 +209,82 @@ def test_watch_crud_is_isolated_by_firebase_uid(api_client):
     deleted = api_client.delete(f"/api/watches/{watch_id}", headers=auth_headers("alice"))
     assert deleted.status_code == 204
     assert api_client.get("/api/watches", headers=auth_headers("alice")).json() == []
+
+
+
+def test_watched_title_updates_positive_and_negative_vectors_atomically(api_client, monkeypatch):
+    sync_account(api_client, "taste-user")
+
+    async def fake_get_features(db, tmdb_service, media_type, tmdb_id):
+        assert media_type == "movie"
+        assert tmdb_id == 550
+        return {
+            "genres": ["18"],
+            "keywords": ["100", "200"],
+            "people": ["7467"],
+            "decades": ["1990s"],
+        }
+
+    monkeypatch.setattr(main.tmdb_catalog, "get_features", fake_get_features)
+
+    created = api_client.post(
+        "/api/watches",
+        headers=auth_headers("taste-user"),
+        json={
+            "tmdb_id": 550,
+            "media_type": "movie",
+            "title": "Fight Club",
+            "status": "watched",
+            "rating": 9.0,
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    database = api_client.database
+    watch_path = ("users", "taste-user", "watches", "movie_550")
+    profile_path = ("users", "taste-user", "taste", "profile")
+    genre_path = ("users", "taste-user", "taste_vectors", "genres", "features", "18")
+    assert database.documents[profile_path]["profiled_watch_count"] == 1
+    assert database.documents[profile_path]["profiled_rated_count"] == 1
+    assert database.documents[genre_path]["positive_sum"] == pytest.approx(7 / 9)
+    assert database.documents[watch_path]["taste_contribution"]["direction"] == "positive"
+
+    updated = api_client.patch(
+        "/api/watches/movie_550",
+        headers=auth_headers("taste-user"),
+        json={"rating": 2.0},
+    )
+    assert updated.status_code == 200, updated.text
+    vector = database.documents[genre_path]
+    assert vector["positive_sum"] == pytest.approx(0.0, abs=1e-10)
+    assert vector["negative_sum"] == pytest.approx(7 / 11)
+    assert database.documents[watch_path]["taste_contribution"]["direction"] == "negative"
+
+    moved_to_watchlist = api_client.patch(
+        "/api/watches/movie_550",
+        headers=auth_headers("taste-user"),
+        json={"status": "want_to_watch"},
+    )
+    assert moved_to_watchlist.status_code == 200
+    assert database.documents[profile_path]["profiled_watch_count"] == 0
+    assert database.documents[genre_path]["negative_sum"] == pytest.approx(0.0, abs=1e-10)
+
+    moved_back = api_client.patch(
+        "/api/watches/movie_550",
+        headers=auth_headers("taste-user"),
+        json={"status": "watched"},
+    )
+    assert moved_back.status_code == 200
+    assert database.documents[profile_path]["profiled_watch_count"] == 1
+    assert database.documents[genre_path]["negative_sum"] == pytest.approx(7 / 11)
+
+    deleted = api_client.delete(
+        "/api/watches/movie_550",
+        headers=auth_headers("taste-user"),
+    )
+    assert deleted.status_code == 204
+    assert database.documents[profile_path]["profiled_watch_count"] == 0
+    assert database.documents[genre_path]["negative_sum"] == pytest.approx(0.0, abs=1e-10)
 
 
 def test_search_query_and_page_are_bounded(api_client):
