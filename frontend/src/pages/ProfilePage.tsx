@@ -164,7 +164,7 @@ export const ProfilePage: React.FC = () => {
 
       <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{[['Total titles', watches.length], ['Movies', movies], ['Series', series], ['Avg. rating', average]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5"><p className="text-xs uppercase tracking-[0.15em] text-[#64748B]">{label}</p><p className="mt-2 inline-flex items-center gap-2 text-2xl font-bold">{value}{label === 'Avg. rating' && average !== '—' && <Star size={17} className="text-[#A78BFA]" />}</p></div>)}</section>
 
-      <section className="mt-10"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#A855F7]">Library</p><h2 className="mt-2 text-2xl font-bold tracking-tight">Your lists</h2><p className="mt-1 text-sm text-[#64748B]">Everything you save, organized by its current status.</p></div><span className="hidden text-xs text-[#64748B] sm:block">{watches.length} titles</span></div>
+      <section className="mt-10">
         <div className="mt-6 grid gap-3 md:grid-cols-3">
           {statuses.slice(0, 3).map(status => {
             const active = activeStatus === status.value;
