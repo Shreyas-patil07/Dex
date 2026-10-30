@@ -44,7 +44,6 @@ export const HomePage: React.FC = () => {
   const [type, setType] = useState<'all' | 'movie' | 'tv'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [searchMediaType, setSearchMediaType] = useState<'all' | 'movie' | 'tv'>('all');
   const [searchResults, setSearchResults] = useState<Media[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
@@ -73,7 +72,7 @@ export const HomePage: React.FC = () => {
     let active = true;
     const params = new URLSearchParams({
       query: normalizedQuery,
-      media_type: searchMediaType,
+      media_type: "all",
     });
     setSearchLoading(true);
     setSearchError('');
@@ -99,7 +98,7 @@ export const HomePage: React.FC = () => {
       active = false;
       controller.abort();
     };
-  }, [debouncedSearchQuery, searchMediaType]);
+  }, [debouncedSearchQuery]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -134,25 +133,6 @@ export const HomePage: React.FC = () => {
         <div className="mb-5 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#A78BFA]">Discover</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Search Movies / Series</h1>
-          <p className="mt-2 text-sm text-[#94A3B8]">Find a title and open it to explore details, ratings, and where to watch.</p>
-        </div>
-
-        <div className="mb-4 flex flex-wrap justify-center gap-2" role="group" aria-label="Search category">
-          {([
-            { value: "all", label: "All titles" },
-            { value: "movie", label: "Movies" },
-            { value: "tv", label: "Series" },
-          ] as const).map(option => (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={searchMediaType === option.value}
-              onClick={() => setSearchMediaType(option.value)}
-              className={`rounded-xl border px-5 py-2.5 text-sm font-medium transition-colors ${searchMediaType === option.value ? activeFilter : inactiveFilter}`}
-            >
-              {option.label}
-            </button>
-          ))}
         </div>
 
         <div className="relative">
@@ -163,7 +143,7 @@ export const HomePage: React.FC = () => {
             type="search"
             aria-label="Search movies and series"
             className="block w-full rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 pl-12 pr-12 text-[#E2E8F0] placeholder:text-[#64748B] outline-none transition-all focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED]"
-            placeholder={searchMediaType === "movie" ? "Search movies..." : searchMediaType === "tv" ? "Search series..." : "Search movies and series..."}
+            placeholder="Search movies and series..."
             value={searchQuery}
             onChange={event => setSearchQuery(event.target.value)}
           />
@@ -185,7 +165,7 @@ export const HomePage: React.FC = () => {
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#A78BFA]">Search results</p>
-              <p className="mt-1 text-sm text-[#94A3B8]">{searchMediaType === "movie" ? "Movies" : searchMediaType === "tv" ? "Series" : "Movies and series"} matching “{searchQuery.trim()}”</p>
+              <p className="mt-1 text-sm text-[#94A3B8]">Movies and series matching “{searchQuery.trim()}”</p>
             </div>
             <button type="button" onClick={() => setSearchQuery("")} className="self-start rounded-lg px-3 py-2 text-sm text-[#A78BFA] transition-colors hover:bg-white/[0.04] sm:self-auto">Back to Trending</button>
           </div>
