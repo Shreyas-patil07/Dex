@@ -23,21 +23,28 @@ const WatchPoster: React.FC<{ watch: Watch }> = ({ watch }) => {
   const src = watch.poster_path ? `${TMDB_POSTER_BASE}${watch.poster_path}` : '';
 
   return (
-    <div className="h-24 w-16 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-white/[0.06] to-white/[0.02] ring-1 ring-white/[0.05]">
-      {src && !failed ? (
-        <img
-          src={src}
-          alt={`${watch.title} poster`}
-          loading="lazy"
-          onError={() => setFailed(true)}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-[#475569]">
-          {watch.media_type === 'tv' ? <Tv2 size={23} /> : <Film size={23} />}
-        </div>
-      )}
-    </div>
+    <a
+      href={`/${watch.media_type}/${watch.tmdb_id}`}
+      aria-label={`View ${watch.title} details`}
+      title={`View ${watch.title}`}
+      className="block h-24 w-16 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/[0.08] transition duration-200 hover:scale-[1.04] hover:ring-[#A78BFA]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A78BFA]"
+    >
+      <div className="h-full w-full bg-gradient-to-br from-white/[0.06] to-white/[0.02]">
+        {src && !failed ? (
+          <img
+            src={src}
+            alt={`${watch.title} poster`}
+            loading="lazy"
+            onError={() => setFailed(true)}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[#475569]">
+            {watch.media_type === 'tv' ? <Tv2 size={23} /> : <Film size={23} />}
+          </div>
+        )}
+      </div>
+    </a>
   );
 };
 
