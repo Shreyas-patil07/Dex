@@ -6,108 +6,85 @@
 
 ## 1. Validation objectives
 
-Demonstrate correctness of catalogue endpoints, Firebase identity verification, username ownership, watch-record lifecycle, taste contribution accounting, and frontend build/type integrity. Performance and production reliability targets must be measured, not assumed.
+Verify catalogue endpoints, Firebase identity, username ownership, watch lifecycle, taste contribution accounting, and frontend type/build integrity. Performance/reliability targets must be measured.
 
 ## 2. Test levels
 
 | Level | Scope | Tooling | CI status |
 |---|---|---|---|
-| Unit | Taste calculations, normalisation, TMDB client behaviour | Pytest | Backend test job |
-| API | FastAPI route validation/auth/error behaviour | Pytest and test client | Backend test job |
-| Integration | Firestore transaction and Firebase interactions | Fakes/emulators or controlled test project | Extend as required |
-| Frontend static | TypeScript correctness | TypeScript compiler | Yes |
-| Frontend build | Production bundling | Vite | Yes |
-| End-to-end | Real user flows across browser/API | Browser automation | Not established in current CI |
-| Performance | Search latency, trending latency, write cost | Load/benchmark tooling | Not established |
-| Security | Token validation, cross-user isolation, secret hygiene | Tests and review | Partial |
-| Compatibility | Mobile/desktop browser behaviour | Device/browser matrix | Manual / to formalise |
+| Unit | Taste calculations, normalisation, TMDB client | Pytest | Backend job |
+| API | Route validation/auth/errors | Pytest/test client | Backend job |
+| Integration | Firestore transactions/Firebase | Emulator or controlled test project | Extend as needed |
+| Frontend static | TypeScript | TypeScript compiler | CI |
+| Frontend build | Production bundle | Vite | CI |
+| End-to-end | Browser/API journeys | Browser automation | Not established |
+| Performance | Search latency, write cost | Load tools | Not established |
+| Security | Token/isolation/secrets | Tests and review | Partial |
+| Compatibility | Mobile/desktop browser | Browser matrix | Formalise |
 
-## 3. Acceptance criteria
+## 3. Acceptance tests
 
-| Test ID | Requirement | Scenario | Pass criterion |
+| ID | Requirement | Scenario | Pass criterion |
 |---|---|---|---|
-| T-001 | FR-001 | Trending by media type/time window | Valid response and invalid filters rejected |
-| T-002 | FR-002 | Search query bounds and media filtering | Valid results; bad query rejected |
-| T-003 | FR-003 | Valid/invalid media detail identifiers | Correct response or controlled validation error |
-| T-004 | FR-004 | Missing/invalid/valid Firebase token | 401 for invalid; UID verified for valid |
-| T-005 | FR-006 | Same username claimed by two users | Second distinct user receives conflict |
-| T-006 | FR-007 | Create/list/update/delete watch | Correct per-user persistence |
-| T-007 | FR-009 | Add watched vs watchlist item | Only watched item changes taste |
-| T-008 | FR-010 | Edit/delete a profiled watch | Exact prior contribution is reversed |
-| T-009 | FR-010 | Repeated edits and deletes | No vector drift or double subtraction |
-| T-010 | NFR-002 | User A requests User B data | Access denied / no cross-user data |
-| T-011 | NFR-001 | Secret scan | No credentials in repo or frontend output |
+| T-001 | FR-001 | Trending filters | Valid response; invalid filter rejected |
+| T-002 | FR-002 | Search bounds/filter | Valid results; invalid query rejected |
+| T-003 | FR-003 | Media IDs | Correct details or controlled error |
+| T-004 | FR-004 | Firebase token cases | 401 invalid; verified UID on success |
+| T-005 | FR-006 | Concurrent username claims | One distinct owner |
+| T-006 | FR-007 | Watch CRUD | Correct per-user persistence |
+| T-007 | FR-009 | Watched vs planned | Only watched affects taste |
+| T-008 | FR-010 | Edit/delete profiled watch | Prior contribution reversed |
+| T-009 | FR-010 | Repeated edits/deletes | No vector drift/double subtraction |
+| T-010 | NFR-002 | Cross-user request | No other user's data |
+| T-011 | NFR-001 | Secret scan | No credentials in repo/build |
 
-## 4. Test environments and matrix
+## 4. Environments
 
 | Environment | Runtime | Purpose |
 |---|---|---|
-| Local developer | Node 22 / Python 3.11 | Fast iteration |
-| GitHub Actions | Ubuntu, Node 22, Python 3.11 | Repeatable CI |
-| Firebase test environment/emulator | Project-specific | Auth/Firestore integration |
-| Production | Vercel + Render + Firebase | Smoke checks only; avoid destructive tests |
+| Developer | Node 22 / Python 3.11 | Local iteration |
+| GitHub Actions | Ubuntu, Node 22, Python 3.11 | CI |
+| Firebase emulator/test project | Configured test identity/data | Auth/Firestore integration |
+| Production | Vercel/Render/Firebase | Non-destructive smoke tests |
 
-## 5. Performance and reliability benchmarks
+## 5. Performance and reliability
 
-No verified production benchmark values are recorded here. Establish baseline measurements for:
+No verified benchmark values are recorded. Measure p50/p95 trending/search/detail latency, TMDB error rate, Firestore reads/writes per mutation, taste update duration, frontend bundle size, and uptime. Record environment, sample size, warm-up, dataset and duration.
 
-- Trending/search/detail response time (p50/p95).
-- TMDB upstream timeout/error rate.
-- Firestore reads/writes per watch mutation.
-- Taste vector mutation duration and document counts.
-- Frontend initial-load/build size.
-- Error rates and uptime over a defined period.
-
-Record the hardware/runtime, sample size, warm-up, dataset, and test duration with each result.
-
-## 6. Fault and edge-case testing
+## 6. Fault and edge cases
 
 | Scenario | Expected behaviour |
 |---|---|
-| TMDB timeout / non-2xx | Controlled service error; no leaked API key |
-| Missing/expired Firebase ID token | 401 |
-| User not synchronized | Protected API rejects until sync |
-| Username collision under concurrency | One owner only |
-| Duplicate watch record | Conflict or idempotent behaviour as implemented |
-| Rating outside 0–10 | Validation failure |
-| Invalid media type/status | Validation failure |
-| TMDB metadata unavailable during taste update | Watch persistence and pending metadata handled consistently |
-| Taste edit/delete repeated | No contribution drift |
-| Firestore transaction abort | Watch and taste state do not partially commit |
+| TMDB timeout/non-2xx | Controlled error; no secret leak |
+| Invalid token | 401 |
+| Unsynchronized profile | Protected API rejects |
+| Concurrent username claim | One owner |
+| Invalid rating/status/media type | Validation error |
+| TMDB metadata unavailable | Pending taste metadata handled consistently |
+| Repeated taste edit/delete | No aggregate drift |
+| Transaction abort | No partial write |
 | Rate limit exceeded | Rate-limit response |
-| CORS from unknown origin | Browser access not allowed |
+| Unknown CORS origin | Browser access not allowed |
 
-## 7. Regression and release gates
+## 7. Release gates
 
-- [ ] Backend Pytest suite passes.
-- [ ] Python compile check passes.
-- [ ] Frontend typecheck passes.
-- [ ] Frontend production build passes.
-- [ ] Taste contribution reversal and transaction invariants pass.
-- [ ] Cross-user access tests pass.
-- [ ] Production secrets and allowed origins are reviewed.
-- [ ] Known failures and limitations are recorded.
+- Backend Pytest passes.
+- Python compile check passes.
+- Frontend typecheck and build pass.
+- Taste reversal/transaction invariants pass.
+- Cross-user access tests pass.
+- Secrets and allowed origins are reviewed.
+- Known limitations are documented.
 
-## 8. Results and evidence
+## 8. Evidence
 
 - CI: https://github.com/Shreyas-patil07/Dex/actions
-- Backend tests: `backend/tests/`
-- Taste engine: `backend/app/services/taste.py`
-- TMDB service: `backend/app/services/tmdb.py`
-- API route implementation: `backend/app/main.py`
+- Backend tests: backend/tests/
+- Taste service: backend/app/services/taste.py
+- TMDB client: backend/app/services/tmdb.py
+- API: backend/app/main.py
 
 ## 9. Current CI commands
 
-**Frontend**
-```bash
-npm ci
-npm run typecheck
-npm run build
-```
-
-**Backend**
-```bash
-pip install -r requirements-dev.txt
-python -m compileall app tests
-pytest -q
-```
+Frontend: `npm ci`, `npm run typecheck`, `npm run build`.  
+Backend: `pip install -r requirements-dev.txt`, `python -m compileall app tests`, `pytest -q`.

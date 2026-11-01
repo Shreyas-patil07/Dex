@@ -1,6 +1,6 @@
 # Development Log
 
-> Keep entries factual and chronological. This initial baseline records repository state and documentation work; it does not reconstruct undocumented historical milestones.
+Keep entries factual and chronological. This initial baseline does not reconstruct undocumented history.
 
 ## Entry format
 
@@ -8,9 +8,9 @@
 
 - **Type:** Milestone / Experiment / Change / Issue / Release
 - **Summary:** What changed.
-- **Evidence:** Commit, PR, issue, test, or report.
+- **Evidence:** Commit, PR, issue, test, report.
 - **Outcome:** Verified result.
-- **Next action:** Follow-up or none.
+- **Next action:** Follow-up.
 
 ---
 
@@ -19,15 +19,15 @@
 ### 2026-11-02 — Project documentation baseline
 
 - **Type:** Documentation milestone
-- **Summary:** Populate the project documentation system based on the existing Dex application, API, configuration, and backend service structure.
-- **Evidence:** Documentation-only branch `docs/dex-project-documentation`.
-- **Outcome:** Product, technical, architecture, flow, UI, data/API, implementation, security, testing, and development-log documents drafted; supporting repository guidance updated.
-- **Next action:** Review and merge the documentation pull request; validate open questions against Firebase production configuration and the live OpenAPI schema.
+- **Summary:** Populate the engineering documentation system from existing Dex application, API, configuration, and backend structure.
+- **Evidence:** Branch `docs/dex-project-documentation`.
+- **Outcome:** Product/technical/architecture/flow/UI/data/implementation/security/testing/log documents and ADR set drafted.
+- **Next action:** Review PR and validate open questions against Firebase production config and live OpenAPI.
 
 ### Existing implementation baseline — date not reconstructed
 
 - **Type:** Product milestone
-- **Summary:** Repository contains a React/TypeScript/Vite frontend, FastAPI backend, Firebase Authentication, Cloud Firestore, TMDB integration, and a taste engine with regression tests.
-- **Evidence:** Current `frontend/`, `backend/`, and `.github/workflows/ci.yml` source tree.
-- **Outcome:** Deployed frontend and backend URLs are recorded in the root README.
-- **Next action:** Preserve behavioural invariants and keep this log current through linked commits/PRs.
+- **Summary:** Repository contains React/TypeScript/Vite frontend, FastAPI backend, Firebase Authentication, Cloud Firestore, TMDB integration, and taste engine regression tests.
+- **Evidence:** Current frontend/, backend/, and CI source tree.
+- **Outcome:** Deployed frontend/API URLs are recorded in root README.
+- **Next action:** Preserve behavioural invariants; link future milestones to commits/PRs.

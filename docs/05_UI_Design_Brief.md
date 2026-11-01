@@ -6,15 +6,15 @@
 
 ## 1. UX objectives
 
-- Make media discovery fast and visually clear.
+- Make discovery fast and visually clear.
 - Keep watch activity and profile identity understandable.
-- Require minimal friction between discovering a title and recording it.
-- Present taste as an interpretation of a user's own recorded viewing activity, not as an objective personality assessment.
-- Maintain coherent responsive behaviour across mobile and desktop browsers.
+- Minimise friction between discovery and logging.
+- Present taste as an interpretation of recorded viewing activity, not an objective personality assessment.
+- Maintain responsive behaviour across mobile and desktop.
 
 ## 2. Users and usage context
 
-Dex is used by entertainment viewers through modern browsers. Common contexts include casual browsing on mobile and longer discovery/history sessions on desktop. Network connectivity is required for remote catalogue and account data.
+Entertainment viewers use Dex through modern browsers, on mobile for casual browsing and desktop for longer discovery/history sessions. Network access is required for remote catalogue and account data.
 
 ## 3. Information architecture
 
@@ -27,76 +27,56 @@ flowchart TD
     B --> F[Movie / TV details]
     F --> G[Add to list]
     E --> H[Profile]
-    H --> I[Watch history / list]
+    H --> I[Watch history]
     H --> J[Taste profile]
 ```
 
-Route inventory is maintained by the frontend router/navigation implementation; verify exact paths there before changing route contracts.
+Check the router/navigation source for exact route paths before changing contracts.
 
 ## 4. Screen inventory
 
-| Screen / surface | Purpose | Primary actions | Key states |
+| Screen | Purpose | Actions | Key states |
 |---|---|---|---|
-| Home | Trending discovery | Select media type/time range; open title | Loading, populated, error |
-| Search | Query catalogue | Search/filter/open result | Empty, loading, populated, error |
-| Media details | Inspect one title | Back; add to list | Loading, error, details, added |
-| Sign-up/auth | Establish Firebase identity | Sign in/sign up | Pending, success, validation/error |
-| Profile | Present user's Dex identity | Navigate history and profile actions | Loading, signed-in, signed-out |
-| Watch history/list | Manage viewing records | Add/edit/delete/status/rating | Empty, populated, mutation/error |
-| About | Explain product concept | Start exploring/create account | Static content |
-| Privacy/terms | Legal and policy information | Read policy | Static content |
+| Home | Trending discovery | Filter/open title | Loading/populated/error |
+| Search | Find media | Search/filter/open | Empty/loading/results/error |
+| Media details | Inspect title | Back/add to list | Loading/error/details/added |
+| Authentication | Establish identity | Sign-in/sign-up | Pending/success/error |
+| Profile | User identity | View history/actions | Loading/signed-in/out |
+| Watch list/history | Manage records | Add/edit/delete/status/rating | Empty/populated/mutation |
+| About | Explain Dex | Start/create account | Static |
+| Privacy/terms | Policy content | Read | Static |
 
-## 5. Screen specifications
+## 5. Key screen specifications
 
-### Home / discovery
-
-- **Purpose:** Surface trending media.
-- **Content hierarchy:** Brand/navigation, discovery controls, media results.
-- **Primary action:** Open a media item.
-- **States:** Loading placeholders, populated results, recoverable failure.
-- **Data:** Backend trending endpoint, which proxies TMDB.
-
-### Search
-
-- **Purpose:** Search movie and television titles.
-- **Primary action:** Submit query and inspect results.
-- **Constraints:** API query length is bounded; page and media type are validated server-side.
+### Home and search
+Present discovery controls and catalogue cards. Use loading, populated, empty, and recoverable error states. Search inputs are bounded by the API.
 
 ### Media details
-
-- **Purpose:** Present title metadata and provider availability.
-- **Primary action:** Add title to the authenticated user's list.
-- **Content:** Poster/backdrop, title, media type, date, runtime, rating, genres, overview, providers for India when returned.
-- **States:** Loading, title unavailable/error, loaded, already added, mutation error.
+Present poster/backdrop, title, type, release/air date, runtime, rating, genres, overview, and India provider data when returned. Adding to a list requires authentication; show pending, added, and error feedback.
 
 ### Profile and watch records
-
-- **Purpose:** Represent the user's entertainment identity and recorded activity.
-- **Primary action:** Inspect and manage viewing records.
-- **Privacy:** User-owned records must only be exposed through authorized server-side checks.
+Present the user's Dex identity and records. All private records must remain server-authorized and UID-scoped.
 
 ## 6. Design system
 
-Current frontend uses a dark visual theme with purple/violet accents, muted slate text, translucent surfaces, rounded cards, and a persistent animated background. Tailwind CSS 4 provides styling utilities. Lucide React supplies icons.
-
-Exact design tokens are defined by frontend styles; this document records the observed direction rather than creating a competing token source.
+Current UI uses a dark visual theme, violet/purple accents, muted slate text, translucent surfaces, rounded cards, and a persistent animated background. Tailwind CSS 4 provides styling utilities; Lucide React supplies icons. Exact source tokens live with frontend styles.
 
 ## 7. Interaction and feedback
 
-- Use visible loading states for asynchronous catalogue/detail requests.
-- Show recoverable errors without implying a failed action succeeded.
-- Disable repeated submission while a mutation is pending where implemented.
-- Clearly distinguish watch statuses.
-- Do not display authenticated profile or watch actions as successful until the API confirms them.
-- External streaming links/providers must be labelled as availability information, not playback provided by Dex.
+- Show loading states for async requests.
+- Distinguish empty results from errors.
+- Prevent repeated mutation submissions while pending where implemented.
+- Clearly label watch statuses.
+- Do not show success until the API confirms it.
+- Streaming-provider data is availability information, not playback delivered by Dex.
 
-## 8. Responsive and platform behaviour
+## 8. Responsive/platform behaviour
 
-The current UI uses responsive utility classes and adaptive grid/flex layouts. Validate home, search, media details, authentication, and profile at narrow mobile widths and desktop widths. Exact browser/OS support targets remain to be formalised.
+Frontend uses responsive utility classes and adaptive layouts. Validate home, search, details, authentication, and profile at narrow mobile and desktop widths. Exact browser support targets remain to be formalised.
 
-## 9. Design assets and references
+## 9. Assets and references
 
-- Source assets: `frontend/public/`
-- Frontend implementation: `frontend/src/`
-- Live product: https://dex-list.vercel.app/
-- Product/design research: [Research documentation](../Research%20documentation/)
+- Assets: frontend/public/
+- UI source: frontend/src/
+- Live site: https://dex-list.vercel.app/
+- Research: [Research documentation](../Research%20documentation/)

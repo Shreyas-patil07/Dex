@@ -2,147 +2,133 @@
 
 > **Status:** Baseline — current logical architecture  
 > **Owner:** Dex maintainers  
-> **Last updated:** 2026-11-02  
-> **Version:** 1.0
+> **Last updated:** 2026-11-02
 
 ## 1. Architecture summary
 
-Dex is a client/server web application. The React frontend handles navigation, presentation, Firebase client authentication, and authenticated API requests. The FastAPI backend owns API validation, Firebase token verification, TMDB integration, Firestore access, watch lifecycle operations, and taste-profile consistency.
-
-Firebase Authentication is the identity provider. Firestore stores application data. TMDB is an external catalogue/metadata dependency. Vercel and Render host the frontend and backend respectively.
+Dex is a client/server web application. The React frontend handles navigation, presentation, Firebase client authentication, and authenticated API requests. FastAPI owns request validation, Firebase token verification, TMDB integration, Firestore access, watch lifecycle operations, and taste consistency.
 
 ## 2. Architectural drivers
 
-- User-specific data must be scoped to a server-verified Firebase UID.
-- A user must not be able to claim a username owned by another account.
-- Watch mutations and the associated taste-vector updates must remain consistent.
-- External TMDB failures must not expose secrets or unhandled upstream details.
-- Frontend secrets must not be relied upon for server-side privileged operations.
+- User data must be scoped to a server-verified Firebase UID.
+- Username ownership must be unique.
+- Watch mutations and taste-vector updates must remain consistent.
+- TMDB failures must be handled without exposing secrets.
+- Privileged credentials must remain server-side.
 
 ## 3. System context
 
 ```mermaid
 flowchart LR
-    U[Visitor / signed-in user] --> FE[Dex React frontend]
+    U[Visitor / user] --> FE[Dex React frontend]
     FE -->|Firebase sign-in| FA[Firebase Authentication]
-    FE -->|HTTPS REST + ID token| API[Dex FastAPI backend]
-    API -->|Verify ID token| FA
+    FE -->|HTTPS REST + ID token| API[FastAPI]
+    API -->|Verify token| FA
     API --> FS[(Cloud Firestore)]
-    API -->|Media metadata requests| TMDB[TMDB API]
-    FE -->|Hosted by| V[Vercel]
-    API -->|Hosted by| R[Render]
+    API -->|Metadata requests| TMDB[TMDB API]
+    FE --> V[Vercel]
+    API --> R[Render]
 ```
 
 ## 4. Component architecture
 
-| Component | Responsibility | Inputs | Outputs | Technology |
-|---|---|---|---|---|
-| Frontend pages | Discovery, details, profile, authentication and history UX | User actions, API responses, auth state | Rendered views and requests | React/TypeScript |
-| Frontend auth helpers | Firebase setup and session state | Firebase SDK events | Current user and ID token | Firebase JS SDK |
-| FastAPI application | Routes, middleware, validation, auth dependencies | HTTP requests | JSON responses/status codes | FastAPI |
-| Firebase auth service | Verify Firebase ID tokens | Bearer token | Decoded identity | Firebase Admin |
-| Firestore adapter | Access Firestore | Backend service calls | Documents/snapshots | Firebase Admin |
-| TMDB service | Search/trending/details/related TMDB endpoints | Query/media identifiers | Normalized upstream data | HTTPX |
-| TMDB catalog service | Cache metadata used by taste features | Media IDs and TMDB metadata | Feature metadata | Firestore + TMDB |
-| Taste service | Compute, persist, reverse taste contributions | Watch data and metadata | Taste profile/vector updates | Python + Firestore transactions |
-| Hosting | Serve app/API | Build artefacts/configuration | Public web/API | Vercel / Render |
+| Component | Responsibility | Technology |
+|---|---|---|
+| Frontend pages | Discovery, details, profile, auth/history UI | React/TypeScript |
+| Frontend auth helpers | Firebase setup/session state | Firebase JS SDK |
+| FastAPI app | Routes, middleware, validation/auth | FastAPI |
+| Firebase auth service | Verify ID tokens | Firebase Admin |
+| Firestore adapter | Read/write documents | Firebase Admin |
+| TMDB service | Search/trending/details | HTTPX |
+| TMDB catalog service | Cache taste feature metadata | Firestore + TMDB |
+| Taste service | Compute/reverse vector contributions | Python + Firestore transactions |
+| Hosting | Serve app and API | Vercel / Render |
 
-## 5. Runtime and deployment view
+## 5. Runtime and deployment
 
-- **Frontend:** Vite-built static assets deployed on Vercel.
-- **Backend:** FastAPI ASGI application started by Uvicorn on Render.
-- **Identity:** Firebase Authentication.
-- **Persistent state:** Cloud Firestore.
-- **External catalogue:** TMDB over HTTPS.
-- **Configuration:** frontend `VITE_*` build variables; backend environment variables and secret files.
-- **Startup:** FastAPI lifespan starts the TMDB HTTP client and closes it on shutdown.
+- Frontend: Vite-built assets on Vercel.
+- Backend: FastAPI/Uvicorn on Render.
+- Identity: Firebase Authentication.
+- Persistent state: Cloud Firestore.
+- Catalogue: TMDB over HTTPS.
+- Configuration: VITE_ browser variables; backend environment/secrets.
+- FastAPI lifespan starts/closes the TMDB HTTP client.
 
-## 6. Key sequence / data flows
+## 6. Key flows
 
-### Sign-in and API access
+### Authentication
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant UI as Dex frontend
-    participant Firebase as Firebase Auth
+    participant U as User
+    participant UI as Frontend
+    participant FA as Firebase
     participant API as FastAPI
     participant DB as Firestore
-    User->>UI: Sign in
-    UI->>Firebase: Authenticate
-    Firebase-->>UI: Authenticated user
-    UI->>API: POST /api/auth/sync with ID token
-    API->>Firebase: Verify ID token
-    Firebase-->>API: Verified UID and claims
-    API->>DB: Create or read users/{uid}
-    DB-->>API: User document
+    U->>UI: Sign in
+    UI->>FA: Authenticate
+    FA-->>UI: Authenticated session
+    UI->>API: POST /api/auth/sync + ID token
+    API->>FA: Verify token
+    FA-->>API: Verified UID
+    API->>DB: Create/read users/{uid}
+    DB-->>API: User profile
     API-->>UI: Dex profile
-    UI->>API: Protected request + Bearer token
-    API->>Firebase: Verify token
-    API->>DB: UID-scoped operation
-    API-->>UI: Response
 ```
 
-### Watch mutation and taste update
+### Watch and taste mutation
 
 ```mermaid
 sequenceDiagram
-    participant UI as Frontend
-    participant API as FastAPI
-    participant Taste as Taste service
+    participant UI
+    participant API
     participant DB as Firestore
     UI->>API: Create/update/delete watch
-    API->>Taste: Validate and calculate mutation
-    Taste->>DB: Transaction: watch + vectors + counters
-    DB-->>Taste: Commit result
-    Taste-->>API: Updated watch/result
-    API-->>UI: Response
+    API->>API: Validate and derive contribution
+    API->>DB: Transaction: watch + taste vectors
+    DB-->>API: Commit
+    API-->>UI: Mutation result
 ```
 
-If TMDB metadata is unavailable during a watch operation, the current service design permits the watch action to persist with taste metadata pending; later metadata-dependent operations can retry lookup. Confirm this invariant through tests before changing the service.
+When TMDB metadata is unavailable, current backend documentation describes saving the watch with taste metadata pending; verify this invariant in regression tests.
 
-## 7. State ownership and consistency
+## 7. State ownership
 
-| State | Authoritative owner | Lifetime | Consistency / recovery |
-|---|---|---|---|
-| Authentication identity | Firebase Auth | Session/account | Backend verifies ID token |
-| Dex profile | `users/{uid}` | Persistent | UID-scoped Firestore document |
-| Username ownership | `usernames/{username}` | Persistent | Registry document; collision guarded |
-| Watch record | User watch subcollection | Persistent | API mutation path |
-| Taste profile counters | User taste profile document | Persistent | Updated with watch transactions |
-| Taste feature sums | User taste-vector feature docs | Persistent | Exact contribution reversal |
-| TMDB metadata cache | `tmdb_catalog` | TTL/cache lifecycle | Re-fetch when stale/missing |
-
-## 8. Failure modes and resilience
-
-| Failure | Detection | System behaviour / recovery |
+| State | Owner | Consistency |
 |---|---|---|
-| Missing/invalid Firebase token | Auth dependency | HTTP 401 |
-| User record not synchronized | Auth dependency lookup | HTTP 401 with sync requirement |
-| Username collision | Registry conflict / AlreadyExists | HTTP 409 |
-| Invalid request data | FastAPI/Pydantic validation | HTTP 422 |
-| TMDB unavailable | TMDB service exception | Controlled upstream error response |
-| Rate limit exceeded | SlowAPI | Rate-limit response and headers |
-| Firestore unavailable | SDK exception | Operation fails; caller receives server error |
-| Taste metadata unavailable | Catalog service failure handling | Preserve watch write; mark contribution pending where supported |
+| Authentication | Firebase Auth | Backend verifies ID token |
+| Profile | users/{uid} | UID-scoped Firestore doc |
+| Username ownership | usernames/{name} | Registry conflict handling |
+| Watch | User watch subcollection | API mutation path |
+| Taste counters | User taste profile | Updated with watch transaction |
+| Taste vectors | User taste_vectors hierarchy | Exact contribution reversal |
+| Shared media features | tmdb_catalog | Cached/re-fetched metadata |
+
+## 8. Failure modes
+
+| Failure | Handling |
+|---|---|
+| Invalid/missing token | 401 |
+| Unsynchronized Dex profile | Protected API rejects |
+| Username collision | 409 |
+| Invalid request | 422 |
+| TMDB failure | Controlled upstream error |
+| Rate limit exceeded | SlowAPI response |
+| Firestore failure | Mutation fails |
+| Taste metadata unavailable | Pending metadata behaviour where implemented |
 
 ## 9. Observability
 
-Current operational signals include managed-host logs, health endpoint, and automated CI. No formal metrics retention or production SLO is documented.
+Current signals: managed-host logs, health endpoint, and CI. No formal production SLO/metrics retention is documented. Recommended metrics include request latency/error rate, TMDB failures, Firestore mutation failures, rate-limit counts, and taste reconciliation. Never log ID tokens, service-account JSON, or private notes.
 
-Recommended additions: request/error metrics, TMDB failure rate, Firestore mutation failures, rate-limit counts, taste-profile reconciliation, and latency histograms. Logs must not include ID tokens, service-account JSON, or private user notes.
+## 10. Trade-offs
 
-## 10. Architecture constraints and trade-offs
-
-- Firestore avoids operating a separate relational database but requires careful document/transaction design.
-- TMDB reduces the need to maintain a media catalogue, at the cost of external availability, quota, attribution, and data-freshness dependencies.
-- Firebase Authentication delegates credential handling while the backend remains responsible for token verification and authorization.
-- Taste vectors are incrementally maintained to avoid recomputing the entire user history on each mutation.
+Firestore avoids operating a relational database but requires careful transaction design. TMDB avoids maintaining a catalogue but creates an external dependency. Firebase delegates credential lifecycle while backend authorization remains mandatory. Incremental taste vectors avoid full-history recalculation but require exact reversal and schema/model versioning.
 
 ## 11. Links
 
 - [TRD](02_TRD.md)
-- [Protocol and schema](06_Protocol_and_Data_Schema.md)
+- [Protocol/schema](06_Protocol_and_Data_Schema.md)
 - [Security](08_Security.md)
 - [Testing](09_Testing.md)
-- [ADR index](../ADR/README.md)
+- [ADRs](../ADR/README.md)

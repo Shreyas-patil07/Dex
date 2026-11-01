@@ -1,34 +1,30 @@
-# Security
+# Security Policy
+
+## Scope
+
+Dex handles Firebase identity, profile information, watch history, taste-derived data, and external-service credentials.
+
+## Supported versions
+
+| Version | Supported |
+|---|---|
+| Current default branch | Best-effort security fixes |
+| Older commits/releases | No guarantee |
 
 ## Reporting a vulnerability
 
-Do not open a public issue for security vulnerabilities or exposed credentials.
+Do not report vulnerabilities in public issues. Use GitHub's **Report a vulnerability** feature under the repository Security tab when available. Include a clear description, impact, reproduction steps, affected commit/component, and suggested mitigation.
 
-Contact the repository owner privately through GitHub with:
+Do not include real user data, passwords, Firebase ID tokens, service-account JSON, or API keys.
 
-- a clear description of the issue
-- affected files or endpoints
-- reproduction steps
-- potential impact
+## Response
 
-## Secrets
+Maintainers should acknowledge reports, assess severity and affected data, coordinate containment/remediation, rotate compromised credentials where required, and publish an advisory when appropriate. No formal response-time SLA has been established.
 
-Never commit:
+## Operational reminders
 
-- `.env` files
-- Firebase Admin service-account JSON files
-- private keys or PEM files
-- database files
-- API secrets
-
-Firebase web configuration values using `VITE_FIREBASE_*` are client-side configuration and are not treated as server secrets. Firebase Admin credentials are sensitive and must remain server-side.
-
-## Previously exposed data
-
-If a secret, credential, or database containing personal data was ever committed:
-
-1. Revoke or rotate the affected credential.
-2. Remove the file from the working tree.
-3. Rewrite Git history to remove the sensitive object.
-4. Force-push the rewritten history when appropriate.
-5. Treat existing clones, forks, caches, and artifacts as potentially containing the old data.
+- Keep Firebase Admin credentials and TMDB keys server-side.
+- Verify Firebase tokens for protected routes.
+- Scope Firestore access to verified UID.
+- Review Firebase Security Rules and IAM independently of this repository.
+- Redact credentials and personal notes from application logs.

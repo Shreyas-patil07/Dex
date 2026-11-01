@@ -1,40 +1,44 @@
 # Contributing to Dex
 
-## Development setup
+## Before opening a pull request
 
-Dex has two applications:
+- Keep changes focused and describe their impact.
+- Preserve user-data isolation: derive ownership from verified Firebase identity.
+- Preserve watch/taste transaction invariants.
+- Add/update tests for behavioural changes.
+- Update the owning document when requirements, API contracts, schemas, security, or architecture change.
+- Keep environment examples current.
+- Never commit .env files, API keys, Firebase service-account files, tokens, private user data, or production exports.
+- Link related issues and ADRs.
 
-- `frontend/` — React + Vite
-- `backend/` — FastAPI
+## Frontend checks
 
-Run each application separately using the instructions in the root README.
+From frontend/:
 
-## Before opening a change
-
-- Keep secrets out of Git.
-- Do not commit local databases or Firebase service-account files.
-- Keep Firebase Authentication as the authentication source of truth.
-- Keep persistent user/watch data in Cloud Firestore.
-- Keep frontend API calls pointed at the configured `VITE_API_URL`.
-- Update documentation when routes, environment variables, or deployment behavior changes.
-
-## Commit scope
-
-Keep commits focused. Prefer messages such as:
-
-```text
-fix auth session redirect
-add watch history endpoint
-refine trending card loading
+```bash
+npm ci
+npm run typecheck
+npm run build
 ```
 
-## Pull requests
+## Backend checks
 
-Describe:
+From backend/:
 
-- what changed
-- why it changed
-- how it was tested
-- any environment or deployment changes
+```bash
+pip install -r requirements-dev.txt
+python -m compileall app tests
+pytest -q
+```
 
-Do not include credentials, service-account JSON, local databases, or personal user data in pull requests.
+## Documentation conventions
+
+- docs/ contains ten core project documents.
+- ADR/ records important technical decisions.
+- Keep each fact in one authoritative place; link elsewhere.
+- Distinguish implemented behaviour, proposals, assumptions, and unverified production configuration.
+- Do not claim performance/security certification without reproducible evidence.
+
+## Pull request scope
+
+Documentation-only changes must not modify application source, tests, dependency manifests, build configuration, or deployment configuration. Separate code changes from documentation refactors.

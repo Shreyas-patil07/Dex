@@ -1,19 +1,19 @@
 # Application and Operational Flow
 
-> **Status:** Baseline — current principal user journeys  
+> **Status:** Baseline — current principal journeys  
 > **Owner:** Dex maintainers  
 > **Last updated:** 2026-11-02
 
 ## 1. Entry points and actors
 
-| Actor | Entry point | Goal | Prerequisites |
+| Actor | Entry point | Goal | Prerequisite |
 |---|---|---|---|
-| Visitor | Home/discovery | Browse trending titles | Browser and network |
-| Visitor | Search | Find a movie or series | Search query |
-| Visitor | Media details | Inspect title metadata and availability | Valid media identifier |
-| User | Sign-up/sign-in | Establish account identity | Firebase-supported sign-in |
-| User | Profile | Review personal identity/history | Authenticated session |
-| User | Watch management | Record or edit viewing activity | Authenticated API session |
+| Visitor | Home | Browse trending titles | Browser/network |
+| Visitor | Search | Find title | Search query |
+| Visitor | Media details | Inspect media | Valid media ID |
+| User | Sign-in | Establish account | Firebase-supported sign-in |
+| User | Profile | Review identity/history | Authenticated session |
+| User | Watch management | Record viewing activity | Authenticated API access |
 
 ## 2. Primary journeys
 
@@ -22,12 +22,11 @@
 ```mermaid
 flowchart TD
     A[Open Dex] --> B[Load trending titles]
-    B --> C{Request succeeded?}
-    C -- Yes --> D[Render trending catalogue]
+    B --> C{Succeeded?}
+    C -- Yes --> D[Render catalogue]
     C -- No --> E[Show recoverable error]
-    D --> F[Filter by movie / series / time]
-    F --> G[Open title]
-    G --> H[Load media details]
+    D --> F[Filter media type/time]
+    F --> G[Open title details]
 ```
 
 ### Account and profile
@@ -36,73 +35,69 @@ flowchart TD
 flowchart TD
     A[Open sign-in] --> B[Firebase authentication]
     B --> C{Identity established?}
-    C -- No --> D[Show authentication error]
-    C -- Yes --> E[Obtain Firebase ID token]
+    C -- No --> D[Show auth error]
+    C -- Yes --> E[Obtain ID token]
     E --> F[POST /api/auth/sync]
     F --> G{Dex profile exists?}
     G -- No --> H[Create user document]
     G -- Yes --> I[Return existing profile]
-    H --> J[Continue to profile / onboarding]
+    H --> J[Continue]
     I --> J
 ```
 
-### Add a title to the user's list
+### Watch mutation
 
 ```mermaid
 sequenceDiagram
-    participant User
+    participant U as User
     participant UI as Frontend
     participant API as Backend
     participant DB as Firestore
-    User->>UI: Select Add to list
+    U->>UI: Add to list
     UI->>UI: Obtain Firebase ID token
     UI->>API: POST /api/watches
     API->>API: Verify token and validate payload
-    API->>DB: Persist user-scoped watch and taste state
+    API->>DB: Persist watch and taste state
     DB-->>API: Commit
-    API-->>UI: Watch result
-    UI-->>User: Show added / error state
+    API-->>UI: Result
+    UI-->>U: Show success/error
 ```
 
 ## 3. Watch state model
 
 | Status | Meaning | Taste contribution |
 |---|---|---|
-| `watched` | User has watched the title | Included |
-| `want_to_watch` | User intends to watch | Excluded |
-| `in_future` | User plans to watch later | Excluded |
+| watched | User has watched title | Included |
+| want_to_watch | User intends to watch | Excluded |
+| in_future | User plans to watch later | Excluded |
 
-Changing a record's status can change whether it contributes to taste. The service must reverse an old contribution before applying a new one.
+A status transition can change whether an item contributes to taste. Reverse an old contribution before applying a new one.
 
 ## 4. Alternate and failure flows
 
 | Scenario | Expected behaviour |
 |---|---|
-| TMDB search/trending fails | Show an error or empty recoverable state; allow retry |
-| Invalid media route or identifier | Return validation/not-found state |
-| User is not authenticated | Prompt sign-in before protected actions |
-| ID token missing/invalid | API rejects with HTTP 401 |
-| Username already taken | API returns HTTP 409; user chooses another |
-| Duplicate watch record | Backend conflict response; UI should not create a duplicate |
-| Firestore unavailable | Mutation fails; do not show false success |
-| TMDB taste metadata unavailable | Watch may be saved with taste update pending per service behaviour |
-| User navigates away during request | UI should avoid stale state updates where request cancellation is implemented |
+| TMDB failure | Recoverable error/retry |
+| Invalid media identifier | Validation/not-found state |
+| User not signed in | Prompt authentication |
+| Invalid ID token | API returns 401 |
+| Username taken | API returns 409 |
+| Duplicate watch | Conflict/idempotent response as implemented |
+| Firestore unavailable | Do not show false success |
+| TMDB taste metadata unavailable | Watch may persist with taste update pending |
+| Request cancellation/navigation | Avoid stale UI updates where implemented |
 
 ## 5. Lifecycle and ownership
 
-- Firebase client SDK owns client authentication state.
-- The backend owns authorization decisions and Firestore operations.
-- User data is scoped by verified Firebase UID, not by a UID supplied in request bodies.
-- The backend's FastAPI lifespan starts and closes the TMDB HTTP client.
-- Watch create/update/delete operations must keep persisted watch records and taste contributions consistent.
+Firebase SDK owns client session state. Backend owns authorization and Firestore operations. UID is derived from verified credentials. FastAPI lifespan starts/closes TMDB client. Watch mutations must keep source record and taste contributions consistent.
 
-## 6. Flow-to-requirement mapping
+## 6. Traceability
 
-| Flow / state | PRD requirement IDs | Verification |
+| Flow | PRD requirements | Verification |
 |---|---|---|
-| Trending/search | FR-001, FR-002 | TMDB/API tests |
-| Media details | FR-003 | Media endpoint tests |
-| Sign-in/sync | FR-004, FR-005 | Firebase/API tests |
-| Username claim | FR-006 | Collision tests |
+| Trending/search | FR-001, FR-002 | API tests |
+| Media details | FR-003 | Media tests |
+| Sign-in/sync | FR-004, FR-005 | Auth tests |
+| Username | FR-006 | Collision tests |
 | Watch CRUD | FR-007, FR-008 | API tests |
-| Taste update/reversal | FR-009, FR-010 | Taste service regression tests |
+| Taste mutation | FR-009, FR-010 | Taste regression tests |
