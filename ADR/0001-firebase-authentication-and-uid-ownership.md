@@ -2,20 +2,19 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-02
-- **Decision owners:** Dex maintainers
 
 ## Context
 
-Dex needs account authentication and a stable identity key for user-owned profile, watch, and taste data. The frontend must not be trusted to assert the owner of a protected record.
+Dex requires account authentication and a stable identity key for user-owned profile, watch, and taste data. The browser must not assert ownership of a protected record.
 
 ## Decision
 
-Use Firebase Authentication as the sign-in identity provider. The frontend sends Firebase ID tokens to protected API routes. FastAPI verifies tokens with Firebase Admin and derives the authoritative user UID from verified claims. Firestore user-owned paths are scoped by this UID.
+Use Firebase Authentication as sign-in identity provider. Frontend sends Firebase ID tokens to protected API routes. FastAPI verifies tokens with Firebase Admin and derives authoritative UID from verified claims. User-owned Firestore paths are scoped to that UID.
 
 ## Consequences
 
-- Credential lifecycle is delegated to Firebase.
-- Backend authorization remains mandatory; client-side auth state alone is not authorization.
-- Firebase Admin credentials must remain server-side.
-- Firebase project configuration, IAM and Firestore Security Rules require independent review.
-- Account deletion and revocation workflows must be explicitly maintained.
+- Firebase manages credential lifecycle.
+- Client auth state alone is not authorization.
+- Firebase Admin credentials remain server-only.
+- Firebase project IAM and Firestore Security Rules require independent review.
+- Account deletion and token revocation workflows must be specified.

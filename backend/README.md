@@ -1,93 +1,85 @@
 # Dex API
 
-The backend for Dex, an entertainment identity platform.
+FastAPI backend for Dex, the entertainment discovery, watch-history, and taste-profile platform.
 
 ## Stack
 
-- FastAPI
-- Firebase Authentication
-- Firebase Admin SDK
-- Cloud Firestore
-- TMDB API
+Python 3.11, FastAPI, Uvicorn, Firebase Authentication token verification, Firebase Admin SDK, Cloud Firestore, TMDB via HTTPX, SlowAPI.
 
 ## Local development
 
 ```bash
 cd backend
 python -m venv .venv
+```
 
-# Windows
-.venv\Scripts\activate
+Activate the environment: `.venv\\Scripts\\Activate.ps1` (Windows PowerShell) or `source .venv/bin/activate` (macOS/Linux).
 
-# macOS/Linux
-source .venv/bin/activate
-
+```bash
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Create `backend/.env` from `.env.example` and provide your TMDB key and Firebase configuration.
+Create `.env` from `.env.example` and configure TMDB_API_KEY, FIREBASE_PROJECT_ID, Firebase Admin credentials, CORS_ORIGINS/FRONTEND_URL, and RATE_LIMIT_STORAGE_URI.
 
-For local Firebase Admin access, place the Firebase service-account file at:
+For local Firebase Admin access, use `backend/service-account.json` or set `FIREBASE_SERVICE_ACCOUNT` to the full JSON content. The environment variable takes precedence. Never commit credentials.
 
-```text
-backend/service-account.json
-```
-
-Start the API:
+Run the API:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-API docs:
+- API: http://localhost:8000
+- Swagger: http://localhost:8000/docs
+- Health: http://localhost:8000/api/health
+
+## Authentication
+
+Firebase Authentication is the identity source. Protected requests send `Authorization: Bearer <firebase-id-token>`. Backend verifies token, extracts UID, and scopes profile/watch data to that UID. A Dex profile must be synchronized through `POST /api/auth/sync`.
+
+## Main endpoints
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | /api/search | Search TMDB |
+| GET | /api/media/trending | Trending |
+| GET | /api/media/{media_type}/{tmdb_id} | Details and providers |
+| POST | /api/auth/sync | Sync profile |
+| GET | /api/auth/username/available | Check username |
+| POST | /api/auth/username | Claim username |
+| GET | /api/me | Current user |
+| GET/POST | /api/watches | Read/create watches |
+| PATCH/DELETE | /api/watches/{watch_id} | Update/delete watch |
+| GET | /api/watch-statuses | Status options |
+| HEAD | /api/health | Health |
+
+Live OpenAPI: https://dex-connect.onrender.com/docs
+
+## Taste engine V1
+
+Only watched titles contribute. Current feature groups: genres, keywords, people (movie directors or TV creators), decades. Group weights: 1.0, 1.2, 1.0, 0.35. Rating baseline: 5.5 mapped into signed sentiment [-1, 1]; unrated watched title: +0.15. Each feature group is L2-normalized independently. Exact contributions are stored on watch records so edits/deletes reverse them in the same Firestore transaction as watch mutation. TMDB metadata failure may leave taste metadata pending while watch write succeeds.
+
+Firestore paths:
 
 ```text
-http://localhost:8000/docs
+users/{uid}/taste/profile
+users/{uid}/taste_vectors/{group}/features/{feature_id}
+users/{uid}/watches/{media_type}_{tmdb_id}
+tmdb_catalog/{media_type}_{tmdb_id}
 ```
 
-Health check:
+See [data schema](../docs/06_Protocol_and_Data_Schema.md) and [test strategy](../docs/09_Testing.md).
 
-```text
-http://localhost:8000/api/health
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m compileall app tests
+pytest -q
 ```
 
 ## Production
 
-The API is deployed on Render:
-
-```text
-https://dex-connect.onrender.com
-```
-
-Production uses Cloud Firestore for user and watch data. No SQLite database file is required.
-
-## API
-
-```text
-GET  /api/health
-GET  /api/media/trending
-POST /api/auth/sync
-GET  /api/auth/username/available
-POST /api/auth/username
-GET  /api/me
-POST /api/watches
-GET  /api/watches
-```
-
-Authentication is handled by Firebase. Protected endpoints expect a Firebase ID token in the `Authorization: Bearer <token>` header.
-
-
-## Taste engine V1
-
-Watched titles contribute to an incrementally maintained all-time taste profile. Watchlist statuses do not contribute. A fixed rating baseline of 5.5 maps ratings to signed sentiment in [-1, 1]; an unrated watched title contributes +0.15. Each feature group is L2-normalized independently before its exact contribution is stored on the watch document.
-
-Firestore layout:
-
-- users/{uid}/taste/profile: schema/model versions and profiled watch counters.
-- users/{uid}/taste_vectors/{group}/features/{feature_id}: positive and negative all-time sums for one feature. Keeping one feature per document avoids a large growing map in a single profile document.
-- users/{uid}/watches/{media_type}_{tmdb_id}: source watch plus a snapshot of taste features and the exact contribution required to reverse an edit or delete.
-- tmdb_catalog/{media_type}_{tmdb_id}: shared feature metadata cached for 180 days.
-
-Feature groups are genres, keywords, people (movie directors or TV creators), and decades. Their scoring weights are 1.0, 1.2, 1.0, and 0.35 respectively. Edits and deletes reverse the exact contribution persisted on the watch document inside the same Firestore transaction as the watch mutation. If TMDB is unavailable, the watch action still succeeds and its taste metadata remains pending; the next edit that requires metadata can retry the lookup.
-
-Run backend tests with: python -m pytest
+Render API: https://dex-connect.onrender.com/  
+Deployment configuration: root `render.yaml`. Production secrets must be configured in Render, never committed.

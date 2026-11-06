@@ -1,11 +1,11 @@
 # Changelog
 
-Notable changes to Dex are recorded here. Dates use YYYY-MM-DD.
+Notable changes to Dex. Dates use YYYY-MM-DD.
 
 ## [Unreleased]
 
 ### Documentation
-- Adopted the project's ten-document engineering documentation structure.
-- Added architecture decision records for the existing identity, storage, catalogue, and taste-engine choices.
-- Updated root, backend, and frontend documentation to reflect current repository configuration.
-- Preserved application source, tests, dependencies, and deployment configuration unchanged.
+- Added ten project engineering documents based on current Dex implementation.
+- Added architecture decision records for identity, persistence, catalogue, taste engine, and deployment.
+- Updated root, backend, and frontend guides and repository contribution/security guidance.
+- Application source, tests, dependencies, CI, and deployment configuration remain unchanged.

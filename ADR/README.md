@@ -1,38 +1,21 @@
 # Architecture Decision Records
 
-This directory records durable technical decisions for Dex.
+Record durable technical decisions that materially affect frontend/backend boundaries, authentication, data ownership, persistence, APIs, taste scoring, security, privacy, reliability, and deployment.
 
 ## When to create an ADR
 
-Create an ADR when a decision materially changes:
-- Frontend/backend boundaries or deployment topology.
-- Authentication, authorization, identity, or data ownership.
-- Storage, persistence, data retention, or schema evolution.
-- External API integrations or protocols.
-- Taste-model representation, scoring, consistency, or versioning.
-- Security, privacy, reliability, or scaling constraints.
+Create one when a decision is difficult to reverse or changes a major technology, protocol, storage model, deployment topology, trust assumption, consistency guarantee, or operational constraint. Do not use ADRs for routine implementation details.
 
-Do not create ADRs for routine implementation details.
+## Naming and lifecycle
 
-## Naming
+Use sequential numbers and concise kebab-case names. Never reuse a number; supersede decisions instead of rewriting history.
 
-Use sequential numbers and concise kebab-case names:
-
-`0001-firebase-authentication-and-uid-ownership.md`
-
-Never reuse an ADR number. Supersede a decision with a new ADR rather than rewriting historical rationale.
-
-## Lifecycle
-
-- **Proposed:** under discussion.
-- **Accepted:** active decision.
-- **Rejected:** considered but not selected.
-- **Superseded:** replaced by a later ADR.
+Statuses: Proposed, Accepted, Rejected, Superseded.
 
 ## Records
 
 - [ADR-0001 — Firebase Authentication and UID ownership](0001-firebase-authentication-and-uid-ownership.md)
-- [ADR-0002 — Firestore as application persistence](0002-firestore-as-application-persistence.md)
-- [ADR-0003 — TMDB as external media catalogue](0003-tmdb-as-external-media-catalogue.md)
-- [ADR-0004 — Incremental taste vectors with reversible contributions](0004-incremental-taste-vectors.md)
-- [ADR-0005 — Vercel and Render deployment split](0005-vercel-render-deployment.md)
+- [ADR-0002 — Firestore application persistence](0002-firestore-as-application-persistence.md)
+- [ADR-0003 — TMDB external media catalogue](0003-tmdb-as-external-media-catalogue.md)
+- [ADR-0004 — Incremental taste vectors](0004-incremental-taste-vectors.md)
+- [ADR-0005 — Vercel and Render deployment](0005-vercel-render-deployment.md)
