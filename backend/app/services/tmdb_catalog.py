@@ -242,6 +242,8 @@ class TMDBCatalog:
             and isinstance((cached or {}).get("labels"), dict)
         )
         if is_fresh:
+            # The snapshot already proves whether this catalogue version has
+            # been indexed. Avoid opening a transaction on every cache hit.
             index_current = (
                 cached.get("stats_indexed_version") == FEATURE_STATS_VERSION
                 and normalize_taste_features(cached.get("indexed_features")) == normalize_taste_features(cached_features)
