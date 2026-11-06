@@ -1,6 +1,6 @@
 # Recommendation Engine V2
 
-> **Status:** Implemented in main; production route verification pending  
+> **Status:** Implemented on feature branch; CI and production validation pending  
 > **Algorithm version:** 2  
 > **Last updated:** 2026-11-07
 
@@ -166,7 +166,7 @@ Each candidate includes TMDB media information, raw_score, match_percent, match_
 
 **match_percent is not a probability.** It is a percentile rank against the candidates enriched for that individual profile version. It can change when the candidate pool changes even when the user's underlying taste profile does not.
 
-## 9. Cold start and incomplete history
+## 10. Cold start and incomplete history
 
 - No watched records: UI prompts the user to mark titles watched and rate them.
 - Watched records without current TMDB metadata: profile_status.pending_titles is non-zero and the UI exposes Build my taste profile.
@@ -176,17 +176,17 @@ Each candidate includes TMDB media information, raw_score, match_percent, match_
 
 The backfill endpoint is bounded and idempotent. See [Protocol and Data Schema](06_Protocol_and_Data_Schema.md) for request/response details.
 
-## 10. Validation and known limitations
+## 11. Validation and known limitations
 
 Automated coverage includes rating-to-sentiment, contribution normalization, metadata extraction/cache, stale-cache use, recent profile decay, IDF, signed cosine scoring, percentile ranks, feature Jaccard/MMR, backfill and API authentication/slot contracts.
 
 Unit tests establish deterministic implementation behaviour. They do **not** prove offline ranking quality, user satisfaction, calibration, fairness, popularity bias, or production recommendation availability. A representative evaluation dataset and manual review are still required.
 
-## 11. Operational endpoint
+## 12. Operational endpoint
 
 GET /api/recommendations is authenticated and limited to 10 requests per minute. The frontend loads it on the signed-in Home page and offers an explicit Refresh action. A 404 from the live host indicates that the deployed service does not currently expose the route; check the Render source version and deployment before changing client authentication or making the route public.
 
-## 12. Related documents
+## 13. Related documents
 
 - [Taste data and API schema](06_Protocol_and_Data_Schema.md)
 - [Application flow](04_App_Flow.md)
