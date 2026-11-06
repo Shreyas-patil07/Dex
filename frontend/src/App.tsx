@@ -1,14 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { DexBackground } from './components/DexBackground';
 import { getCachedAuthState } from './lib/authSession';
-import { AboutPage } from './pages/AboutPage';
-import { MediaDetailsPage } from './pages/MediaDetailsPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { PrivacyPolicy } from './pages/PrivacyPolicy';
-import { SignUpPage } from './pages/SignUpPage';
-import { TermsOfService } from './pages/TermsOfService';
-import { HomePage } from './pages/HomePage';
-import { SearchPage } from './pages/SearchPage';
+
+const AboutPage = lazy(() => import('./pages/AboutPage').then(module => ({ default: module.AboutPage })));
+const MediaDetailsPage = lazy(() => import('./pages/MediaDetailsPage').then(module => ({ default: module.MediaDetailsPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then(module => ({ default: module.ProfilePage })));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
+const SignUpPage = lazy(() => import('./pages/SignUpPage').then(module => ({ default: module.SignUpPage })));
+const TermsOfService = lazy(() => import('./pages/TermsOfService').then(module => ({ default: module.TermsOfService })));
+const HomePage = lazy(() => import('./pages/HomePage').then(module => ({ default: module.HomePage })));
+const SearchPage = lazy(() => import('./pages/SearchPage').then(module => ({ default: module.SearchPage })));
+
 
 const normalizePath = (value: string) => value.replace(/\/$/, '') || '/';
 const routes = new Set(['/','/about-me','/privacy-policy','/terms-of-service','/sign-up','/profile','/search']);
@@ -77,7 +79,9 @@ export const App: React.FC = () => {
     <div className="dex-shell relative min-h-screen overflow-x-hidden bg-[#080810]">
       <DexBackground />
       {transitioning && <div className="dex-route-progress" aria-hidden="true" />}
-      <div key={path} className="dex-route relative z-10 min-h-screen dex-page-enter">{page}</div>
+      <Suspense fallback={<div className="relative z-10 flex min-h-[50vh] items-center justify-center text-sm text-[#94A3B8]">Loading Dex…</div>}>
+        <div key={path} className="dex-route relative z-10 min-h-screen dex-page-enter">{page}</div>
+      </Suspense>
     </div>
   );
 };
