@@ -432,6 +432,7 @@ def test_watched_title_updates_recompute_from_stored_contributions(api_client, m
         json={"status": "want_to_watch"},
     )
     assert moved_to_watchlist.status_code == 200
+    assert database.documents[profile_path]["profile_version"] == 3
     assert database.documents[profile_path]["profiled_watch_count"] == 0
 
     moved_back = api_client.patch(
@@ -440,6 +441,7 @@ def test_watched_title_updates_recompute_from_stored_contributions(api_client, m
         json={"status": "watched"},
     )
     assert moved_back.status_code == 200
+    assert database.documents[profile_path]["profile_version"] == 4
     assert database.documents[profile_path]["profiled_watch_count"] == 1
 
     deleted = api_client.delete(
@@ -447,6 +449,7 @@ def test_watched_title_updates_recompute_from_stored_contributions(api_client, m
         headers=auth_headers("taste-user"),
     )
     assert deleted.status_code == 204
+    assert database.documents[profile_path]["profile_version"] == 5
     assert database.documents[profile_path]["profiled_watch_count"] == 0
 
 
