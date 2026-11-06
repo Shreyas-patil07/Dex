@@ -413,6 +413,8 @@ def test_watched_title_updates_recompute_from_stored_contributions(api_client, m
     profile_path = ("users", "taste-user", "taste", "profile")
     assert database.documents[profile_path]["profiled_watch_count"] == 1
     assert database.documents[profile_path]["profiled_rated_count"] == 1
+    assert database.documents[profile_path]["profile_version"] == 1
+    assert not any(path[:3] == ("users", "taste-user", "taste_vectors") for path in database.documents)
     assert database.documents[watch_path]["taste_contribution"]["direction"] == "positive"
 
     updated = api_client.patch(
@@ -421,7 +423,7 @@ def test_watched_title_updates_recompute_from_stored_contributions(api_client, m
         json={"rating": 2.0},
     )
     assert updated.status_code == 200, updated.text
-    assert database.documents[watch_path]["taste_contribution"]["direction"] == "negative"
+    assert database.documents[profile_path]["profile_version"] == 2
     assert database.documents[watch_path]["taste_contribution"]["direction"] == "negative"
 
     moved_to_watchlist = api_client.patch(
