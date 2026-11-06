@@ -1,7 +1,7 @@
-# Recommendation Engine V1
+# Recommendation Engine V2
 
 > **Status:** Implemented in main; production route verification pending  
-> **Algorithm version:** 1  
+> **Algorithm version:** 2  
 > **Last updated:** 2026-11-07
 
 ## 1. Purpose
@@ -18,9 +18,9 @@ The engine returns suggestions, not predictions of individual behaviour. Match v
 
 | Module | Responsibility |
 |---|---|
-| backend/app/services/taste.py | Feature groups, signed contribution calculation, contribution reversal and versioning |
-| backend/app/services/tmdb_catalog.py | Shared feature metadata, labels, 180-day cache and document-frequency indexing |
-| backend/app/services/recommendations.py | Recent profile, IDF, retrieval, scoring, explanations, MMR and slot assembly |
+| backend/app/services/taste.py | Feature groups, signed per-watch contribution calculation and profile versioning |
+| backend/app/services/tmdb_catalog.py | Shared feature metadata, labels and 180-day cache |
+| backend/app/services/recommendations.py | Watch-derived profiles, local IDF, item-to-item retrieval, scoring, explanations, MMR, cache and exploration |
 | backend/app/main.py | Authenticated GET /api/recommendations route |
 | frontend/src/pages/HomePage.tsx | For You section, cards, refresh and profile backfill UI |
 | backend/tests/test_taste.py | Scoring, recent profile, IDF, MMR and service tests |
@@ -59,7 +59,7 @@ The current model/schema version is 1. A future change to feature extraction or 
 
 ## 4. All-time and recent taste
 
-The all-time profile is maintained incrementally in Firestore. The recent profile is rebuilt from stored contribution snapshots during recommendation generation; it does not rewrite watch history.
+Both all-time and recent profiles are rebuilt from each watched record's persisted contribution snapshot. The all-time profile uses the exact stored weights; the recent profile applies a 90-day half-life. This avoids per-feature vector documents and their transaction contention. The compact taste/profile document stores summary counts and a profile_version that increments on watch mutations.
 
 The recency decay uses a 90-day half-life:
 
@@ -72,34 +72,39 @@ The final relevance score blends:
 
 If either component is unavailable, the other usable component is used. If no usable taste signal exists, recommendations fall back to TMDB quality/popularity and match_percent is null.
 
-## 5. IDF weighting
+## 5. Local IDF weighting
 
-Common features are less discriminative than rare ones. The shared TMDB catalogue maintains:
+Feature rarity is computed per recommendation request from two sets of documents:
 
-- tmdb_feature_stats/{group}.document_count — number of catalogue documents indexed for the feature group.
-- tmdb_feature_stats/{group}/features/{feature_id}.document_frequency — number of indexed catalogue items containing that feature.
+- The user's watched titles, using their stored `taste_features` (or contribution feature IDs as a fallback).
+- The currently enriched candidate pool.
 
-The IDF value is:
+For each feature group, document frequency is counted across those documents and the IDF value is:
 
 IDF(feature) = ln((N + 1) / (DF + 1)) + 1
 
-Where N is the indexed catalogue document count for the group and DF is the feature document frequency. Frequencies are updated transactionally and are indexed once per catalogue entry for each feature-stats version. If an entry's feature snapshot changes, old feature frequencies are decremented and new frequencies incremented.
+Where N is the size of the local watched-plus-candidate document set and DF is the number of those documents containing the feature. This avoids global `tmdb_feature_stats` hot documents and catalogue-wide counter writes. The trade-off is that IDF reflects local discrimination rather than global catalogue rarity.
 
 ## 6. Candidate retrieval
 
-The pipeline separates primary taste-related retrieval from exploratory retrieval.
+The pipeline combines personalized item-to-item retrieval with feature-based discovery and an independent exploration pool.
 
-### Primary retriever
+### Item-to-item retriever
 
-Uses TMDB discovery filters based on profile genres, keywords and movie people, with multiple values combined within filter queries as supported by TMDB. It selects an initial candidate pool, enriches selected candidates with catalogue features/labels, and computes full signed relevance across all four feature groups.
+Up to four positively contributing watched titles are selected, prioritizing higher ratings. For each seed, the engine requests TMDB:
 
-Current implementation bounds the primary ranked candidate set at 18 before enrichment.
+- `/{movie|tv}/{id}/recommendations`
+- `/{movie|tv}/{id}/similar`
+
+Candidates are tagged with a grounded explanation such as "Because you rated Fight Club 9.0/10". Item-to-item results are prioritized in the primary pool so they are not crowded out by popular discover results.
+
+### Discover fallback / supplement
+
+Genre, keyword and movie-person filters remain as secondary retrieval sources. Each discover query fetches pages 1 and 2 rather than page 1 only. Existing watched or saved titles are excluded.
 
 ### Wildcard retriever
 
-Uses a separate TMDB weekly-trending retrieval path. It ranks eligible candidates using catalogue quality/popularity and then applies a novelty preference for less represented genres in the user's taste profile. Up to 12 wildcard candidates are considered before enrichment.
-
-Already watched or otherwise saved titles are excluded from both candidate pools.
+Uses a separate TMDB weekly-trending retrieval path. It ranks eligible candidates using catalogue quality/popularity and novelty preference for less represented genres. Up to 12 wildcard candidates are considered before enrichment.
 
 Candidate enrichment concurrency is bounded at four requests. TMDB metadata is reused from the shared catalogue cache when fresh.
 
@@ -132,7 +137,21 @@ The Wildcard slot is selected from the independent trending pool. It is penalize
 
 Slots can be null when no eligible candidate is available.
 
-## 8. Response semantics
+## 8. Versioned cache and exploration
+
+The recommendation cache is stored at `users/{uid}/recommendations/current` and contains candidate pools, response metadata, generation time and the profile_version used to compute them.
+
+- Cache TTL is six hours.
+- Every watch create/update/delete and successful taste backfill increments profile_version.
+- If a cache exists, watch mutations schedule a background refresh. The next GET also rebuilds if the cache is stale or missing.
+- A fresh cache hit does not call TMDB or reread the watch collection.
+- Safe and Adjacent are sampled from weighted top-k primary candidates; Adjacent re-applies MMR against the sampled Safe candidate.
+- Wildcard is sampled from the novelty-ranked wildcard pool.
+- Sampling is weighted toward the highest-ranked candidates, not uniform random selection.
+
+This provides controlled exploration without rerunning retrieval and enrichment on every Refresh. The first recommendation request after a profile change may still perform the full rebuild if no prior cache existed.
+
+## 9. Response semantics
 
 GET /api/recommendations returns:
 
@@ -143,9 +162,9 @@ GET /api/recommendations returns:
 - recent_profile parameters.
 - slots.safe, slots.adjacent and slots.wildcard.
 
-Each candidate includes TMDB media information, raw_score, match_percent, match_semantics and reasons.
+Each candidate includes TMDB media information, raw_score, match_percent, match_semantics and reasons. Item-to-item candidates can explain which positively rated watch seeded their retrieval.
 
-**match_percent is not a probability.** It is a percentile rank against the candidates enriched for that individual request. It can change when the candidate pool changes even when the user's underlying taste profile does not. A value of 90 therefore does not mean a 90% likelihood of liking the title.
+**match_percent is not a probability.** It is a percentile rank against the candidates enriched for that individual profile version. It can change when the candidate pool changes even when the user's underlying taste profile does not.
 
 ## 9. Cold start and incomplete history
 
