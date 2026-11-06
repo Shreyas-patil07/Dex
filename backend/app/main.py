@@ -249,6 +249,8 @@ async def username_available(
     db=Depends(get_firestore),
 ) -> dict[str, bool]:
     key = normalize_username(username)
+    if is_reserved_username(key):
+        return {"available": False}
     snapshot = await db.collection(USERNAME_REGISTRY).document(key).get()
     return {"available": not snapshot.exists}
 
