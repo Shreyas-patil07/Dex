@@ -82,3 +82,9 @@ class UsernameRequest(BaseModel):
         if is_reserved_username(normalized):
             raise ValueError("This username is reserved.")
         return normalized
+
+
+class WatchPage(BaseModel):
+    items: list[WatchPublic]
+    next_cursor: str | None
+    has_more: bool

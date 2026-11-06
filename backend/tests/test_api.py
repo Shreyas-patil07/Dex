@@ -60,6 +60,9 @@ class FakeCollection:
     def where(self, field, operator, value):
         return FakeQuery(self).where(field, operator, value)
 
+    def order_by(self, field, direction=None):
+        return FakeQuery(self).order_by(field, direction)
+
     async def stream(self):
         for path, data in list(self.database.documents.items()):
             if len(path) == len(self.path) + 1 and path[: len(self.path)] == self.path:
@@ -73,6 +76,10 @@ class FakeQuery:
         self.collection = collection
         self.cursor = None
         self.page_size = None
+        self.filter_field = None
+        self.filter_value = None
+        self.order_field = "__name__"
+        self.descending = False
 
     def where(self, field, operator, value):
         self.filter_field = field
@@ -80,8 +87,9 @@ class FakeQuery:
         self.filter_value = value
         return self
 
-    def order_by(self, field):
+    def order_by(self, field, direction=None):
         self.order_field = field
+        self.descending = direction == firestore.Query.DESCENDING
         return self
 
     def start_after(self, snapshot):
@@ -97,14 +105,31 @@ class FakeQuery:
         for path, data in self.collection.database.documents.items():
             if len(path) != len(self.collection.path) + 1 or path[:-1] != self.collection.path:
                 continue
-            if data.get(self.filter_field) != self.filter_value:
-                continue
-            if self.cursor and path[-1] <= self.cursor:
+            if self.filter_field is not None and data.get(self.filter_field) != self.filter_value:
                 continue
             snapshot = FakeSnapshot(path[-1], data)
             snapshot.reference = FakeDocumentReference(self.collection.database, path)
             entries.append(snapshot)
-        entries.sort(key=lambda snapshot: snapshot.id)
+
+        if self.order_field == "__name__":
+            entries.sort(key=lambda snapshot: snapshot.id, reverse=self.descending)
+        else:
+            entries.sort(
+                key=lambda snapshot: (
+                    (snapshot.to_dict() or {}).get(self.order_field),
+                    snapshot.id,
+                ),
+                reverse=self.descending,
+            )
+
+        if self.cursor:
+            cursor_index = next(
+                (index for index, item in enumerate(entries) if item.id == self.cursor),
+                None,
+            )
+            if cursor_index is not None:
+                entries = entries[cursor_index + 1:]
+
         for snapshot in entries[:self.page_size]:
             yield snapshot
 
@@ -300,9 +325,9 @@ def test_watch_crud_is_isolated_by_firebase_uid(api_client):
     alice_watches = api_client.get("/api/watches", headers=auth_headers("alice"))
     bob_watches = api_client.get("/api/watches", headers=auth_headers("bob"))
     assert alice_watches.status_code == 200
-    assert len(alice_watches.json()) == 1
+    assert len(alice_watches.json()['items']) == 1
     assert bob_watches.status_code == 200
-    assert bob_watches.json() == []
+    assert bob_watches.json()['items'] == []
 
     updated = api_client.patch(
         f"/api/watches/{watch_id}",
@@ -315,7 +340,7 @@ def test_watch_crud_is_isolated_by_firebase_uid(api_client):
 
     deleted = api_client.delete(f"/api/watches/{watch_id}", headers=auth_headers("alice"))
     assert deleted.status_code == 204
-    assert api_client.get("/api/watches", headers=auth_headers("alice")).json() == []
+    assert api_client.get("/api/watches", headers=auth_headers("alice")).json()["items"] == []
 
 
 
@@ -480,6 +505,80 @@ def test_historical_backfill_is_paginated_idempotent_and_updates_vectors(api_cli
     assert database.documents[profile_path]["profiled_watch_count"] == 1
 
 
+
+
+
+
+def test_watch_history_is_cursor_paginated_and_read_only(api_client, monkeypatch):
+    sync_account(api_client, "paged-user")
+    database = api_client.database
+    for tmdb_id in range(550, 555):
+        database.documents[("users", "paged-user", "watches", f"movie_{tmdb_id}")] = {
+            "tmdb_id": tmdb_id,
+            "media_type": "movie",
+            "title": f"Movie {tmdb_id}",
+            "status": "want_to_watch",
+            "created_at": main.datetime(2026, 1, tmdb_id - 549, tzinfo=main.timezone.utc),
+        }
+
+    async def forbidden_tmdb_call(*args, **kwargs):
+        raise AssertionError("GET /api/watches must not call TMDB")
+
+    monkeypatch.setattr(main.tmdb, "get_many", forbidden_tmdb_call)
+    before = {
+        path: dict(data)
+        for path, data in database.documents.items()
+        if path[:3] == ("users", "paged-user", "watches")
+    }
+
+    first = api_client.get("/api/watches?limit=2", headers=auth_headers("paged-user"))
+    assert first.status_code == 200, first.text
+    first_page = first.json()
+    assert len(first_page["items"]) == 2
+    assert first_page["has_more"] is True
+    assert first_page["next_cursor"]
+
+    second = api_client.get(
+        "/api/watches",
+        params={"limit": 2, "cursor": first_page["next_cursor"]},
+        headers=auth_headers("paged-user"),
+    )
+    assert second.status_code == 200, second.text
+    second_page = second.json()
+    assert len(second_page["items"]) == 2
+    assert second_page["has_more"] is True
+
+    third = api_client.get(
+        "/api/watches",
+        params={"limit": 2, "cursor": second_page["next_cursor"]},
+        headers=auth_headers("paged-user"),
+    )
+    assert third.status_code == 200, third.text
+    assert len(third.json()["items"]) == 1
+    assert third.json()["has_more"] is False
+    assert third.json()["next_cursor"] is None
+
+    all_ids = [
+        item["id"]
+        for page in (first_page, second_page, third.json())
+        for item in page["items"]
+    ]
+    assert len(all_ids) == len(set(all_ids)) == 5
+    after = {
+        path: data
+        for path, data in database.documents.items()
+        if path[:3] == ("users", "paged-user", "watches")
+    }
+    assert after == before
+
+
+def test_watch_history_rejects_invalid_cursor(api_client):
+    sync_account(api_client, "cursor-user")
+    response = api_client.get(
+        "/api/watches?cursor=missing",
+        headers=auth_headers("cursor-user"),
+    )
+    assert response.status_code == 422
 
 
 def test_watch_create_rejects_invalid_tmdb_ids_and_image_paths(api_client):

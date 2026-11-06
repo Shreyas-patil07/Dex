@@ -8,6 +8,7 @@ from slowapi.util import get_remote_address
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.api_core.exceptions import AlreadyExists
+from google.cloud import firestore
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from pydantic import BaseModel, Field
 
@@ -476,51 +477,28 @@ async def taste_backfill(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@app.get("/api/watches", response_model=list[WatchPublic])
+@app.get("/api/watches", response_model=WatchPage)
 async def list_watches(
+    limit: int = Query(50, ge=1, le=100),
+    cursor: str | None = Query(None, min_length=1, max_length=128),
     current=Depends(current_user),
     db=Depends(get_firestore),
-) -> list[WatchPublic]:
+) -> WatchPage:
     firebase_uid, _ = current
-    snapshots = [snapshot async for snapshot in user_ref(db, firebase_uid).collection("watches").stream()]
-    entries = [(snapshot, snapshot.to_dict() or {}) for snapshot in snapshots]
-    entries.sort(
-        key=lambda entry: entry[1].get("created_at") or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
+    watches = user_ref(db, firebase_uid).collection("watches")
+    query = watches.order_by("created_at", direction=firestore.Query.DESCENDING)
+
+    if cursor:
+        cursor_snapshot = await watches.document(cursor).get()
+        if not cursor_snapshot.exists:
+            raise HTTPException(status_code=422, detail="cursor does not reference an existing watch")
+        query = query.start_after(cursor_snapshot)
+
+    snapshots = [snapshot async for snapshot in query.limit(limit + 1).stream()]
+    has_more = len(snapshots) > limit
+    page = snapshots[:limit]
+    return WatchPage(
+        items=[watch_public(snapshot.id, snapshot.to_dict() or {}) for snapshot in page],
+        next_cursor=page[-1].id if has_more and page else None,
+        has_more=has_more,
     )
-
-    # Backfill poster metadata for titles saved before poster paths were stored.
-    missing_posters = [
-        (snapshot, data)
-        for snapshot, data in entries
-        if not data.get("poster_path")
-        and data.get("media_type") in {"movie", "tv"}
-        and data.get("tmdb_id")
-    ]
-    if missing_posters:
-        try:
-            media_details = await tmdb.get_many(*[
-                (f"/{data['media_type']}/{int(data['tmdb_id'])}", None)
-                for _, data in missing_posters
-            ])
-        except TMDBError:
-            # The library should still load if TMDB is temporarily unavailable.
-            media_details = []
-
-        for (snapshot, data), details in zip(missing_posters, media_details):
-            updates = {
-                key: details[key]
-                for key in ("poster_path", "backdrop_path")
-                if not data.get(key) and details.get(key)
-            }
-            if not updates:
-                continue
-
-            data.update(updates)
-            try:
-                await snapshot.reference.update(updates)
-            except Exception:
-                # Return the image for this response even if the backfill write fails.
-                pass
-
-    return [watch_public(snapshot.id, data) for snapshot, data in entries]
