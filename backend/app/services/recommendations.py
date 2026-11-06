@@ -158,7 +158,29 @@ def build_all_time_profile(
     watches: list[dict[str, Any]],
 ) -> tuple[dict[str, dict[str, dict[str, float]]], int]:
     """Rebuild the signed all-time profile from each watch's stored contribution."""
-    return build_recent_profile(watches, half_life_days=float("inf"))
+    profile = _empty_profile()
+    included = 0
+    for watch in watches:
+        if watch.get("status") != "watched":
+            continue
+        contribution = watch.get("taste_contribution")
+        if not isinstance(contribution, dict):
+            continue
+        direction = contribution.get("direction")
+        if direction not in {"positive", "negative"}:
+            continue
+        has_feature = False
+        for group, feature_map in (contribution.get("weights") or {}).items():
+            if group not in FEATURE_GROUPS or not isinstance(feature_map, dict):
+                continue
+            target = profile[group][direction]
+            for feature_id, value in feature_map.items():
+                weighted_value = _number(value)
+                if weighted_value > 0 and feature_id:
+                    target[str(feature_id)] = target.get(str(feature_id), 0.0) + weighted_value
+                    has_feature = True
+        included += int(has_feature)
+    return profile, included
 
 
 def cosine_group_score(
