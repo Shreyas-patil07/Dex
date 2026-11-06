@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { getCachedAuthState, subscribeToAuthSession } from '../lib/authSession';
-import { AlertCircle, Check, Compass, Loader2, RefreshCw, Search, Sparkles, X } from 'lucide-react';
+import { AlertCircle, Compass, Loader2, RefreshCw, Search, Sparkles, X } from 'lucide-react';
 
 type Media = { id: number; media_type?: 'movie' | 'tv'; title?: string; name?: string; poster_path?: string | null; release_date?: string; first_air_date?: string; vote_average?: number };
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w500';
@@ -87,7 +87,7 @@ const RecommendationCard: React.FC<{
           <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
             <span>{item.media_type === 'tv' ? 'Series' : 'Movie'}</span>
             {item.release_date && <span>· {item.release_date.slice(0, 4)}</span>}
-            {item.vote_average > 0 && <span>· ★ {item.vote_average.toFixed(1)}</span>}
+            {typeof item.vote_average === 'number' && item.vote_average > 0 && <span>· ★ {item.vote_average.toFixed(1)}</span>}
           </div>
           <h3 className="mt-2 line-clamp-2 text-base font-bold leading-snug text-white group-hover:text-[#C4B5FD]">{item.title}</h3>
           {item.match_percent !== null && item.match_percent !== undefined && (
