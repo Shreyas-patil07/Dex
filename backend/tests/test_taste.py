@@ -112,8 +112,13 @@ class FakeDocumentReference:
     async def get(self):
         return FakeSnapshot(self.database.documents.get(self.path))
 
-    async def set(self, data):
-        self.database.documents[self.path] = data
+    async def set(self, data, merge=False):
+        if merge:
+            document = dict(self.database.documents.get(self.path, {}))
+            document.update(data)
+            self.database.documents[self.path] = document
+        else:
+            self.database.documents[self.path] = data
 
 
 class FakeCollection:

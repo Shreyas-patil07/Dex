@@ -248,6 +248,9 @@ async def update_watch_atomically(
         old_data = watch_snapshot.to_dict() or {}
         new_data = {**old_data, **changes}
         target_status = new_data.get("status", "want_to_watch")
+        previous_status = old_data.get("status", "want_to_watch")
+        if target_status == "watched" and previous_status != "watched" and "watched_at" not in changes:
+            new_data["watched_at"] = datetime.now(timezone.utc)
 
         if target_status == "watched":
             current_metadata_status = old_data.get("taste_metadata_status")

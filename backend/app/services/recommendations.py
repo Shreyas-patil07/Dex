@@ -53,24 +53,6 @@ def calculate_idf(document_count: int, document_frequency: int) -> float:
     return log((document_count + 1) / (bounded_frequency + 1)) + 1.0
 
 
-def _net_profile(
-    profile: dict[str, dict[str, dict[str, float]]],
-    idf: dict[str, dict[str, float]],
-) -> dict[str, dict[str, float]]:
-    net: dict[str, dict[str, float]] = {}
-    for group in FEATURE_GROUPS:
-        positive = profile[group]["positive"]
-        negative = profile[group]["negative"]
-        feature_ids = set(positive) | set(negative)
-        net[group] = {
-            feature_id: (
-                positive.get(feature_id, 0.0) - NEGATIVE_PENALTY * negative.get(feature_id, 0.0)
-            ) * idf.get(group, {}).get(feature_id, 1.0)
-            for feature_id in feature_ids
-        }
-    return net
-
-
 def build_recent_profile(
     watches: list[dict[str, Any]],
     now: datetime | None = None,
@@ -536,6 +518,7 @@ class TasteRecommendationService:
 
         personalized = any(
             all_time[group]["positive"] or all_time[group]["negative"]
+            or recent[group]["positive"] or recent[group]["negative"]
             for group in FEATURE_GROUPS
         )
         scored: list[dict[str, Any]] = []

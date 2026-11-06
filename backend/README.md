@@ -88,3 +88,11 @@ Deployment configuration: root `render.yaml`. Production secrets must be configu
 ### Historical taste backfill
 
 Call the authenticated `POST /api/taste/backfill?limit=25` endpoint until it returns `complete: true`. Pass the returned `next_cursor` as the `cursor` query parameter to continue. The operation is idempotent and only enriches watched titles that do not already have a current taste contribution. If any titles are returned in `pending_watch_ids`, rerun a pass without a cursor later to retry TMDB failures. Watchlist titles are deliberately excluded.
+
+
+### Historical profile and recommendations
+
+- `POST /api/taste/backfill?limit=25` incrementally enriches existing watched records. Continue with the returned `next_cursor` until `complete` is true. If `pending_watch_ids` is non-empty, rerun from the first page later to retry upstream TMDB failures.
+- `GET /api/recommendations` returns Safe, Adjacent, and Wildcard candidates. Safe uses highest personalized relevance, Adjacent uses MMR diversification, and Wildcard comes from a separate weekly-trending retriever and favors less represented genres.
+- Recommendations combine the all-time signed vector with a 90-day exponential-decay vector (25% recent blend, 75% all-time). Feature IDF is `ln((N+1)/(DF+1))+1` and is indexed from the shared TMDB catalog. Candidate match percentages are percentile ranks within the request's enriched candidate pool, not probabilities of liking a title.
+- The recommendation endpoint reports `profile_status.backfill_complete`. A partial profile can produce partial recommendations; finish backfill for full historical coverage.

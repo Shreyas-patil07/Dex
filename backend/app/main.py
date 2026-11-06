@@ -308,6 +308,7 @@ async def add_watch(
     data["taste_contribution"] = None
 
     if payload.status == "watched":
+        data["watched_at"] = payload.watched_at or data["created_at"]
         try:
             features = await tmdb_catalog.get_features(
                 db, tmdb, payload.media_type, payload.tmdb_id

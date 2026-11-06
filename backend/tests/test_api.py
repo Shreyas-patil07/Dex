@@ -251,6 +251,7 @@ def test_watch_crud_is_isolated_by_firebase_uid(api_client):
     )
     assert updated.status_code == 200
     assert updated.json()["status"] == "watched"
+    assert updated.json()["watched_at"] is not None
 
     deleted = api_client.delete(f"/api/watches/{watch_id}", headers=auth_headers("alice"))
     assert deleted.status_code == 204
@@ -417,6 +418,28 @@ def test_historical_backfill_is_paginated_idempotent_and_updates_vectors(api_cli
     assert second.json()["skipped"] == 1
     assert calls == [550]
     assert database.documents[profile_path]["profiled_watch_count"] == 1
+
+
+def test_recommendations_endpoint_is_authenticated_and_returns_three_slots(api_client, monkeypatch):
+    sync_account(api_client, "rec-user")
+
+    async def fake_recommend(db, user_document):
+        return {
+            "personalized": True,
+            "slots": {"safe": {"id": 1}, "adjacent": {"id": 2}, "wildcard": {"id": 3}},
+        }
+
+    monkeypatch.setattr(main.recommendation_service, "recommend", fake_recommend)
+    unauthorized = api_client.get("/api/recommendations")
+    authorized = api_client.get(
+        "/api/recommendations",
+        headers=auth_headers("rec-user"),
+    )
+
+    assert unauthorized.status_code == 401
+    assert authorized.status_code == 200
+    assert set(authorized.json()["slots"]) == {"safe", "adjacent", "wildcard"}
+
 
 def test_search_query_and_page_are_bounded(api_client):
     too_long = api_client.get("/api/search", params={"query": "x" * 101})
