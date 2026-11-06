@@ -174,16 +174,13 @@ usernames/{normalized_username}
   firebase_uid, created_at
 
 users/{firebase_uid}/taste/profile
-  model/schema versions and profiled watch counters
+  model/schema versions, profiled watch counters, profile_version
 
-users/{firebase_uid}/taste_vectors/{group}/features/{feature_id}
-  positive and negative all-time feature sums
+users/{firebase_uid}/recommendations/current
+  cached candidate pools and metadata keyed by profile_version
 
 tmdb_catalog/{media_type}_{tmdb_id}
   cached TMDB-derived feature metadata and display labels
-
-tmdb_feature_stats/{group}/features/{feature_id}
-  shared document-frequency statistics used by recommendation IDF weighting
 ```
 
 ## Taste engine V1
@@ -192,7 +189,7 @@ Only `watched` records contribute; want-to-watch and in-future records are exclu
 
 ## Personalized recommendations
 
-The authenticated `GET /api/recommendations` endpoint returns three slots: `safe` (highest relevance), `adjacent` (relevance/diversity trade-off), and `wildcard` (separate weekly-trending retrieval with novelty bias). The V1 scorer combines 75% all-time profile evidence with 25% recent evidence using a 90-day half-life, signed positive/negative taste vectors, and feature IDF weighting. `match_percent` is a percentile within the request's enriched candidate pool, **not** a probability that the user will like a title. See [Recommendation Engine](docs/11_Recommendations_Engine.md).
+The authenticated `GET /api/recommendations` endpoint returns three slots: `safe` (highest relevance), `adjacent` (relevance/diversity trade-off), and `wildcard` (separate weekly-trending retrieval with novelty bias). The V2 scorer rebuilds all-time and recent profiles from persisted per-watch contributions (90-day half-life), uses local IDF over the watched set plus candidate pool, and retrieves candidates from TMDB item-to-item recommendations/similar endpoints before popularity-based discover fallback. A versioned six-hour candidate cache serves weighted top-k exploration; watch mutations invalidate and refresh an existing cache in the background. `match_percent` is a percentile within the request's enriched candidate pool, **not** a probability that the user will like a title. See [Recommendation Engine](docs/11_Recommendations_Engine.md).
 
 Existing watched titles may require `POST /api/taste/backfill?limit=50` after deployment. Continue with the returned `next_cursor` until `complete` is true; rerun from the first page later to retry TMDB-pending records. Backfill is authenticated, rate-limited, idempotent, and excludes non-watched titles.
 
