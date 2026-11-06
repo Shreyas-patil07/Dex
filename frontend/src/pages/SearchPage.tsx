@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Loader2 } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w500';
