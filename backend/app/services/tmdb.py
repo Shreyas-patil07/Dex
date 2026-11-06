@@ -37,10 +37,12 @@ class TMDBService:
 
     @staticmethod
     def _cache_ttl(path: str) -> int:
-        if path.startswith("/trending/"):
+        if path.startswith(("/trending/", "/discover/")):
             return 300
         if path in {"/search/multi", "/search/movie", "/search/tv"}:
             return 60
+        if path.startswith("/genre/"):
+            return 86400
         if path.endswith("/watch/providers"):
             return 1800
         if path.startswith(("/movie/", "/tv/")):

@@ -24,10 +24,12 @@ from .services.taste import (
 )
 from .services.tmdb_catalog import TMDBCatalog
 from .services.taste_backfill import backfill_watched_page, MAX_BACKFILL_PAGE_SIZE
+from .services.recommendations import TasteRecommendationService
 
 
 tmdb = TMDBService(settings.tmdb_api_key, settings.tmdb_base_url)
 tmdb_catalog = TMDBCatalog()
+recommendation_service = TasteRecommendationService(tmdb, tmdb_catalog)
 bearer = HTTPBearer(auto_error=False)
 limiter = Limiter(
     key_func=get_remote_address,
@@ -396,6 +398,24 @@ async def delete_watch(
     deleted = await delete_watch_atomically(db, user_document, ref)
     if not deleted:
         raise HTTPException(status_code=404, detail="Watch entry not found")
+
+
+@app.get("/api/recommendations")
+@limiter.limit("10/minute")
+async def recommendations(
+    request: Request,
+    response: Response,
+    current=Depends(current_user),
+    db=Depends(get_firestore),
+) -> dict:
+    firebase_uid, _ = current
+    try:
+        return await recommendation_service.recommend(
+            db,
+            user_ref(db, firebase_uid),
+        )
+    except TMDBError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.post("/api/taste/backfill")
