@@ -150,3 +150,75 @@ def test_idf_cache_reuses_document_frequency_for_five_minutes(monkeypatch):
 
     import asyncio
     asyncio.run(scenario())
+
+
+def test_retrieval_uses_item_to_item_sources_from_highly_rated_watches():
+    import asyncio
+
+    from app.services.recommendations import TasteRecommendationService, _empty_profile
+
+    calls = []
+
+    class FakeTMDB:
+        async def get(self, path, params):
+            calls.append((path, params))
+            if path == "/movie/550/recommendations":
+                return {"results": [{"id": 680, "title": "Pulp Fiction"}]}
+            if path == "/movie/550/similar":
+                return {"results": [{"id": 13, "title": "Forrest Gump"}]}
+            if path.startswith("/discover/"):
+                return {"results": []}
+            raise AssertionError(f"Unexpected TMDB path: {path}")
+
+        async def trending(self, media_type, time_window):
+            return {"results": []}
+
+    watch = {
+        "status": "watched",
+        "media_type": "movie",
+        "tmdb_id": 550,
+        "title": "Fight Club",
+        "rating": 9.0,
+        "taste_contribution": {
+            "direction": "positive",
+            "sentiment": 0.875,
+            "weights": {"genres": {"18": 0.5}},
+        },
+    }
+
+    async def scenario():
+        service = TasteRecommendationService(FakeTMDB(), None)
+        primary, wildcard = await service._retrieve_candidates(_empty_profile(), [watch])
+        assert {item["id"] for item in primary} == {680, 13}
+        assert wildcard == []
+        assert {path for path, _ in calls} == {
+            "/movie/550/recommendations",
+            "/movie/550/similar",
+        }
+        assert all(
+            item["_retrieval_reasons"] == ["Because you rated Fight Club 9.0/10"]
+            for item in primary
+        )
+
+    asyncio.run(scenario())
+
+
+def test_discover_retrieval_fetches_multiple_pages():
+    import asyncio
+
+    from app.services.recommendations import TasteRecommendationService
+
+    calls = []
+
+    class FakeTMDB:
+        async def get(self, path, params):
+            calls.append(params["page"])
+            return {"results": [{"id": params["page"], "title": f"Page {params['page']}"}]}
+
+    async def scenario():
+        service = TasteRecommendationService(FakeTMDB(), None)
+        results = await service._discover("movie", "with_genres", ["18"])
+        assert {item["id"] for item in results} == {1, 2}
+        assert sorted(calls) == [1, 2]
+
+    asyncio.run(scenario())
