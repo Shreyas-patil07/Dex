@@ -297,6 +297,11 @@ class TasteRecommendationService:
     def __init__(self, tmdb: Any, catalog: Any):
         self.tmdb = tmdb
         self.catalog = catalog
+        self._retrieval_semaphore = asyncio.Semaphore(5)
+
+    async def _retrieval_get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
+        async with self._retrieval_semaphore:
+            return await self.tmdb.get(path, params)
 
     async def _discover(
         self,
@@ -309,7 +314,7 @@ class TasteRecommendationService:
             return []
         async def fetch_page(page: int) -> list[dict[str, Any]]:
             try:
-                payload = await self.tmdb.get(
+                payload = await self._retrieval_get(
                     f"/discover/{media_type}",
                     {
                         filter_name: "|".join(identifiers),
@@ -340,7 +345,7 @@ class TasteRecommendationService:
         if media_type not in {"movie", "tv"} or tmdb_id <= 0:
             return []
         try:
-            payload = await self.tmdb.get(
+            payload = await self._retrieval_get(
                 f"/{media_type}/{tmdb_id}/{endpoint}",
                 {"page": 1},
             )
@@ -442,7 +447,8 @@ class TasteRecommendationService:
         primary = [item for batch in primary_sets for item in batch]
 
         try:
-            trending_payload = await self.tmdb.trending("all", "week")
+            async with self._retrieval_semaphore:
+                trending_payload = await self.tmdb.trending("all", "week")
             wildcard = [
                 item for item in trending_payload.get("results", [])
                 if isinstance(item, dict)
