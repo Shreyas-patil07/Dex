@@ -505,7 +505,8 @@ class TasteRecommendationService:
             if watch.get("taste_metadata_status") == "ready"
             and "taste_contribution" in watch
         ]
-        pending = len(watched) - len(ready)
+        unavailable = sum(1 for watch in watched if watch.get("taste_metadata_status") == "not_found")
+        pending = len(watched) - len(ready) - unavailable
 
         all_time = await self._load_vectors(user_document)
         recent, recent_count = build_recent_profile(watches)
@@ -663,6 +664,7 @@ class TasteRecommendationService:
                 "watched_titles": len(watched),
                 "metadata_ready_titles": len(ready),
                 "pending_titles": pending,
+                "metadata_unavailable_titles": unavailable,
                 "backfill_complete": pending == 0,
             },
             "recent_profile": {

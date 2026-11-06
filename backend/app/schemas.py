@@ -15,15 +15,15 @@ class UserPublic(BaseModel):
 
 
 class WatchCreate(BaseModel):
-    tmdb_id: int
+    tmdb_id: int = Field(ge=1)
     media_type: str = Field(pattern=r"^(movie|tv)$")
     title: str = Field(min_length=1, max_length=255)
     status: str = Field(default="want_to_watch", pattern=r"^(watched|want_to_watch|in_future)$")
     rating: float | None = Field(default=None, ge=0, le=10)
     watched_at: datetime | None = None
     notes: str | None = Field(default=None, max_length=2000)
-    poster_path: str | None = None
-    backdrop_path: str | None = None
+    poster_path: str | None = Field(default=None, max_length=255, pattern=r"^/[A-Za-z0-9._-]+$")
+    backdrop_path: str | None = Field(default=None, max_length=255, pattern=r"^/[A-Za-z0-9._-]+$")
 
 
 class WatchUpdate(BaseModel):
@@ -31,8 +31,8 @@ class WatchUpdate(BaseModel):
     rating: float | None = Field(default=None, ge=0, le=10)
     watched_at: datetime | None = None
     notes: str | None = Field(default=None, max_length=2000)
-    poster_path: str | None = None
-    backdrop_path: str | None = None
+    poster_path: str | None = Field(default=None, max_length=255, pattern=r"^/[A-Za-z0-9._-]+$")
+    backdrop_path: str | None = Field(default=None, max_length=255, pattern=r"^/[A-Za-z0-9._-]+$")
 
 
 class WatchPublic(WatchCreate):

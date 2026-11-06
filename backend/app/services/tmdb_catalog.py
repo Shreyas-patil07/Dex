@@ -7,7 +7,7 @@ from urllib.parse import quote
 from google.cloud import firestore
 
 from ..services.taste import FEATURE_GROUPS, normalize_taste_features
-from ..services.tmdb import TMDBError, TMDBService
+from ..services.tmdb import TMDBError, TMDBNotFoundError, TMDBService
 
 
 CATALOG_COLLECTION = "tmdb_catalog"
@@ -255,6 +255,8 @@ class TMDBCatalog:
                 f"/{media_type}/{tmdb_id}",
                 {"append_to_response": "keywords,credits"},
             )
+        except TMDBNotFoundError:
+            raise
         except TMDBError:
             # Stale metadata is preferable to blocking a user's watch action.
             if isinstance(cached_features, dict):

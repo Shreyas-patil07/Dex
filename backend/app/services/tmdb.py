@@ -11,6 +11,10 @@ class TMDBError(Exception):
     pass
 
 
+class TMDBNotFoundError(TMDBError):
+    """The requested TMDB resource does not exist."""
+
+
 class TMDBService:
     MAX_CACHE_ENTRIES = 1024
 
@@ -71,6 +75,8 @@ class TMDBService:
         except httpx.HTTPError as exc:
             raise TMDBError("TMDB service is temporarily unavailable") from exc
 
+        if response.status_code == 404:
+            raise TMDBNotFoundError("TMDB title was not found")
         if response.status_code >= 400:
             raise TMDBError(f"TMDB request failed with status {response.status_code}")
 

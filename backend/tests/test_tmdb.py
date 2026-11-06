@@ -3,7 +3,7 @@ import asyncio
 import httpx
 import pytest
 
-from app.services.tmdb import TMDBError, TMDBService
+from app.services.tmdb import TMDBError, TMDBNotFoundError, TMDBService
 
 
 def run(coro):
@@ -129,6 +129,23 @@ def test_response_cache_uses_bounded_lru_eviction():
 
             await service.get("/search/multi", {"query": "first"})
             assert calls == ["first", "second", "third"]
+        finally:
+            await service.close()
+
+    run(scenario())
+
+
+
+def test_upstream_404_uses_permanent_not_found_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"status_message": "not found"})
+
+    async def scenario():
+        service = TMDBService("test-key", transport=httpx.MockTransport(handler))
+        await service.start()
+        try:
+            with pytest.raises(TMDBNotFoundError, match="not found"):
+                await service.get("/movie/99999999")
         finally:
             await service.close()
 

@@ -8,6 +8,7 @@ from google.cloud import firestore
 import app.main as main
 from app.firestore import get_firestore
 from app.services import taste
+from app.services.tmdb import TMDBNotFoundError
 
 
 class FakeSnapshot:
@@ -477,6 +478,57 @@ def test_historical_backfill_is_paginated_idempotent_and_updates_vectors(api_cli
     assert second.json()["skipped"] == 1
     assert calls == [550]
     assert database.documents[profile_path]["profiled_watch_count"] == 1
+
+
+
+
+def test_watch_create_rejects_invalid_tmdb_ids_and_image_paths(api_client):
+    sync_account(api_client, "validation-user")
+    headers = auth_headers("validation-user")
+    base = {
+        "tmdb_id": 550,
+        "media_type": "movie",
+        "title": "Fight Club",
+        "status": "want_to_watch",
+    }
+
+    invalid_id = api_client.post("/api/watches", headers=headers, json={**base, "tmdb_id": 0})
+    invalid_path = api_client.post(
+        "/api/watches",
+        headers=headers,
+        json={**base, "tmdb_id": 551, "poster_path": "https://example.com/poster.jpg"},
+    )
+    oversized_path = api_client.post(
+        "/api/watches",
+        headers=headers,
+        json={**base, "tmdb_id": 552, "poster_path": "/" + "x" * 300},
+    )
+
+    assert invalid_id.status_code == 422
+    assert invalid_path.status_code == 422
+    assert oversized_path.status_code == 422
+
+
+def test_watched_create_returns_404_for_unknown_tmdb_title(api_client, monkeypatch):
+    sync_account(api_client, "missing-tmdb")
+
+    async def missing_title(*args, **kwargs):
+        raise TMDBNotFoundError("TMDB title was not found")
+
+    monkeypatch.setattr(main.tmdb_catalog, "get_features", missing_title)
+    response = api_client.post(
+        "/api/watches",
+        headers=auth_headers("missing-tmdb"),
+        json={
+            "tmdb_id": 99999999,
+            "media_type": "movie",
+            "title": "Unknown title",
+            "status": "watched",
+        },
+    )
+
+    assert response.status_code == 404
+    assert ("users", "missing-tmdb", "watches", "movie_99999999") not in api_client.database.documents
 
 
 def test_recommendations_endpoint_is_authenticated_and_returns_three_slots(api_client, monkeypatch):

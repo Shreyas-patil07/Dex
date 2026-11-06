@@ -15,7 +15,7 @@ from .config import settings
 from .firestore import get_firestore
 from .schemas import UserPublic, UsernameRequest, WatchCreate, WatchPublic, WatchUpdate, is_reserved_username
 from .services.firebase_auth import verify_firebase_token
-from .services.tmdb import TMDBError, TMDBService
+from .services.tmdb import TMDBError, TMDBNotFoundError, TMDBService
 from .services.taste import (
     add_watch_atomically,
     build_taste_contribution,
@@ -198,6 +198,8 @@ async def media_details(
             (f"/{media_type}/{tmdb_id}/watch/providers", {"watch_region": WATCH_REGION}),
         )
         return {**details, "watch_providers": providers.get("results", {}).get(WATCH_REGION, {})}
+    except TMDBNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="TMDB title was not found") from exc
     except TMDBError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -340,6 +342,8 @@ async def add_watch(
             features = await tmdb_catalog.get_features(
                 db, tmdb, payload.media_type, payload.tmdb_id
             )
+        except TMDBNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="TMDB title was not found") from exc
         except TMDBError:
             features = None
         data["taste_metadata_status"] = "ready" if features is not None else "pending"
@@ -398,6 +402,8 @@ async def update_watch(
                 db, tmdb, previous_data["media_type"], int(previous_data["tmdb_id"])
             )
             metadata_status = "ready"
+        except TMDBNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="TMDB title was not found") from exc
         except TMDBError:
             metadata_status = "pending"
 
