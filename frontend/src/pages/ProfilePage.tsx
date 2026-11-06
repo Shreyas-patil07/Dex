@@ -7,6 +7,7 @@ import { auth } from '../lib/firebase';
 type User = { id: string; email: string; username: string | null; display_name: string | null; tagline: string | null; created_at: string };
 type Watch = { id: string; tmdb_id: number; media_type: 'movie' | 'tv'; title: string; status: string; rating: number | null; watched_at: string | null; notes?: string | null; poster_path?: string | null; backdrop_path?: string | null };
 type WatchStatus = { value: string; label: string };
+type WatchPage = { items: Watch[]; next_cursor: string | null; has_more: boolean };
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function request(user: FirebaseUser, path: string, options: RequestInit = {}) {
@@ -58,6 +59,9 @@ export const ProfilePage: React.FC = () => {
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [watches, setWatches] = useState<Watch[]>([]);
+  const [watchCursor, setWatchCursor] = useState<string | null>(null);
+  const [hasMoreWatches, setHasMoreWatches] = useState(false);
+  const [loadingMoreWatches, setLoadingMoreWatches] = useState(false);
   const [statuses, setStatuses] = useState<WatchStatus[]>([]);
   const [activeStatus, setActiveStatus] = useState('watched');
   const [loading, setLoading] = useState(true);
@@ -110,11 +114,22 @@ export const ProfilePage: React.FC = () => {
         setLoading(true); setError('');
         const sync = await request(firebaseUser, '/api/auth/sync', { method: 'POST', body: JSON.stringify({ display_name: firebaseUser.displayName || undefined }) });
         if (!sync.ok) { const data = await sync.json().catch(() => ({})); throw new Error(data.detail || 'Could not synchronize your Dex account.'); }
-        const [profile, history] = await Promise.all([request(firebaseUser, '/api/me'), request(firebaseUser, '/api/watches')]);
+        const [profile, history] = await Promise.all([
+          request(firebaseUser, '/api/me'),
+          request(firebaseUser, '/api/watches?limit=50'),
+        ]);
         if (!profile.ok) { const data = await profile.json().catch(() => ({})); throw new Error(data.detail || 'Could not load your profile.'); }
         if (!history.ok) { const data = await history.json().catch(() => ({})); throw new Error(data.detail || 'Could not load your watch history. Please retry.'); }
-        const [profileData, historyData] = await Promise.all([profile.json(), history.json()]);
-        if (active) { setUser(profileData); setWatches(historyData); }
+        const [profileData, historyData] = await Promise.all([
+          profile.json(),
+          history.json() as Promise<WatchPage>,
+        ]);
+        if (active) {
+          setUser(profileData);
+          setWatches(historyData.items);
+          setWatchCursor(historyData.next_cursor);
+          setHasMoreWatches(historyData.has_more);
+        }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : 'Could not load your profile.'); }
       finally { if (active) setLoading(false); }
     })();
@@ -144,6 +159,32 @@ export const ProfilePage: React.FC = () => {
     } finally { setUpdatingWatch(null); }
   };
 
+  const loadMoreWatches = async () => {
+    if (!firebaseUser || !watchCursor || loadingMoreWatches) return;
+    setLoadingMoreWatches(true);
+    try {
+      const response = await request(
+        firebaseUser,
+        `/api/watches?limit=50&cursor=${encodeURIComponent(watchCursor)}`,
+      );
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || 'Could not load more watch history.');
+      }
+      const page: WatchPage = await response.json();
+      setWatches(current => {
+        const known = new Set(current.map(watch => watch.id));
+        return [...current, ...page.items.filter(watch => !known.has(watch.id))];
+      });
+      setWatchCursor(page.next_cursor);
+      setHasMoreWatches(page.has_more);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load more watch history.');
+    } finally {
+      setLoadingMoreWatches(false);
+    }
+  };
+
   const statusCounts = useMemo(() => Object.fromEntries(statuses.map(status => [status.value, watches.filter(w => w.status === status.value).length])), [statuses, watches]);
   const filteredWatches = useMemo(() => watches.filter(w => w.status === activeStatus), [watches, activeStatus]);
   const movies = watches.filter(w => w.media_type === 'movie').length;
@@ -162,7 +203,7 @@ export const ProfilePage: React.FC = () => {
     <main className="mx-auto max-w-6xl px-6 pb-20 pt-8 sm:pt-10">
       <section className="relative overflow-hidden rounded-[2rem] border border-white/[0.08] bg-white/[0.025] shadow-[0_20px_60px_rgba(0,0,0,0.2)]"><div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[#8B5CF6]/10 blur-3xl" /><div className="relative p-7 sm:p-10"><div className="flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between"><div className="flex items-center gap-5 sm:gap-7"><div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-[#7C3AED]/25 to-[#A855F7]/10 text-3xl font-bold text-[#D8B4FE] ring-1 ring-[#A855F7]/25 shadow-[0_10px_30px_rgba(124,58,237,0.14)]">{initial}</div><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#A78BFA]">Your profile</p><h1 className="mt-2 truncate text-3xl font-bold tracking-tight sm:text-4xl">{user?.display_name || user?.username || 'Dex User'}</h1><p className="mt-1 text-sm text-[#64748B]">@{user?.username || 'username'}{user?.tagline ? ` · ${user.tagline}` : ''}</p></div></div><div className="flex flex-wrap gap-2"><a href="/" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-4 py-2.5 text-sm font-semibold text-[#CBD5E1] hover:bg-white/[0.05] hover:text-white"><Plus size={15} /> Discover</a><button onClick={() => setShowSecurity(v => !v)} className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${showSecurity ? 'border-[#8B5CF6]/30 bg-[#8B5CF6]/[0.06] text-[#C4B5FD]' : 'border-white/[0.08] text-[#94A3B8] hover:bg-white/[0.04] hover:text-white'}`}><Settings2 size={15} /> Account</button></div></div></div></section>
 
-      <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{[['Total titles', watches.length], ['Movies', movies], ['Series', series], ['Avg. rating', average]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5"><p className="text-xs uppercase tracking-[0.15em] text-[#64748B]">{label}</p><p className="mt-2 inline-flex items-center gap-2 text-2xl font-bold">{value}{label === 'Avg. rating' && average !== '—' && <Star size={17} className="text-[#A78BFA]" />}</p></div>)}</section>
+      <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{[[hasMoreWatches ? 'Loaded titles' : 'Total titles', watches.length], ['Movies', movies], ['Series', series], ['Avg. rating', average]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5"><p className="text-xs uppercase tracking-[0.15em] text-[#64748B]">{label}</p><p className="mt-2 inline-flex items-center gap-2 text-2xl font-bold">{value}{label === 'Avg. rating' && average !== '—' && <Star size={17} className="text-[#A78BFA]" />}</p></div>)}</section>
 
       <section className="mt-10">
         <div className="mt-6 grid gap-3 md:grid-cols-3">
@@ -313,6 +354,18 @@ export const ProfilePage: React.FC = () => {
             )}
           </div>
         </article>)}</div>}
+        {hasMoreWatches && (
+          <div className="mt-7 flex justify-center">
+            <button
+              type="button"
+              onClick={() => void loadMoreWatches()}
+              disabled={loadingMoreWatches}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.035] px-5 py-3 text-sm font-semibold text-[#CBD5E1] transition-colors hover:border-[#A78BFA]/30 hover:bg-white/[0.06] hover:text-white disabled:cursor-wait disabled:opacity-60"
+            >
+              {loadingMoreWatches ? 'Loading…' : 'Load more titles'}
+            </button>
+          </div>
+        )}
       </section>
 
       {showSecurity && <section className="mt-12 rounded-3xl border border-white/[0.07] bg-white/[0.02] p-7 sm:p-8"><div className="flex items-start gap-4"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8B5CF6]/10 text-[#C4B5FD]"><ShieldCheck size={18} /></div><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A855F7]">Account security</p><h2 className="mt-2 text-2xl font-bold">Sign-in methods</h2><p className="mt-2 text-sm text-[#94A3B8]">Connect multiple ways to sign in to the same Dex account.</p></div></div><div className="mt-6 space-y-3"><div className="flex flex-col gap-4 rounded-2xl border border-white/[0.07] bg-[#0B0B14] p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">Google</p><p className="mt-1 text-xs text-[#64748B]">{hasGoogle ? 'Connected to this account' : 'Not connected'}</p></div>{hasGoogle ? <span className="text-sm text-emerald-400">✓ Connected</span> : <button onClick={connectGoogle} disabled={linking !== null} className="rounded-xl bg-white/[0.06] px-4 py-2 text-sm font-semibold disabled:opacity-50">{linking === 'google' ? 'Connecting…' : 'Connect Google'}</button>}</div><div className="rounded-2xl border border-white/[0.07] bg-[#0B0B14] p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">Email & Password</p><p className="mt-1 text-xs text-[#64748B]">{hasPassword ? `Connected as ${firebaseUser.email}` : `Use ${firebaseUser.email || 'your email'} to sign in`}</p></div>{hasPassword && <span className="text-sm text-emerald-400">✓ Connected</span>}</div>{hasPassword ? <button onClick={resetPassword} disabled={resetting} className="mt-5 rounded-xl border border-white/[0.08] px-4 py-2.5 text-sm font-semibold text-[#C084FC] hover:bg-white/[0.04] disabled:opacity-50">{resetting ? 'Sending…' : 'Reset password'}</button> : <form onSubmit={addPassword} className="mt-5 grid gap-3 sm:grid-cols-2"><input type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder="New password" minLength={8} required className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm outline-none focus:border-[#7C3AED]" /><input type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} placeholder="Confirm password" minLength={8} required className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm outline-none focus:border-[#7C3AED]" /><button disabled={linking !== null} className="rounded-xl bg-[#7C3AED] px-4 py-3 text-sm font-semibold sm:col-span-2 disabled:opacity-50">{linking === 'password' ? 'Connecting…' : 'Add password'}</button></form>}</div></div>{linkMessage && <p className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm text-[#CBD5E1]">{linkMessage}</p>}</section>}
