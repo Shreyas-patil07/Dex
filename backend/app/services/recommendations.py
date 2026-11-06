@@ -22,6 +22,9 @@ IDF_FEATURE_CACHE_LIMIT = 1000
 PRIMARY_CANDIDATE_LIMIT = 18
 WILDCARD_CANDIDATE_LIMIT = 12
 ENRICH_CONCURRENCY = 4
+RELATED_SEED_LIMIT = 4
+RELATED_CANDIDATE_PAGES = (1, 2)
+RELATED_ENDPOINTS = ("recommendations", "similar")
 
 
 def _number(value: Any, default: float = 0.0) -> float:
@@ -303,21 +306,60 @@ class TasteRecommendationService:
     ) -> list[dict[str, Any]]:
         if not identifiers:
             return []
+        async def fetch_page(page: int) -> list[dict[str, Any]]:
+            try:
+                payload = await self.tmdb.get(
+                    f"/discover/{media_type}",
+                    {
+                        filter_name: "|".join(identifiers),
+                        "sort_by": "popularity.desc",
+                        "vote_count.gte": vote_count,
+                        "include_adult": "false",
+                        "page": page,
+                    },
+                )
+            except TMDBError:
+                return []
+            return [
+                {**item, "media_type": media_type, "_retrieval_source": "discover"}
+                for item in payload.get("results", [])
+                if isinstance(item, dict) and item.get("id")
+            ]
+
+        pages = await asyncio.gather(*(fetch_page(page) for page in RELATED_CANDIDATE_PAGES))
+        return [item for page in pages for item in page]
+
+    async def _related(
+        self,
+        seed: dict[str, Any],
+        endpoint: str,
+    ) -> list[dict[str, Any]]:
+        media_type = str(seed.get("media_type") or "")
+        tmdb_id = int(_number(seed.get("tmdb_id")))
+        if media_type not in {"movie", "tv"} or tmdb_id <= 0:
+            return []
         try:
             payload = await self.tmdb.get(
-                f"/discover/{media_type}",
-                {
-                    filter_name: "|".join(identifiers),
-                    "sort_by": "popularity.desc",
-                    "vote_count.gte": vote_count,
-                    "include_adult": "false",
-                    "page": 1,
-                },
+                f"/{media_type}/{tmdb_id}/{endpoint}",
+                {"page": 1},
             )
         except TMDBError:
             return []
+
+        title = str(seed.get("title") or "a title you watched")
+        rating = _number(seed.get("rating"), -1.0)
+        if rating >= 7.0:
+            reason = f"Because you rated {title} {rating:.1f}/10"
+        else:
+            reason = f"Because you watched {title}"
+
         return [
-            {**item, "media_type": media_type}
+            {
+                **item,
+                "media_type": media_type,
+                "_retrieval_source": endpoint,
+                "_retrieval_reasons": [reason],
+            }
             for item in payload.get("results", [])
             if isinstance(item, dict) and item.get("id")
         ]
@@ -325,6 +367,7 @@ class TasteRecommendationService:
     async def _retrieve_candidates(
         self,
         profile: dict[str, dict[str, dict[str, float]]],
+        watches: list[dict[str, Any]] | None = None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         genre_seeds = sorted(
             (
@@ -357,6 +400,24 @@ class TasteRecommendationService:
             reverse=True,
         )[:3]
 
+        positive_watches = [
+            watch for watch in (watches or [])
+            if watch.get("status") == "watched"
+            and isinstance(watch.get("taste_contribution"), dict)
+            and watch["taste_contribution"].get("direction") == "positive"
+            and watch.get("media_type") in {"movie", "tv"}
+            and _number(watch.get("tmdb_id")) > 0
+        ]
+        positive_watches.sort(
+            key=lambda watch: (
+                _number(watch.get("rating"), -1.0),
+                _number((watch.get("taste_contribution") or {}).get("sentiment")),
+                _datetime(watch.get("watched_at")) or _datetime(watch.get("created_at")) or datetime.min.replace(tzinfo=timezone.utc),
+            ),
+            reverse=True,
+        )
+        related_seeds = positive_watches[:RELATED_SEED_LIMIT]
+
         tasks = []
         if genre_seeds:
             tasks.extend(
@@ -370,6 +431,11 @@ class TasteRecommendationService:
             )
         if people_seeds:
             tasks.append(self._discover("movie", "with_people", people_seeds))
+        tasks.extend(
+            self._related(seed, endpoint)
+            for seed in related_seeds
+            for endpoint in RELATED_ENDPOINTS
+        )
 
         primary_sets = await asyncio.gather(*tasks) if tasks else []
         primary = [item for batch in primary_sets for item in batch]
@@ -511,7 +577,7 @@ class TasteRecommendationService:
         all_time = await self._load_vectors(user_document)
         recent, recent_count = build_recent_profile(watches)
         idf = await self._load_idf(db, all_time)
-        primary_candidates, wildcard_candidates = await self._retrieve_candidates(all_time)
+        primary_candidates, wildcard_candidates = await self._retrieve_candidates(all_time, watches)
 
         excluded = {
             f"{watch.get('media_type')}:{watch.get('tmdb_id')}"
@@ -520,8 +586,17 @@ class TasteRecommendationService:
         primary_by_key: dict[str, dict[str, Any]] = {}
         for candidate in primary_candidates:
             key = self._key(candidate)
-            if key not in excluded:
+            if key in excluded:
+                continue
+            existing = primary_by_key.get(key)
+            if existing is None:
                 primary_by_key[key] = candidate
+            else:
+                reasons = list(existing.get("_retrieval_reasons") or [])
+                reasons.extend(candidate.get("_retrieval_reasons") or [])
+                existing["_retrieval_reasons"] = list(dict.fromkeys(reasons))
+                if candidate.get("_retrieval_source") in {"recommendations", "similar"}:
+                    existing["_retrieval_source"] = candidate["_retrieval_source"]
 
         wildcard_by_key: dict[str, dict[str, Any]] = {}
         for candidate in wildcard_candidates:
@@ -576,10 +651,14 @@ class TasteRecommendationService:
                 )
             candidate["raw_score"] = round(raw_score, 6)
             candidate["personalized"] = personalized
-            candidate["reasons"] = (
+            retrieval_reasons = candidate.get("_retrieval_reasons") or []
+            feature_reasons = (
                 self._explanations(all_time, candidate, idf)
                 if personalized else ["Popular with TMDB viewers"]
             )
+            candidate["reasons"] = list(dict.fromkeys(
+                [*retrieval_reasons, *feature_reasons]
+            ))[:2]
             scored.append(candidate)
             by_key[self._key(candidate)] = candidate
 
