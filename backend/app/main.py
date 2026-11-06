@@ -316,7 +316,7 @@ async def watch_statuses() -> dict[str, list[dict[str, str]]]:
 
 
 @app.get("/api/auth/username/available")
-@limiter.limit("30/minute")
+@limiter.limit("20/minute")
 async def username_available(
     request: Request,
     response: Response,
