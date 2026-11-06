@@ -187,3 +187,36 @@ def test_tmdb_catalog_uses_stale_cache_if_upstream_is_unavailable():
         assert features["people"] == ["91"]
 
     asyncio.run(scenario())
+
+
+def test_fresh_catalogue_cache_skips_feature_index_transaction(monkeypatch):
+    database = FakeDatabase()
+    features = {"genres": ["18"], "keywords": ["100"], "people": [], "decades": ["1990s"]}
+    database.documents[("tmdb_catalog", "movie_550")] = {
+        "catalog_version": 1,
+        "features": features,
+        "labels": {},
+        "indexed_features": features,
+        "stats_indexed_version": 1,
+        "fetched_at": datetime.now(timezone.utc),
+    }
+    catalog = TMDBCatalog()
+    index_calls = []
+
+    async def index_features(*args, **kwargs):
+        index_calls.append(args)
+
+    monkeypatch.setattr(catalog, "_index_features", index_features)
+
+    class UnusedTMDB:
+        async def get(self, path, params):
+            raise AssertionError("fresh cache should not call TMDB")
+
+    async def scenario():
+        first = await catalog.get_features(database, UnusedTMDB(), "movie", 550)
+        second = await catalog.get_features(database, UnusedTMDB(), "movie", 550)
+        assert first == features
+        assert second == features
+        assert index_calls == []
+
+    asyncio.run(scenario())

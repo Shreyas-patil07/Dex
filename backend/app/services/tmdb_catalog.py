@@ -242,7 +242,12 @@ class TMDBCatalog:
             and isinstance((cached or {}).get("labels"), dict)
         )
         if is_fresh:
-            await self._index_features(db, cache_ref, cached_features)
+            index_current = (
+                cached.get("stats_indexed_version") == FEATURE_STATS_VERSION
+                and normalize_taste_features(cached.get("indexed_features")) == normalize_taste_features(cached_features)
+            )
+            if not index_current:
+                await self._index_features(db, cache_ref, cached_features)
             return cached_features
 
         try:
@@ -253,7 +258,12 @@ class TMDBCatalog:
         except TMDBError:
             # Stale metadata is preferable to blocking a user's watch action.
             if isinstance(cached_features, dict):
-                await self._index_features(db, cache_ref, cached_features)
+                index_current = (
+                    (cached or {}).get("stats_indexed_version") == FEATURE_STATS_VERSION
+                    and normalize_taste_features((cached or {}).get("indexed_features")) == normalize_taste_features(cached_features)
+                )
+                if not index_current:
+                    await self._index_features(db, cache_ref, cached_features)
                 return cached_features
             raise
 

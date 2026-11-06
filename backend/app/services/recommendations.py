@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import time
+from collections import OrderedDict
 from datetime import datetime, timezone
 from math import log, sqrt
 from typing import Any
@@ -15,6 +17,8 @@ RECENT_ALL_TIME_BLEND = 0.25
 MMR_LAMBDA = 0.45
 NEGATIVE_PENALTY = 1.0
 IDF_FEATURE_LIMIT = 100
+IDF_CACHE_TTL_SECONDS = 300
+IDF_FEATURE_CACHE_LIMIT = 1000
 PRIMARY_CANDIDATE_LIMIT = 18
 WILDCARD_CANDIDATE_LIMIT = 12
 ENRICH_CONCURRENCY = 4
@@ -204,6 +208,14 @@ class TasteRecommendationService:
     def __init__(self, tmdb: Any, catalog: Any):
         self.tmdb = tmdb
         self.catalog = catalog
+        self._idf_cache: dict[str, dict[str, Any]] = {
+            group: {
+                "loaded_at": 0.0,
+                "document_count": 0,
+                "frequencies": OrderedDict(),
+            }
+            for group in FEATURE_GROUPS
+        }
 
     async def _load_vectors(self, user_document: Any) -> dict[str, dict[str, dict[str, float]]]:
         profile = _empty_profile()
@@ -229,10 +241,20 @@ class TasteRecommendationService:
         profile: dict[str, dict[str, dict[str, float]]],
     ) -> dict[str, dict[str, float]]:
         idf: dict[str, dict[str, float]] = {group: {} for group in FEATURE_GROUPS}
+        now = time.monotonic()
+
         for group in FEATURE_GROUPS:
             stats_ref = db.collection("tmdb_feature_stats").document(group)
-            stats_snapshot = await stats_ref.get()
-            document_count = max(0, int(_number((stats_snapshot.to_dict() or {}).get("document_count"))))
+            cache = self._idf_cache[group]
+            if now - cache["loaded_at"] >= IDF_CACHE_TTL_SECONDS:
+                stats_snapshot = await stats_ref.get()
+                cache["document_count"] = max(
+                    0,
+                    int(_number((stats_snapshot.to_dict() or {}).get("document_count"))),
+                )
+                cache["loaded_at"] = now
+                cache["frequencies"].clear()
+
             candidates = set(profile[group]["positive"]) | set(profile[group]["negative"])
             ranked = sorted(
                 candidates,
@@ -243,6 +265,9 @@ class TasteRecommendationService:
                 reverse=True,
             )[:IDF_FEATURE_LIMIT]
 
+            frequencies: OrderedDict[str, int] = cache["frequencies"]
+            missing = [feature_id for feature_id in ranked if feature_id not in frequencies]
+
             async def read_frequency(feature_id: str) -> tuple[str, int]:
                 feature_ref = stats_ref.collection("features").document(
                     quote(feature_id, safe="-_.~")
@@ -251,12 +276,22 @@ class TasteRecommendationService:
                 frequency = int(_number((snapshot.to_dict() or {}).get("document_frequency")))
                 return feature_id, max(0, frequency)
 
-            frequencies = await asyncio.gather(*(read_frequency(feature_id) for feature_id in ranked))
-            for feature_id, frequency in frequencies:
-                if document_count and frequency:
-                    idf[group][feature_id] = calculate_idf(document_count, frequency)
+            fetched = await asyncio.gather(*(read_frequency(feature_id) for feature_id in missing))
+            for feature_id, frequency in fetched:
+                frequencies[feature_id] = frequency
+                frequencies.move_to_end(feature_id)
+
+            for feature_id in ranked:
+                frequency = frequencies[feature_id]
+                frequencies.move_to_end(feature_id)
+                if cache["document_count"] and frequency:
+                    idf[group][feature_id] = calculate_idf(cache["document_count"], frequency)
                 else:
                     idf[group][feature_id] = 1.0
+
+            while len(frequencies) > IDF_FEATURE_CACHE_LIMIT:
+                frequencies.popitem(last=False)
+
         return idf
 
     async def _discover(

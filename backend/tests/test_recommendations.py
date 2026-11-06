@@ -83,3 +83,70 @@ def test_mmr_penalizes_redundant_candidates():
         {"genres": ["18"]},
         {"genres": ["53"]},
     ) == pytest.approx(0.0)
+
+
+class FakeSnapshot:
+    def __init__(self, data):
+        self._data = data
+
+    def to_dict(self):
+        return self._data
+
+
+class FakeIdfDocument:
+    def __init__(self, database, path):
+        self.database = database
+        self.path = path
+
+    def collection(self, name):
+        return FakeIdfCollection(self.database, self.path + (name,))
+
+    async def get(self):
+        self.database.reads += 1
+        return FakeSnapshot(self.database.documents.get(self.path))
+
+
+class FakeIdfCollection:
+    def __init__(self, database, path):
+        self.database = database
+        self.path = path
+
+    def document(self, document_id):
+        return FakeIdfDocument(self.database, self.path + (document_id,))
+
+
+class FakeIdfDatabase:
+    def __init__(self):
+        self.reads = 0
+        self.documents = {
+            ("tmdb_feature_stats", "genres"): {"document_count": 100},
+            ("tmdb_feature_stats", "genres", "features", "18"): {"document_frequency": 10},
+        }
+
+    def collection(self, name):
+        return FakeIdfCollection(self, (name,))
+
+
+def test_idf_cache_reuses_document_frequency_for_five_minutes(monkeypatch):
+    from app.services.recommendations import TasteRecommendationService
+
+    database = FakeIdfDatabase()
+    service = TasteRecommendationService(None, None)
+    profile = {
+        group: {"positive": {}, "negative": {}}
+        for group in ("genres", "keywords", "people", "decades")
+    }
+    profile["genres"]["positive"]["18"] = 1.0
+
+    async def scenario():
+        first = await service._load_idf(database, profile)
+        first_reads = database.reads
+        second = await service._load_idf(database, profile)
+
+        assert first["genres"]["18"] == pytest.approx(calculate_idf(100, 10))
+        assert second == first
+        assert first_reads == 2
+        assert database.reads == first_reads
+
+    import asyncio
+    asyncio.run(scenario())
