@@ -754,30 +754,6 @@ class TasteRecommendationService:
                 "reasons": candidate["reasons"],
             }
 
-        return {
-            "generated_at": datetime.now(timezone.utc),
-            "algorithm_version": 1,
-            "personalized": personalized,
-            "match_score_semantics": (
-                "Percentile rank within this request's enriched candidate pool; not a probability of liking."
-                if personalized else "No complete taste signal is available; results use TMDB quality/popularity."
-            ),
-            "profile_status": {
-                "watched_titles": len(watched),
-                "metadata_ready_titles": len(ready),
-                "pending_titles": pending,
-                "metadata_unavailable_titles": unavailable,
-                "profiled_titles": all_time_count,
-                "backfill_complete": pending == 0,
-            },
-            "recent_profile": {
-                "half_life_days": RECENT_HALF_LIFE_DAYS,
-                "recently_weighted_titles": recent_count,
-                "all_time_blend": 1.0 - RECENT_ALL_TIME_BLEND,
-                "recent_blend": RECENT_ALL_TIME_BLEND,
-            },
-        }
-
         primary_pool = [
             {
                 "public": public_candidate(candidate),
