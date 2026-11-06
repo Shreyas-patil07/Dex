@@ -16,6 +16,14 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 
 ## Entries
 
+### 2026-11-07 — Live discovery and existing-watch UI flows confirmed working
+
+- **Type:** Production smoke test / User-provided evidence
+- **Summary:** New screenshots show the signed-in Home page successfully populated with Safe, Adjacent and Wildcard recommendation cards. A separate media detail screenshot shows the existing-title status as Already watched. This supersedes the earlier visible 404/405 failure state for these two observed UI paths.
+- **Evidence:** User-provided screenshots: Home page with all three recommendation slots populated; The Dark Knight detail page showing Already watched. The screenshots do not expose the API response codes or deployed /api/health version.
+- **Outcome:** Visual smoke test passed for recommendation rendering and existing-watch status display. Do not claim complete production verification yet.
+- **Next action:** Capture GET /api/health version; verify authenticated route responses; test adding a genuinely new title (201), reloading to confirm existing state, and handling duplicate 409; then record whether Vercel ignoreCommand skipped the next docs-only build.
+
 ### 2026-11-07 — v0.6 direction approved and Vercel build filtering added
 
 - **Type:** Product decision / Deployment-cost optimization

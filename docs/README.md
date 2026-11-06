@@ -3,7 +3,7 @@
 > **Documentation snapshot:** 2026-11-07  
 > **Source branch:** main  
 > **Backend source version:** 0.5.1  
-> **Production Render state:** Pending live verification
+> **Production Render state:** Recommendation and existing-watch UI flows visually verified; full API/version verification pending
 
 This directory documents the product, software architecture, API/data contracts, security model, test evidence, implementation state, recommendation model, and deployment workflow. The repository source and automated tests are authoritative when a document and the implementation differ.
 
@@ -31,12 +31,12 @@ This directory documents the product, software architecture, API/data contracts,
 | Discovery/search/details | Implemented | frontend pages and public TMDB-backed API routes |
 | Firebase identity and Dex profiles | Implemented | auth sync, token verification and username registry |
 | Watchlist/history CRUD | Implemented | user-scoped watch endpoints and regression tests |
-| Existing-title state on detail page | Implemented in source | user-scoped GET watch endpoint and duplicate-race handling |
+| Existing-title state on detail page | Visually verified working | Screenshot shows Already watched; new-title create and duplicate race still need verification |
 | Taste Engine V1 | Implemented | signed incremental vectors, reversible transaction contributions |
 | Legacy taste backfill | Implemented | authenticated cursor-paginated idempotent endpoint |
-| Personalized recommendations | Implemented in source | authenticated Safe/Adjacent/Wildcard API and signed-in Home UI |
+| Personalized recommendations | Visually verified working | Screenshot shows Safe/Adjacent/Wildcard cards populated; API version/status code not captured |
 | API deployment diagnostics | Implemented in source | GET/HEAD health endpoint returns API version |
-| Render deployment alignment | Configured in source; production unverified | root render.yaml; see runbook |
+| Render deployment alignment | Two user-facing API flows now visually working; runtime version still unverified | screenshots plus health/CRUD checks pending; see runbook |
 | Production recommendation/watch lookup smoke tests | Not passed on evidence supplied so far | live browser reported recommendation 404 and watch GET 405 |
 
 ## Validation snapshot

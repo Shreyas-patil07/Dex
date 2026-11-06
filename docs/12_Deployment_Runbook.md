@@ -214,15 +214,28 @@ HTTP 404/405 from the API is not a CORS error. Browser extension console errors 
 
 ## 10. Known status at the time of this document
 
-On 2026-11-07, user-provided browser evidence showed:
-- GET /api/recommendations returned 404.
-- GET /api/watches/{watch_id} returned 405.
-- The detail page displayed Method Not Allowed below Add to list.
-- Extension-origin console errors were also present.
+### Earlier failure evidence
 
-Main source includes the recommendation and watch lookup routes. The repository's render.yaml was updated to select main and use /api/health. GitHub Actions run 42286609985 passed all backend/frontend jobs and the Vercel status check was successful. **A successful Render deployment and live authenticated API verification have not been confirmed.**
+On 2026-11-07, earlier browser diagnostics showed GET /api/recommendations returning 404 and GET /api/watches/{watch_id} returning 405. The detail page displayed Method Not Allowed. Extension-origin console errors were also present and were not evidence of a Dex backend defect.
 
-Current blocker: verify that the existing Render service is linked to the intended repository/branch and has applied the Blueprint; then verify version 0.5.1 or later from /api/health and run all route smoke tests.
+### Latest user-provided smoke-test evidence
+
+Subsequent screenshots show:
+- The signed-in Home page populated with Safe, Adjacent and Wildcard recommendation cards.
+- The media detail page displaying Already watched for an existing title.
+
+This is a successful visual smoke test for those two user-facing paths and supersedes the earlier visible failure state for them. The screenshots do not show the /api/health payload, API version, exact HTTP status codes, a create request for a previously unsaved title, or duplicate-conflict handling. Therefore mark the recommendation display and existing-title lookup as visually verified, but keep full Render/API verification open until those remaining probes pass.
+
+### Remaining verification
+
+1. GET /api/health reports version 0.5.1 or later.
+2. Authenticated GET /api/recommendations returns 200.
+3. Authenticated GET /api/watches/{watch_id} returns 200 for the saved test title and 404 for a title not in the user's library.
+4. POST /api/watches creates a new test title with 201; reload shows its saved state; duplicate create returns 409 and frontend recovers correctly.
+5. Taste backfill runs to complete for the test account and pending titles can be retried.
+6. Vercel ignoreCommand is verified with docs-only, backend-only and frontend changes; verify the existing project root in Vercel Dashboard.
+
+The root render.yaml points to main and uses /api/health. GitHub Actions and Vercel source status have passed, but neither proves every Render runtime/configuration detail. Keep the production gate open until the remaining checks are captured.
 
 ## 11. Incident notes and security
 

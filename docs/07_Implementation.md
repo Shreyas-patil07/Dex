@@ -7,9 +7,9 @@
 
 ## 1. Delivery summary
 
-Dex has a deployed frontend and a FastAPI backend source tree. The latest main-branch work extended taste tracking into a recommendation pipeline and connected it to the signed-in homepage. A production API revision mismatch is still open: browser evidence showed the deployed Render host returning 404 for GET /api/recommendations and 405 for GET /api/watches/{watch_id}, although those routes exist in main and are covered by tests. The source configuration now pins the Render service to main and uses the health endpoint; live deployment has not been confirmed.
+Dex has a deployed frontend and a FastAPI backend. The latest user-provided screenshots now show the signed-in For You section loading Safe, Adjacent and Wildcard recommendation cards, and the media detail page correctly showing an existing title as Already watched. This supersedes the earlier screenshot evidence of 404 for GET /api/recommendations and 405 for GET /api/watches/{watch_id} for these observed UI flows. The live API health version, a new-title Add to list create flow, and full authenticated route smoke tests are still not independently confirmed.
 
-Implementation status and production status are separate. A feature marked implemented below means that the code exists in main and is covered by the listed tests; it does not mean the current production host is serving it.
+Implementation status and production status are separate. A feature marked implemented below means that the code exists in main and is covered by the listed tests. A user-provided screenshot can confirm a visible UI flow, but does not establish the exact backend version, response status codes, or every edge case.
 
 ## 2. Delivered milestones
 
@@ -25,7 +25,7 @@ Implementation status and production status are separate. A feature marked imple
 | Recommendations | Signed scoring, recent profile, IDF, MMR and three slots | recommendations.py; commits faf006b, 127a48f, b66bd4f | Implemented |
 | Homepage For You | Signed-in recommendation section, refresh and historical profile setup | HomePage.tsx; commits c80af93, 4ae1e22, 86b6356 | Implemented in source |
 | API deployment diagnostics | GET/HEAD health returns API version and expected watch write route | main.py; commit 477cb23 | Implemented in source |
-| Render source alignment | Blueprint sets branch main, backend root, auto deploy and health check | render.yaml; commit 2101f34 | Configured in repository; service sync/deploy unverified |
+| Render source alignment | Blueprint sets branch main, backend root, auto deploy and health check | render.yaml; commit 2101f34 | UI flows now work; active source version and service settings still unverified |
 
 ## 3. Recommendation and profile lifecycle
 
@@ -45,26 +45,27 @@ GitHub Actions run: https://github.com/Shreyas-patil07/Dex/actions/runs/42286609
 - Backend Pytest reported 30 passed, 1 warning.
 - Frontend npm ci, npm run typecheck and npm run build passed.
 - Vercel status check was successful.
-- Render active revision and protected production route checks remain unverified.
+- User-provided UI screenshots now show For You populated with Safe, Adjacent and Wildcard recommendations and a media details page showing Already watched. This is a successful visual smoke test for those two paths.
+- The current API health version and HTTP response codes were not captured in the latest screenshots. A fresh-title POST /api/watches create flow and complete authenticated CRUD smoke test remain unverified.
 
-The browser diagnostics received on 2026-11-07 reported:
+Earlier browser diagnostics received on 2026-11-07 reported:
 - GET /api/recommendations returned HTTP 404.
 - GET /api/watches/{watch_id} returned HTTP 405.
-- The detail-page status check therefore displayed Method Not Allowed. This is consistent with the live API lacking the current GET lookup route; it does not establish that POST /api/watches is broken.
+- The detail-page status check therefore displayed Method Not Allowed at that time. The later screenshot showing Already watched demonstrates that the detail-status UI path subsequently became operational for an existing record.
 - Console messages from chrome-extension://.../processor.js and content-script MaxListeners warnings originate from a browser extension context and are not evidence of a Dex application defect.
 
 ## 5. Immediate next work — release blocker and v0.6 gate
 
 | Priority | Task | Acceptance condition | Status |
 |---|---|---|---|
-| P0 | Confirm Render service is linked to Shreyas-patil07/Dex, branch main, rootDir backend | Dashboard/service settings match root render.yaml | Pending |
+| P0 | Confirm Render service is linked to Shreyas-patil07/Dex, branch main, rootDir backend | Dashboard/service settings match root render.yaml | UI paths operational; dashboard settings unverified |
 | P0 | Audit production Firestore Rules and Firebase IAM | Access policy reviewed and evidence recorded; no public/private data leakage | Pending |
 | P0 | Define event retention, pause/clear, export and deletion semantics before event collection | Data lifecycle approved and deletion coverage designed | Pending |
 | P0 | Stop unnecessary Vercel frontend builds | Docs-only and backend-only commits skip frontend build; frontend changes still build | Config added; live behaviour unverified |
 | P0 | Confirm Render Blueprint changes were applied and latest main commit deployed | Render deploy history shows a successful deployment containing 2101f34 or later | Pending |
 | P0 | Verify GET /api/health | JSON reports version 0.5.1 or a later source version | Pending |
-| P0 | Verify protected recommendation and watch routes | With valid auth: recommendation endpoint returns 200; watch lookup returns 200 or 404, never 405 | Pending |
-| P0 | Retest detail-page Add to list flow | Existing title renders existing status; missing title can be created once; duplicate race is handled | Pending |
+| P0 | Verify protected recommendation and watch routes | With valid auth: recommendation endpoint returns 200; watch lookup returns 200 or 404, never 405 | UI smoke test passed; exact HTTP codes/version pending |
+| P0 | Retest detail-page Add to list flow | Existing title renders existing status; missing title can be created once; duplicate race is handled | Existing-title status confirmed; fresh-title create/duplicate race pending |
 | P1 | Backfill actual existing user histories | Run pages until complete; retry pending IDs; verify profile counts match watched records with contributions | Not yet evidenced |
 | P1 | Validate recommendation quality with representative histories | Document test users/fixtures, expected relevance, diversity and known failure cases | Pending |
 | P1 | Add automated browser tests | Home, For You, detail status, add flow and mobile/desktop smoke checks pass | Pending |

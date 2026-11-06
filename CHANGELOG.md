@@ -4,6 +4,9 @@ Notable changes to Dex. Dates use YYYY-MM-DD.
 
 ## [Unreleased]
 
+### Production verification update
+- User screenshots confirm the For You recommendation cards are populated and the media detail page displays Already watched for an existing record. This supersedes the earlier visible 404/405 state for those UI paths; exact API version, HTTP codes, fresh-title create and duplicate handling remain to be verified.
+
 ### Product direction and delivery controls
 - Approved v0.6 Reliability and Discovery Intelligence plan, gated on production Render verification.
 - Added recommendation event instrumentation, explicit feedback, offline evaluation, security and data-lifecycle workstreams to the roadmap (planning only; not implemented).
