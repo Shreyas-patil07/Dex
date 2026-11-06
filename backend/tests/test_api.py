@@ -740,6 +740,47 @@ def test_public_search_is_rate_limited(api_client):
     assert statuses.count(429) == 1
 
 
+
+
+def test_public_search_rate_limit_uses_forwarded_client_ip(api_client):
+    for _ in range(31):
+        response = api_client.get(
+            "/api/search",
+            params={"query": "Dune"},
+            headers={"X-Forwarded-For": "198.51.100.10"},
+        )
+    assert response.status_code == 429
+    isolated = api_client.get(
+        "/api/search",
+        params={"query": "Dune"},
+        headers={"X-Forwarded-For": "198.51.100.11"},
+    )
+    assert isolated.status_code == 200
+
+
+def test_watch_creation_rate_limit_is_per_firebase_uid(api_client):
+    sync_account(api_client, "alice")
+    sync_account(api_client, "bob")
+    payload = {
+        "media_type": "movie",
+        "title": "Rate limited test",
+        "status": "want_to_watch",
+    }
+    for index in range(31):
+        response = api_client.post(
+            "/api/watches",
+            headers=auth_headers("alice"),
+            json={**payload, "tmdb_id": 5000 + index},
+        )
+    assert response.status_code == 429
+    bob_response = api_client.post(
+        "/api/watches",
+        headers=auth_headers("bob"),
+        json={**payload, "tmdb_id": 550},
+    )
+    assert bob_response.status_code == 201
+
+
 def test_search_supports_all_movies_and_series(api_client, monkeypatch):
     calls = []
 

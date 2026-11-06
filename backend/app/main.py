@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from ipaddress import ip_address
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -11,6 +12,7 @@ from google.api_core.exceptions import AlreadyExists
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from .config import settings
 from .firestore import get_firestore
@@ -33,8 +35,29 @@ tmdb = TMDBService(settings.tmdb_api_key, settings.tmdb_base_url)
 tmdb_catalog = TMDBCatalog()
 recommendation_service = TasteRecommendationService(tmdb, tmdb_catalog)
 bearer = HTTPBearer(auto_error=False)
+
+
+def get_client_ip(request: Request) -> str:
+    """Use Render's forwarded client address for public IP-based limits."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        candidate = forwarded.split(",", 1)[0].strip()
+        try:
+            return str(ip_address(candidate))
+        except ValueError:
+            pass
+    return get_remote_address(request)
+
+
+def get_authenticated_rate_limit_key(request: Request) -> str:
+    firebase_uid = getattr(request.state, "firebase_uid", None)
+    if firebase_uid:
+        return f"user:{firebase_uid}"
+    return f"ip:{get_client_ip(request)}"
+
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=get_client_ip,
     storage_uri=settings.rate_limit_storage_uri,
     headers_enabled=True,
 )
@@ -75,6 +98,50 @@ app.add_middleware(
 )
 
 
+def _is_protected_api_path(path: str) -> bool:
+    return (
+        path in {
+            "/api/auth/sync",
+            "/api/auth/username",
+            "/api/me",
+            "/api/watches",
+            "/api/recommendations",
+            "/api/taste/backfill",
+        }
+        or path.startswith("/api/watches/")
+    )
+
+
+@app.middleware("http")
+async def resolve_firebase_identity(request: Request, call_next):
+    """Verify Firebase tokens off the event loop before route rate-limit checks."""
+    if _is_protected_api_path(request.url.path):
+        scheme, _, token = request.headers.get("authorization", "").partition(" ")
+        if scheme.lower() == "bearer" and token:
+            try:
+                claims = await run_in_threadpool(verify_firebase_token, token)
+                request.state.firebase_claims = claims
+                request.state.firebase_uid = str(claims.get("uid", ""))
+            except HTTPException as exc:
+                request.state.firebase_auth_error = exc
+    return await call_next(request)
+
+
+async def verified_firebase_claims(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None,
+) -> dict:
+    if not credentials or credentials.scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Authentication required")
+    auth_error = getattr(request.state, "firebase_auth_error", None)
+    if auth_error is not None:
+        raise auth_error
+    claims = getattr(request.state, "firebase_claims", None)
+    if claims is not None:
+        return claims
+    return await run_in_threadpool(verify_firebase_token, credentials.credentials)
+
+
 def normalize_username(value: str) -> str:
     return value.strip().lower()
 
@@ -111,13 +178,11 @@ def watch_public(doc_id: str, data: dict) -> WatchPublic:
 
 
 async def current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     db=Depends(get_firestore),
 ) -> tuple[str, dict]:
-    if not credentials or credentials.scheme.lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    decoded = verify_firebase_token(credentials.credentials)
+    decoded = await verified_firebase_claims(request, credentials)
     firebase_uid = str(decoded.get("uid", ""))
     email = str(decoded.get("email", "")).lower()
     if not firebase_uid or not email:
@@ -206,15 +271,15 @@ async def media_details(
 
 
 @app.post("/api/auth/sync", response_model=UserPublic)
+@limiter.limit("10/minute", key_func=get_authenticated_rate_limit_key)
 async def sync_auth_user(
+    request: Request,
+    response: Response,
     payload: AuthSyncRequest,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     db=Depends(get_firestore),
 ) -> UserPublic:
-    if not credentials or credentials.scheme.lower() != "bearer":
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    decoded = verify_firebase_token(credentials.credentials)
+    decoded = await verified_firebase_claims(request, credentials)
     firebase_uid = str(decoded.get("uid", ""))
     email = str(decoded.get("email", "")).lower()
     if not firebase_uid or not email:
@@ -247,7 +312,10 @@ async def watch_statuses() -> dict[str, list[dict[str, str]]]:
 
 
 @app.get("/api/auth/username/available")
+@limiter.limit("30/minute")
 async def username_available(
+    request: Request,
+    response: Response,
     username: str = Query(..., min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]+$"),
     db=Depends(get_firestore),
 ) -> dict[str, bool]:
@@ -259,7 +327,10 @@ async def username_available(
 
 
 @app.post("/api/auth/username", response_model=UserPublic)
+@limiter.limit("5/hour", key_func=get_authenticated_rate_limit_key)
 async def set_username(
+    request: Request,
+    response: Response,
     payload: UsernameRequest,
     current=Depends(current_user),
     db=Depends(get_firestore),
@@ -311,13 +382,21 @@ async def set_username(
 
 
 @app.get("/api/me", response_model=UserPublic)
-async def me(current=Depends(current_user)) -> UserPublic:
+@limiter.limit("60/minute", key_func=get_authenticated_rate_limit_key)
+async def me(
+    request: Request,
+    response: Response,
+    current=Depends(current_user),
+) -> UserPublic:
     firebase_uid, data = current
     return user_public(firebase_uid, data)
 
 
 @app.post("/api/watches", response_model=WatchPublic, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute", key_func=get_authenticated_rate_limit_key)
 async def add_watch(
+    request: Request,
+    response: Response,
     payload: WatchCreate,
     current=Depends(current_user),
     db=Depends(get_firestore),
@@ -361,7 +440,10 @@ async def add_watch(
 
 
 @app.get("/api/watches/{watch_id}", response_model=WatchPublic)
+@limiter.limit("60/minute", key_func=get_authenticated_rate_limit_key)
 async def get_watch(
+    request: Request,
+    response: Response,
     watch_id: str,
     current=Depends(current_user),
     db=Depends(get_firestore),
@@ -374,7 +456,10 @@ async def get_watch(
 
 
 @app.patch("/api/watches/{watch_id}", response_model=WatchPublic)
+@limiter.limit("30/minute", key_func=get_authenticated_rate_limit_key)
 async def update_watch(
+    request: Request,
+    response: Response,
     watch_id: str,
     payload: WatchUpdate,
     current=Depends(current_user),
@@ -422,7 +507,10 @@ async def update_watch(
 
 
 @app.delete("/api/watches/{watch_id}", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("20/minute", key_func=get_authenticated_rate_limit_key)
 async def delete_watch(
+    request: Request,
+    response: Response,
     watch_id: str,
     current=Depends(current_user),
     db=Depends(get_firestore),
@@ -436,7 +524,7 @@ async def delete_watch(
 
 
 @app.get("/api/recommendations")
-@limiter.limit("10/minute")
+@limiter.limit("10/minute", key_func=get_authenticated_rate_limit_key)
 async def recommendations(
     request: Request,
     response: Response,
@@ -454,7 +542,7 @@ async def recommendations(
 
 
 @app.post("/api/taste/backfill")
-@limiter.limit("5/minute")
+@limiter.limit("5/minute", key_func=get_authenticated_rate_limit_key)
 async def taste_backfill(
     request: Request,
     response: Response,
@@ -478,7 +566,10 @@ async def taste_backfill(
 
 
 @app.get("/api/watches", response_model=WatchPage)
+@limiter.limit("30/minute", key_func=get_authenticated_rate_limit_key)
 async def list_watches(
+    request: Request,
+    response: Response,
     limit: int = Query(50, ge=1, le=100),
     cursor: str | None = Query(None, min_length=1, max_length=128),
     current=Depends(current_user),
