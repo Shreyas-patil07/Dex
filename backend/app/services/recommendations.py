@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from math import exp, log, sqrt
+from math import log, sqrt
 from typing import Any
 from urllib.parse import quote
 
@@ -44,6 +44,13 @@ def _empty_profile() -> dict[str, dict[str, dict[str, float]]]:
         group: {"positive": {}, "negative": {}}
         for group in FEATURE_GROUPS
     }
+
+
+def calculate_idf(document_count: int, document_frequency: int) -> float:
+    if document_count <= 0 or document_frequency <= 0:
+        return 1.0
+    bounded_frequency = min(document_frequency, document_count)
+    return log((document_count + 1) / (bounded_frequency + 1)) + 1.0
 
 
 def _net_profile(
@@ -265,9 +272,7 @@ class TasteRecommendationService:
             frequencies = await asyncio.gather(*(read_frequency(feature_id) for feature_id in ranked))
             for feature_id, frequency in frequencies:
                 if document_count and frequency:
-                    idf[group][feature_id] = log(
-                        (document_count + 1) / (min(frequency, document_count) + 1)
-                    ) + 1.0
+                    idf[group][feature_id] = calculate_idf(document_count, frequency)
                 else:
                     idf[group][feature_id] = 1.0
         return idf
@@ -394,6 +399,7 @@ class TasteRecommendationService:
 
     async def _enrich(
         self,
+        db: Any,
         candidates: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         semaphore = asyncio.Semaphore(ENRICH_CONCURRENCY)
@@ -404,10 +410,10 @@ class TasteRecommendationService:
             async with semaphore:
                 try:
                     features = await self.catalog.get_features(
-                        self._db, self.tmdb, media_type, tmdb_id
+                        db, self.tmdb, media_type, tmdb_id
                     )
                     labels = await self.catalog.get_feature_labels(
-                        self._db, media_type, tmdb_id
+                        db, media_type, tmdb_id
                     )
                 except TMDBError:
                     features = {
@@ -472,7 +478,6 @@ class TasteRecommendationService:
         return 1.0 - len(overlap) / max(1, len(set(positive_genres)))
 
     async def recommend(self, db: Any, user_document: Any) -> dict[str, Any]:
-        self._db = db
         watch_snapshots = [
             snapshot async for snapshot in user_document.collection("watches").stream()
         ]
@@ -527,7 +532,7 @@ class TasteRecommendationService:
         selected: dict[str, dict[str, Any]] = {}
         for candidate in primary_ranked + wildcard_ranked:
             selected[self._key(candidate)] = candidate
-        enriched = await self._enrich(list(selected.values()))
+        enriched = await self._enrich(db, list(selected.values()))
 
         personalized = any(
             all_time[group]["positive"] or all_time[group]["negative"]
@@ -590,11 +595,6 @@ class TasteRecommendationService:
             by_key[key] for key in wildcard_keys
             if key in by_key and key not in chosen_keys
         ]
-        safe_positive_genres = {
-            feature_id
-            for feature_id, value in all_time["genres"]["positive"].items()
-            if value > all_time["genres"]["negative"].get(feature_id, 0.0)
-        }
         if wildcard_pool:
             wildcard = max(
                 wildcard_pool,

@@ -100,7 +100,9 @@ class FakeQuery:
                 continue
             if self.cursor and path[-1] <= self.cursor:
                 continue
-            entries.append(FakeSnapshot(path[-1], data))
+            snapshot = FakeSnapshot(path[-1], data)
+            snapshot.reference = FakeDocumentReference(self.collection.database, path)
+            entries.append(snapshot)
         entries.sort(key=lambda snapshot: snapshot.id)
         for snapshot in entries[:self.page_size]:
             yield snapshot

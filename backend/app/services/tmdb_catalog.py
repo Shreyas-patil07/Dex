@@ -239,6 +239,7 @@ class TMDBCatalog:
             and fetched_at is not None
             and datetime.now(timezone.utc) - fetched_at < CATALOG_TTL
             and isinstance(cached_features, dict)
+            and isinstance((cached or {}).get("labels"), dict)
         )
         if is_fresh:
             await self._index_features(db, cache_ref, cached_features)
