@@ -380,7 +380,7 @@ def test_get_watch_returns_existing_status_and_is_user_scoped(api_client):
     assert missing_title.status_code == 404
 
 
-def test_watched_title_updates_positive_and_negative_vectors_atomically(api_client, monkeypatch):
+def test_watched_title_updates_recompute_from_stored_contributions(api_client, monkeypatch):
     sync_account(api_client, "taste-user")
 
     async def fake_get_features(db, tmdb_service, media_type, tmdb_id):
@@ -411,10 +411,8 @@ def test_watched_title_updates_positive_and_negative_vectors_atomically(api_clie
     database = api_client.database
     watch_path = ("users", "taste-user", "watches", "movie_550")
     profile_path = ("users", "taste-user", "taste", "profile")
-    genre_path = ("users", "taste-user", "taste_vectors", "genres", "features", "18")
     assert database.documents[profile_path]["profiled_watch_count"] == 1
     assert database.documents[profile_path]["profiled_rated_count"] == 1
-    assert database.documents[genre_path]["positive_sum"] == pytest.approx(7 / 9)
     assert database.documents[watch_path]["taste_contribution"]["direction"] == "positive"
 
     updated = api_client.patch(
@@ -423,9 +421,7 @@ def test_watched_title_updates_positive_and_negative_vectors_atomically(api_clie
         json={"rating": 2.0},
     )
     assert updated.status_code == 200, updated.text
-    vector = database.documents[genre_path]
-    assert vector["positive_sum"] == pytest.approx(0.0, abs=1e-10)
-    assert vector["negative_sum"] == pytest.approx(7 / 11)
+    assert database.documents[watch_path]["taste_contribution"]["direction"] == "negative"
     assert database.documents[watch_path]["taste_contribution"]["direction"] == "negative"
 
     moved_to_watchlist = api_client.patch(
@@ -435,7 +431,6 @@ def test_watched_title_updates_positive_and_negative_vectors_atomically(api_clie
     )
     assert moved_to_watchlist.status_code == 200
     assert database.documents[profile_path]["profiled_watch_count"] == 0
-    assert database.documents[genre_path]["negative_sum"] == pytest.approx(0.0, abs=1e-10)
 
     moved_back = api_client.patch(
         "/api/watches/movie_550",
@@ -444,7 +439,6 @@ def test_watched_title_updates_positive_and_negative_vectors_atomically(api_clie
     )
     assert moved_back.status_code == 200
     assert database.documents[profile_path]["profiled_watch_count"] == 1
-    assert database.documents[genre_path]["negative_sum"] == pytest.approx(7 / 11)
 
     deleted = api_client.delete(
         "/api/watches/movie_550",
@@ -452,11 +446,10 @@ def test_watched_title_updates_positive_and_negative_vectors_atomically(api_clie
     )
     assert deleted.status_code == 204
     assert database.documents[profile_path]["profiled_watch_count"] == 0
-    assert database.documents[genre_path]["negative_sum"] == pytest.approx(0.0, abs=1e-10)
 
 
 
-def test_historical_backfill_is_paginated_idempotent_and_updates_vectors(api_client, monkeypatch):
+def test_historical_backfill_is_paginated_idempotent_without_vectors(api_client, monkeypatch):
     sync_account(api_client, "backfill-user")
     database = api_client.database
 
@@ -491,9 +484,7 @@ def test_historical_backfill_is_paginated_idempotent_and_updates_vectors(api_cli
     assert calls == [550]
 
     profile_path = ("users", "backfill-user", "taste", "profile")
-    vector_path = ("users", "backfill-user", "taste_vectors", "genres", "features", "18")
     assert database.documents[profile_path]["profiled_watch_count"] == 1
-    assert database.documents[vector_path]["positive_sum"] == pytest.approx(7 / 9)
 
     second = api_client.post(
         "/api/taste/backfill",
