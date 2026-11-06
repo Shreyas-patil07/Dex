@@ -222,3 +222,28 @@ def test_discover_retrieval_fetches_multiple_pages():
         assert sorted(calls) == [1, 2]
 
     asyncio.run(scenario())
+
+
+def test_all_time_profile_rebuilds_exact_signed_totals_from_watch_contributions():
+    from app.services.recommendations import build_all_time_profile
+
+    contribution = {
+        "direction": "positive",
+        "weights": {"genres": {"18": 0.8}},
+    }
+    watches = [
+        {"status": "watched", "taste_contribution": contribution},
+        {
+            "status": "watched",
+            "taste_contribution": {
+                "direction": "negative",
+                "weights": {"genres": {"18": 0.3}},
+            },
+        },
+        {"status": "want_to_watch", "taste_contribution": contribution},
+    ]
+
+    profile, count = build_all_time_profile(watches)
+    assert count == 2
+    assert profile["genres"]["positive"]["18"] == pytest.approx(0.8)
+    assert profile["genres"]["negative"]["18"] == pytest.approx(0.3)
