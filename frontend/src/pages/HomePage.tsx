@@ -91,7 +91,7 @@ const RecommendationCard: React.FC<{
           </div>
           <h3 className="mt-2 line-clamp-2 text-base font-bold leading-snug text-white group-hover:text-[#C4B5FD]">{item.title}</h3>
           {item.match_percent !== null && item.match_percent !== undefined && (
-            <p title={item.match_semantics} className="mt-2 text-xs font-semibold text-emerald-300">{item.match_percent}th percentile</p>
+            <p title={item.match_semantics} className="mt-2 text-xs font-semibold text-emerald-300">Match percentile: {item.match_percent}/100</p>
           )}
           <div className="mt-auto space-y-1 pt-3">
             {item.reasons.slice(0, 2).map((reason, index) => (
@@ -287,7 +287,7 @@ export const HomePage: React.FC = () => {
   const inactiveFilter = 'border-white/[0.055] bg-transparent text-[#8490A3] hover:border-white/[0.10] hover:bg-white/[0.018] hover:text-[#AEB7C7]';
 
   return <div className="min-h-screen bg-transparent text-white">
-    <header className="border-b border-white/[0.06]"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:py-6"><a href="/"><img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain" /></a><div className="flex items-center gap-2 sm:gap-5"><a href="/search" className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-2.5 text-sm font-medium text-[#C4B5FD] transition-colors hover:border-[#8B5CF6]/30 hover:bg-[#8B5CF6]/[0.07]"><Search className="h-4 w-4" />Search</a>{isSignedIn && <a href="#for-you" className="hidden rounded-xl px-3 py-2.5 text-sm font-semibold text-[#C4B5FD] transition-colors hover:bg-white/[0.04] sm:inline-flex">For You</a>}{isSignedIn ? <a href="/profile" className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#6D28D9]">Profile</a> : <><a href="/sign-up" className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7]">Login</a><a href="/sign-up" className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white">Sign Up</a></>}</div></div></header>
+    <header className="border-b border-white/[0.06]"><div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:py-6"><a href="/"><img src="/DEXi.png" alt="Dex" className="h-10 w-22 object-contain" /></a><div className="flex items-center gap-2 sm:gap-5"><a href="/search" className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-2.5 text-sm font-medium text-[#C4B5FD] transition-colors hover:border-[#8B5CF6]/30 hover:bg-[#8B5CF6]/[0.07]"><Search className="h-4 w-4" />Search</a>{isSignedIn && <button type="button" onClick={() => document.getElementById('for-you')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="hidden rounded-xl px-3 py-2.5 text-sm font-semibold text-[#C4B5FD] transition-colors hover:bg-white/[0.04] sm:inline-flex">For You</button>}{isSignedIn ? <a href="/profile" className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#6D28D9]">Profile</a> : <><a href="/sign-up" className="rounded-lg px-3 py-2 text-sm font-semibold text-[#A855F7]">Login</a><a href="/sign-up" className="rounded-xl bg-[#7C3AED] px-5 py-2.5 text-sm font-semibold text-white">Sign Up</a></>}</div></div></header>
     <main className="mx-auto max-w-7xl px-6 pb-20 pt-6">
       <section className="mx-auto mb-7 max-w-4xl rounded-3xl border border-white/[0.07] bg-white/[0.025] px-5 py-3.5 sm:px-7 sm:py-4.5">
         <div className="mb-3 text-center">
