@@ -2,19 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from urllib.parse import quote
-
-from google.cloud import firestore
-
-from ..services.taste import FEATURE_GROUPS, normalize_taste_features
+from ..services.taste import normalize_taste_features
 from ..services.tmdb import TMDBError, TMDBNotFoundError, TMDBService
 
 
 CATALOG_COLLECTION = "tmdb_catalog"
 CATALOG_VERSION = 1
 CATALOG_TTL = timedelta(days=180)
-FEATURE_STATS_COLLECTION = "tmdb_feature_stats"
-FEATURE_STATS_VERSION = 1
 
 
 def _ids(values: Any) -> list[str]:
@@ -131,78 +125,6 @@ class TMDBCatalog:
 
 
 
-    async def _index_features(
-        self,
-        db: Any,
-        cache_ref: Any,
-        features: dict[str, list[str]],
-    ) -> None:
-        """Maintain global document-frequency counters exactly once per catalog item."""
-        if not hasattr(db, "transaction"):
-            return
-
-        normalized = normalize_taste_features(features)
-        now = datetime.now(timezone.utc)
-        transaction = db.transaction()
-
-        @firestore.async_transactional
-        async def apply(transaction: Any) -> None:
-            snapshot = await cache_ref.get(transaction=transaction)
-            if not snapshot.exists:
-                return
-            cached = snapshot.to_dict() or {}
-            already_indexed = cached.get("stats_indexed_version") == FEATURE_STATS_VERSION
-            previous = normalize_taste_features(cached.get("indexed_features")) if already_indexed else {
-                group: [] for group in FEATURE_GROUPS
-            }
-            if already_indexed and previous == normalized:
-                return
-
-            for group in FEATURE_GROUPS:
-                group_ref = db.collection(FEATURE_STATS_COLLECTION).document(group)
-                if not already_indexed:
-                    transaction.set(
-                        group_ref,
-                        {
-                            "document_count": firestore.Increment(1),
-                            "stats_version": FEATURE_STATS_VERSION,
-                            "updated_at": now,
-                        },
-                        merge=True,
-                    )
-
-                old_ids = set(previous.get(group, []))
-                new_ids = set(normalized.get(group, []))
-                for feature_id in old_ids | new_ids:
-                    delta = int(feature_id in new_ids) - int(feature_id in old_ids)
-                    if not delta:
-                        continue
-                    feature_ref = (
-                        group_ref.collection("features")
-                        .document(quote(feature_id, safe="-_.~"))
-                    )
-                    transaction.set(
-                        feature_ref,
-                        {
-                            "document_frequency": firestore.Increment(delta),
-                            "stats_version": FEATURE_STATS_VERSION,
-                            "updated_at": now,
-                        },
-                        merge=True,
-                    )
-
-            transaction.set(
-                cache_ref,
-                {
-                    "stats_indexed_version": FEATURE_STATS_VERSION,
-                    "indexed_features": normalized,
-                    "stats_indexed_at": now,
-                },
-                merge=True,
-            )
-
-        await apply(transaction)
-
     async def get_feature_labels(
         self,
         db: Any,
@@ -242,12 +164,6 @@ class TMDBCatalog:
             and isinstance((cached or {}).get("labels"), dict)
         )
         if is_fresh:
-            index_current = (
-                cached.get("stats_indexed_version") == FEATURE_STATS_VERSION
-                and normalize_taste_features(cached.get("indexed_features")) == normalize_taste_features(cached_features)
-            )
-            if not index_current:
-                await self._index_features(db, cache_ref, cached_features)
             return cached_features
 
         try:
@@ -260,12 +176,6 @@ class TMDBCatalog:
         except TMDBError:
             # Stale metadata is preferable to blocking a user's watch action.
             if isinstance(cached_features, dict):
-                index_current = (
-                    (cached or {}).get("stats_indexed_version") == FEATURE_STATS_VERSION
-                    and normalize_taste_features((cached or {}).get("indexed_features")) == normalize_taste_features(cached_features)
-                )
-                if not index_current:
-                    await self._index_features(db, cache_ref, cached_features)
                 return cached_features
             raise
 
@@ -280,5 +190,4 @@ class TMDBCatalog:
             "fetched_at": datetime.now(timezone.utc),
         }
         await cache_ref.set(cache_data, merge=True)
-        await self._index_features(db, cache_ref, features)
         return features
