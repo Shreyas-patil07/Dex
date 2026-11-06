@@ -127,29 +127,30 @@ class FakeIdfDatabase:
         return FakeIdfCollection(self, (name,))
 
 
-def test_idf_cache_reuses_document_frequency_for_five_minutes(monkeypatch):
-    from app.services.recommendations import TasteRecommendationService
+def test_local_idf_uses_watched_titles_and_current_candidate_pool():
+    from app.services.recommendations import build_local_idf, _empty_profile
 
-    database = FakeIdfDatabase()
-    service = TasteRecommendationService(None, None)
-    profile = {
-        group: {"positive": {}, "negative": {}}
-        for group in ("genres", "keywords", "people", "decades")
-    }
-    profile["genres"]["positive"]["18"] = 1.0
+    profile = _empty_profile()
+    profile["genres"]["positive"]["18"] = 0.8
+    watches = [
+        {
+            "status": "watched",
+            "taste_features": {"genres": ["18"], "decades": ["1990s"]},
+        },
+        {
+            "status": "want_to_watch",
+            "taste_features": {"genres": ["99"]},
+        },
+    ]
+    candidates = [
+        {"features": {"genres": ["18"], "decades": ["1990s"]}},
+        {"features": {"genres": ["53"]}},
+    ]
 
-    async def scenario():
-        first = await service._load_idf(database, profile)
-        first_reads = database.reads
-        second = await service._load_idf(database, profile)
-
-        assert first["genres"]["18"] == pytest.approx(calculate_idf(100, 10))
-        assert second == first
-        assert first_reads > 0
-        assert database.reads == first_reads
-
-    import asyncio
-    asyncio.run(scenario())
+    idf = build_local_idf(profile, watches, candidates)
+    assert idf["genres"]["18"] == pytest.approx(calculate_idf(3, 2))
+    assert idf["genres"]["53"] == pytest.approx(calculate_idf(3, 1))
+    assert idf["genres"]["99"] == pytest.approx(calculate_idf(3, 0))
 
 
 def test_retrieval_uses_item_to_item_sources_from_highly_rated_watches():
