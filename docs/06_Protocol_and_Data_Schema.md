@@ -118,7 +118,9 @@ Watch responses include id, tmdb_id, media_type, title, status, rating, watched_
 - GET /api/watches/{watch_id} returns HTTP 200 for the current user's record.
 - The same lookup returns HTTP 404 when the record is absent or belongs to another user.
 - The lookup is intentionally user-scoped; it must never reveal whether a different user's record exists.
-- The detail page checks the lookup before enabling Add to list. If a concurrent create wins after the lookup, the frontend handles HTTP 409 by fetching the current user's record again.
+- The detail page checks the lookup before showing status choices. If absent, it offers Watched, Want to watch and In future, mapping directly to `watched`, `want_to_watch` and `in_future` in the create body.
+- Choosing `watched` sets `watched_at` in the backend if omitted and attempts to load taste metadata/build a contribution. The other two statuses do not contribute to taste.
+- If a concurrent create wins after the lookup, the frontend handles HTTP 409 by fetching the current user's record again.
 
 ## 6. Recommendation API contract
 

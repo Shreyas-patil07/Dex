@@ -18,7 +18,7 @@ Implementation status and production status are separate. A feature marked imple
 | Discovery | Trending, search and media details backed by TMDB | backend/app/main.py and TMDB service | Implemented |
 | Identity | Firebase token verification, Dex profile sync and normalized unique usernames | Firebase auth service and API tests | Implemented |
 | Watch library | User-scoped create/list/update/delete | watch API and regression tests | Implemented |
-| Detail-page status | Load existing watch state before offering Add to list; handle create conflicts | commit 806a536; GET watch route and frontend state labels | Implemented in source |
+| Detail-page status | Show Watched / Want to watch / In future choices; load existing status and handle create conflicts | commit 8731aa2; `MediaDetailsPage.tsx`; existing `POST /api/watches` status contract | Implemented in source |
 | Taste Engine V1 | Signed genre/keyword/person/decade vectors with reversible contributions | taste.py; commit cf454433; tests | Implemented |
 | Legacy backfill | Authenticated, idempotent cursor pagination, max 50 per page | taste_backfill.py; commit 7b477b1; API tests | Implemented |
 | Shared IDF statistics | Catalogue document frequency indexed transactionally | tmdb_catalog.py; commit 183aa13 | Implemented |
@@ -26,6 +26,8 @@ Implementation status and production status are separate. A feature marked imple
 | Homepage For You | Signed-in recommendation section, refresh and historical profile setup | HomePage.tsx; commits c80af93, 4ae1e22, 86b6356 | Implemented in source |
 | API deployment diagnostics | GET/HEAD health returns API version and expected watch write route | main.py; commit 477cb23 | Implemented in source |
 | Render source alignment | Blueprint sets branch main, backend root, auto deploy and health check | render.yaml; commit 2101f34 | UI flows now work; active source version and service settings still unverified |
+
+The media detail page now offers three explicit save actions for unsaved titles: **Watched**, **Want to watch**, and **In future**. These map to the existing status contract, so no backend schema migration is required. A successful save is replaced by the corresponding existing-status label. The watched path triggers the backend's existing taste metadata/contribution logic; the other two statuses are excluded from taste.
 
 ## 3. Recommendation and profile lifecycle
 

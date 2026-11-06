@@ -13,6 +13,9 @@ Notable changes to Dex. Dates use YYYY-MM-DD.
 - Added change-aware Vercel ignoreCommand configuration so docs-only and backend-only commits can skip frontend builds; frontend changes continue to build.
 - Documented Vercel canceled-deployment quota caveat and manual validation steps.
 
+### Frontend
+- Replaced the single Add to list action on unsaved media details with Watched, Want to watch, and In future choices mapped to existing backend statuses. Existing saved titles continue to show their current status.
+
 ### Product and backend
 - Added user-scoped single-watch lookup so media details can show an existing watch status and avoid duplicate adds.
 - Added paginated, idempotent historical taste metadata backfill for watched titles.

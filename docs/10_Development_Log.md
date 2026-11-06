@@ -16,6 +16,14 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 
 ## Entries
 
+### 2026-11-07 — Media detail page status selection
+
+- **Type:** UX / Frontend change
+- **Summary:** Replaced the single Add to list action for unsaved titles with three explicit choices: Watched, Want to watch, and In future. Each action sends the corresponding existing backend status. The selected button displays Saving while the request is pending; after success the UI shows the saved status.
+- **Evidence:** [Commit 8731aa2](https://github.com/Shreyas-patil07/Dex/commit/8731aa2d65741c849b4204437c9a1ff45c6398cb); frontend/src/pages/MediaDetailsPage.tsx; backend/app/schemas.py WatchCreate status validation.
+- **Outcome:** No backend schema migration was needed. The existing watched create path sets watched_at and attempts taste metadata/contribution creation; want_to_watch and in_future are non-contributing statuses. CI verifies typecheck/build; live click-flow still requires browser confirmation.
+- **Next action:** Test all three choices with a dedicated account, including reload, status rendering, taste contribution for Watched and no contribution for the other two.
+
 ### 2026-11-07 — Live discovery and existing-watch UI flows confirmed working
 
 - **Type:** Production smoke test / User-provided evidence

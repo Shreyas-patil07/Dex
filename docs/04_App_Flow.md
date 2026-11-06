@@ -46,7 +46,7 @@ flowchart TD
     I --> J
 ```
 
-### Watch detail and add-to-list flow
+### Watch detail and status selection flow
 
 ```mermaid
 sequenceDiagram
@@ -58,17 +58,22 @@ sequenceDiagram
     UI->>API: GET /api/watches/{media_type}_{tmdb_id} + token
     API->>DB: Read only users/{verified_uid}/watches/{id}
     alt Entry exists
-      API-->>UI: 200 + existing status
-      UI-->>U: Already watched / In your watchlist / Planned for later
+      API-->>UI: 200 + saved status
+      UI-->>U: Show Already watched / In your watchlist / Planned for later
     else Entry absent
       API-->>UI: 404
-      UI-->>U: Enable Add to list
-      U->>UI: Add to list
-      UI->>API: POST /api/watches + token
+      UI-->>U: Show three status choices
+      U->>UI: Choose Watched / Want to watch / In future
+      UI->>API: POST /api/watches with selected status + token
       API->>DB: Transactionally create watch and taste state
       API-->>UI: 201 created or 409 conflict
     end
 ```
+
+Status choices map to the existing API values:
+- Watched → `watched`; sets watched time and attempts to build a taste contribution.
+- Want to watch → `want_to_watch`; saved in the watchlist, no taste contribution.
+- In future → `in_future`; saved as a later plan, no taste contribution.
 
 ### For You and profile backfill
 
