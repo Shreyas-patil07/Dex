@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { getCachedAuthState, subscribeToAuthSession } from '../lib/authSession';
+import { apiFetch } from '../lib/api';
 import { AlertCircle, Compass, Loader2, RefreshCw, Search, Sparkles, X } from 'lucide-react';
 
 type Media = { id: number; media_type?: 'movie' | 'tv'; title?: string; name?: string; poster_path?: string | null; release_date?: string; first_air_date?: string; vote_average?: number };
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w500';
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const MIN_LOADING_MS = 800;
 
 type RecommendationItem = {
@@ -52,11 +53,7 @@ type BackfillResponse = {
 };
 
 async function loadRecommendations(currentUser: User, signal?: AbortSignal): Promise<RecommendationResponse> {
-  const token = await currentUser.getIdToken();
-  const response = await fetch(`${API_BASE}/api/recommendations`, {
-    headers: { Authorization: `Bearer ${token}` },
-    signal,
-  });
+  const response = await apiFetch('/api/recommendations', { signal }, currentUser);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.detail || 'Could not load recommendations.');
   return data as RecommendationResponse;
@@ -210,7 +207,7 @@ export const HomePage: React.FC = () => {
     setSearchLoading(true);
     setSearchError('');
 
-    fetch(`${API_BASE}/api/search?${params.toString()}`, { signal: controller.signal })
+    apiFetch(`/api/search?${params.toString()}`, { signal: controller.signal })
       .then(response => {
         if (!response.ok) throw new Error('Search is temporarily unavailable. Please try again.');
         return response.json();
@@ -241,7 +238,7 @@ export const HomePage: React.FC = () => {
     const waitForMinimumLoading = async () => { const remaining = Math.max(0, MIN_LOADING_MS - (performance.now() - startedAt)); if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining)); };
     const load = async () => {
       try {
-        const response = await fetch(`${API_BASE}/api/media/trending?media_type=${type}&time_window=${timeWindow}`, { signal: controller.signal });
+        const response = await apiFetch(`/api/media/trending?media_type=${type}&time_window=${timeWindow}`, { signal: controller.signal });
         if (!response.ok) throw new Error('Could not load trending titles.');
         const data = await response.json();
         await waitForMinimumLoading(); if (!active) return;
@@ -260,13 +257,9 @@ export const HomePage: React.FC = () => {
     setBackfillLoading(true);
     setBackfillError('');
     try {
-      const token = await user.getIdToken();
       const params = new URLSearchParams({ limit: '50' });
       if (backfillCursor) params.set('cursor', backfillCursor);
-      const response = await fetch(`${API_BASE}/api/taste/backfill?${params.toString()}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiFetch(`/api/taste/backfill?${params.toString()}`, { method: 'POST' }, user);
       const data = await response.json().catch(() => ({})) as BackfillResponse & { detail?: string };
       if (!response.ok) throw new Error(data.detail || 'Could not build your taste profile.');
       setBackfillResult(data);

@@ -2,17 +2,20 @@ import React, { FormEvent, useState } from 'react';
 import { AuthCredential, GoogleAuthProvider, createUserWithEmailAndPassword, linkWithCredential, signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { auth } from '../lib/firebase';
+import { apiFetch, apiErrorMessage } from '../lib/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 type AuthMode = 'signup' | 'login';
 type SignupStep = 'details' | 'username';
 
 async function api(path: string, options: RequestInit = {}) {
-  const token = await auth.currentUser?.getIdToken(true);
-  if (!token) throw new Error('Your session has expired. Please sign in again.');
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Your session has expired. Please sign in again.');
+  const response = await apiFetch(path, options, {
+    getIdToken: () => currentUser.getIdToken(true),
+  });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || 'Something went wrong.');
+  if (!response.ok) throw new Error(await apiErrorMessage(response, 'Something went wrong.'));
   return data;
 }
 

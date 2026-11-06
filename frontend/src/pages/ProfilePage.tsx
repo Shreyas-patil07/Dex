@@ -3,16 +3,16 @@ import { ArrowUpRight, CalendarDays, Check, ChevronDown, Film, LogOut, PlayCircl
 import { EmailAuthProvider, GoogleAuthProvider, linkWithCredential, linkWithPopup, onAuthStateChanged, sendPasswordResetEmail, signOut, User as FirebaseUser } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { auth } from '../lib/firebase';
+import { apiFetch } from '../lib/api';
 
 type User = { id: string; email: string; username: string | null; display_name: string | null; tagline: string | null; created_at: string };
 type Watch = { id: string; tmdb_id: number; media_type: 'movie' | 'tv'; title: string; status: string; rating: number | null; watched_at: string | null; notes?: string | null; poster_path?: string | null; backdrop_path?: string | null };
 type WatchStatus = { value: string; label: string };
 type WatchPage = { items: Watch[]; next_cursor: string | null; has_more: boolean };
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 
 async function request(user: FirebaseUser, path: string, options: RequestInit = {}) {
-  const token = await user.getIdToken();
-  return fetch(`${API_BASE}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
+  return apiFetch(path, options, user);
 }
 
 const iconForStatus = (status: string) => status === 'watched' ? <Check size={17} /> : status === 'want_to_watch' ? <PlayCircle size={17} /> : <CalendarDays size={17} />;
@@ -97,7 +97,7 @@ export const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     let active = true;
-    fetch(`${API_BASE}/api/watch-statuses`).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+    apiFetch('/api/watch-statuses').then(r => r.ok ? r.json() : Promise.reject()).then(data => {
       if (!active) return;
       const next = Array.isArray(data.statuses) ? data.statuses : [];
       setStatuses(next);

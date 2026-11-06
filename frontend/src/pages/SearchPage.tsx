@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w500';
 
 type SearchResult = {
@@ -46,7 +46,7 @@ export const SearchPage: React.FC = () => {
     setError('');
 
     const params = new URLSearchParams({ query: normalizedQuery, media_type: mediaType });
-    fetch(`${API_BASE}/api/search?${params.toString()}`, {
+    apiFetch(`/api/search?${params.toString()}`, {
       signal: controller.signal,
     })
       .then(response => {

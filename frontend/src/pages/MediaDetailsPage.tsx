@@ -3,8 +3,9 @@ import { ArrowLeft, Bookmark, CalendarDays, Check, Clock3, ExternalLink, LogIn, 
 import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { getCachedAuthState, subscribeToAuthSession } from '../lib/authSession';
+import { apiFetch } from '../lib/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w1280';
 
 type Provider = { provider_id: number; provider_name: string; logo_path?: string | null };
@@ -59,7 +60,7 @@ export const MediaDetailsPage: React.FC = () => {
     setError('');
     setItem(null);
     setExistingStatus(null);
-    fetch(`${API_BASE}/api/media/${mediaType}/${tmdbId}`, { signal: controller.signal })
+    apiFetch(`/api/media/${mediaType}/${tmdbId}`, { signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error('Could not load this title.');
         return response.json();
@@ -86,10 +87,10 @@ export const MediaDetailsPage: React.FC = () => {
 
     (async () => {
       try {
-        const token = await user.getIdToken();
-        const response = await fetch(
-          `${API_BASE}/api/watches/${mediaType}_${tmdbId}`,
-          { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
+        const response = await apiFetch(
+          `/api/watches/${mediaType}_${tmdbId}`,
+          { signal: controller.signal },
+          user,
         );
 
         if (response.status === 404) {
@@ -147,13 +148,8 @@ export const MediaDetailsPage: React.FC = () => {
     setAddingStatus(status);
     setListError('');
     try {
-      const token = await currentUser.getIdToken();
-      const response = await fetch(`${API_BASE}/api/watches`, {
+      const response = await apiFetch('/api/watches', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           tmdb_id: Number(tmdbId),
           media_type: mediaType,
@@ -162,12 +158,13 @@ export const MediaDetailsPage: React.FC = () => {
           poster_path: item.poster_path || undefined,
           backdrop_path: item.backdrop_path || undefined,
         }),
-      });
+      }, currentUser);
       const data = await response.json().catch(() => ({}));
       if (response.status === 409) {
-        const existingResponse = await fetch(
-          `${API_BASE}/api/watches/${mediaType}_${tmdbId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        const existingResponse = await apiFetch(
+          `/api/watches/${mediaType}_${tmdbId}`,
+          {},
+          currentUser,
         );
         if (existingResponse.ok) {
           const existingData = await existingResponse.json();
