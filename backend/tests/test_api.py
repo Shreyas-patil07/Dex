@@ -56,10 +56,54 @@ class FakeCollection:
     def document(self, document_id):
         return FakeDocumentReference(self.database, self.path + (document_id,))
 
+    def where(self, field, operator, value):
+        return FakeQuery(self).where(field, operator, value)
+
     async def stream(self):
         for path, data in list(self.database.documents.items()):
             if len(path) == len(self.path) + 1 and path[: len(self.path)] == self.path:
                 yield FakeSnapshot(path[-1], data)
+
+
+
+
+class FakeQuery:
+    def __init__(self, collection):
+        self.collection = collection
+        self.cursor = None
+        self.page_size = None
+
+    def where(self, field, operator, value):
+        self.filter_field = field
+        self.filter_operator = operator
+        self.filter_value = value
+        return self
+
+    def order_by(self, field):
+        self.order_field = field
+        return self
+
+    def start_after(self, snapshot):
+        self.cursor = snapshot.id
+        return self
+
+    def limit(self, amount):
+        self.page_size = amount
+        return self
+
+    async def stream(self):
+        entries = []
+        for path, data in self.collection.database.documents.items():
+            if len(path) != len(self.collection.path) + 1 or path[:-1] != self.collection.path:
+                continue
+            if data.get(self.filter_field) != self.filter_value:
+                continue
+            if self.cursor and path[-1] <= self.cursor:
+                continue
+            entries.append(FakeSnapshot(path[-1], data))
+        entries.sort(key=lambda snapshot: snapshot.id)
+        for snapshot in entries[:self.page_size]:
+            yield snapshot
 
 
 class FakeFirestore:
@@ -322,6 +366,55 @@ def test_watched_title_updates_positive_and_negative_vectors_atomically(api_clie
     assert database.documents[profile_path]["profiled_watch_count"] == 0
     assert database.documents[genre_path]["negative_sum"] == pytest.approx(0.0, abs=1e-10)
 
+
+
+def test_historical_backfill_is_paginated_idempotent_and_updates_vectors(api_client, monkeypatch):
+    sync_account(api_client, "backfill-user")
+    database = api_client.database
+
+    legacy_path = ("users", "backfill-user", "watches", "movie_550")
+    database.documents[legacy_path] = {
+        "tmdb_id": 550,
+        "media_type": "movie",
+        "title": "Fight Club",
+        "status": "watched",
+        "rating": 9.0,
+        "created_at": main.datetime.now(main.timezone.utc),
+    }
+
+    calls = []
+
+    async def fake_get_features(db, tmdb_service, media_type, tmdb_id):
+        calls.append(tmdb_id)
+        return {"genres": ["18"], "keywords": ["100"], "people": ["7467"], "decades": ["1990s"]}
+
+    monkeypatch.setattr(main.tmdb_catalog, "get_features", fake_get_features)
+
+    first = api_client.post(
+        "/api/taste/backfill?limit=1",
+        headers=auth_headers("backfill-user"),
+    )
+    assert first.status_code == 200, first.text
+    first_data = first.json()
+    assert first_data["scanned"] == 1
+    assert first_data["enriched"] == 1
+    assert first_data["complete"] is True
+    assert first_data["next_cursor"] is None
+    assert calls == [550]
+
+    profile_path = ("users", "backfill-user", "taste", "profile")
+    vector_path = ("users", "backfill-user", "taste_vectors", "genres", "features", "18")
+    assert database.documents[profile_path]["profiled_watch_count"] == 1
+    assert database.documents[vector_path]["positive_sum"] == pytest.approx(7 / 9)
+
+    second = api_client.post(
+        "/api/taste/backfill",
+        headers=auth_headers("backfill-user"),
+    )
+    assert second.status_code == 200
+    assert second.json()["skipped"] == 1
+    assert calls == [550]
+    assert database.documents[profile_path]["profiled_watch_count"] == 1
 
 def test_search_query_and_page_are_bounded(api_client):
     too_long = api_client.get("/api/search", params={"query": "x" * 101})

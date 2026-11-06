@@ -23,6 +23,7 @@ from .services.taste import (
     update_watch_atomically,
 )
 from .services.tmdb_catalog import TMDBCatalog
+from .services.taste_backfill import backfill_watched_page, MAX_BACKFILL_PAGE_SIZE
 
 
 tmdb = TMDBService(settings.tmdb_api_key, settings.tmdb_base_url)
@@ -395,6 +396,30 @@ async def delete_watch(
     deleted = await delete_watch_atomically(db, user_document, ref)
     if not deleted:
         raise HTTPException(status_code=404, detail="Watch entry not found")
+
+
+@app.post("/api/taste/backfill")
+@limiter.limit("5/minute")
+async def taste_backfill(
+    request: Request,
+    response: Response,
+    limit: int = Query(25, ge=1, le=MAX_BACKFILL_PAGE_SIZE),
+    cursor: str | None = Query(None, min_length=1, max_length=128),
+    current=Depends(current_user),
+    db=Depends(get_firestore),
+) -> dict:
+    firebase_uid, _ = current
+    try:
+        return await backfill_watched_page(
+            db,
+            user_ref(db, firebase_uid),
+            tmdb,
+            tmdb_catalog,
+            limit=limit,
+            cursor=cursor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/api/watches", response_model=list[WatchPublic])

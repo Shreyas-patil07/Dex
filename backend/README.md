@@ -83,3 +83,8 @@ pytest -q
 
 Render API: https://dex-connect.onrender.com/  
 Deployment configuration: root `render.yaml`. Production secrets must be configured in Render, never committed.
+
+
+### Historical taste backfill
+
+Call the authenticated `POST /api/taste/backfill?limit=25` endpoint until it returns `complete: true`. Pass the returned `next_cursor` as the `cursor` query parameter to continue. The operation is idempotent and only enriches watched titles that do not already have a current taste contribution. If any titles are returned in `pending_watch_ids`, rerun a pass without a cursor later to retry TMDB failures. Watchlist titles are deliberately excluded.
