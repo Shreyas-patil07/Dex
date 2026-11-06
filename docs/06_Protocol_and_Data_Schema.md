@@ -223,23 +223,18 @@ users/{uid}/watches/{media_type}_{tmdb_id}
 
 users/{uid}/taste/profile
   schema_version, model_version, profiled_watch_count,
-  profiled_rated_count, timestamps
+  profiled_rated_count, profile_version, timestamps
 
-users/{uid}/taste_vectors/{group}/features/{feature_id}
-  positive_sum, negative_sum, updated_at
+users/{uid}/recommendations/current
+  profile_version, generated_at, metadata,
+  primary_candidates, wildcard_candidates
 
 tmdb_catalog/{media_type}_{tmdb_id}
   TMDB details, extracted feature IDs, display labels, catalog version,
-  fetched_at, indexed feature snapshot and stats indexing version
-
-tmdb_feature_stats/{group}
-  document_count, stats_version, updated_at
-
-tmdb_feature_stats/{group}/features/{feature_id}
-  document_frequency, stats_version, updated_at
+  fetched_at
 ~~~
 
-The shared catalogue is application-wide metadata cache; user watch and taste records remain UID-scoped. The catalogue feature index increments each media item once per feature-stat version and adjusts document-frequency counters if its indexed feature snapshot changes.
+The shared catalogue is an application-wide metadata cache; user watch, taste profile, and recommendation cache records remain UID-scoped. Per-feature taste-vector documents and global tmdb_feature_stats counters are no longer written or read. Existing legacy documents can be left for a later cleanup migration; they are ignored by the current engine.
 
 ## 9. Taste Engine V1 invariants
 
