@@ -153,6 +153,7 @@ def api_client(monkeypatch):
         return result
 
     monkeypatch.setattr(taste, "run_transaction", fake_run_transaction)
+    monkeypatch.setattr(main, "run_transaction", fake_run_transaction)
     main.limiter._storage.reset()
     main.app.dependency_overrides[get_firestore] = lambda: database
     monkeypatch.setattr(
@@ -224,6 +225,58 @@ def test_username_is_unique_case_insensitively(api_client):
     assert first.status_code == 200
     assert first.json()["username"] == "filmfan"
     assert second.status_code == 409
+
+
+
+
+
+def test_username_rejects_firestore_reserved_ids_and_names(api_client):
+    sync_account(api_client, "reserved-user")
+
+    for username in ("__abc__", "admin", "root", "profile"):
+        response = api_client.post(
+            "/api/auth/username",
+            headers=auth_headers("reserved-user"),
+            json={"username": username},
+        )
+        assert response.status_code == 422
+
+    assert api_client.get(
+        "/api/auth/username/available",
+        params={"username": "__abc__"},
+    ).json() == {"available": False}
+    assert api_client.get(
+        "/api/auth/username/available",
+        params={"username": "admin"},
+    ).json() == {"available": False}
+
+
+def test_username_rename_transaction_releases_old_claim(api_client):
+    sync_account(api_client, "alice")
+    sync_account(api_client, "bob")
+
+    first = api_client.post(
+        "/api/auth/username",
+        headers=auth_headers("alice"),
+        json={"username": "FilmFan"},
+    )
+    renamed = api_client.post(
+        "/api/auth/username",
+        headers=auth_headers("alice"),
+        json={"username": "Cinephile"},
+    )
+    claimed_old = api_client.post(
+        "/api/auth/username",
+        headers=auth_headers("bob"),
+        json={"username": "FilmFan"},
+    )
+
+    assert first.status_code == 200
+    assert renamed.status_code == 200
+    assert renamed.json()["username"] == "cinephile"
+    assert claimed_old.status_code == 200
+    assert api_client.database.documents[("usernames", "cinephile")]["firebase_uid"] == "alice"
+    assert api_client.database.documents[("usernames", "filmfan")]["firebase_uid"] == "bob"
 
 
 def test_watch_crud_is_isolated_by_firebase_uid(api_client):

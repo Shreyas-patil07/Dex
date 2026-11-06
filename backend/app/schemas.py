@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class UserPublic(BaseModel):
@@ -42,5 +42,43 @@ class WatchPublic(WatchCreate):
     created_at: datetime
 
 
+RESERVED_USERNAMES = frozenset({
+    "admin",
+    "administrator",
+    "api",
+    "dex",
+    "help",
+    "movie",
+    "null",
+    "privacy-policy",
+    "profile",
+    "root",
+    "search",
+    "settings",
+    "sign-up",
+    "support",
+    "system",
+    "terms-of-service",
+    "tv",
+    "undefined",
+})
+
+
+def is_reserved_username(value: str) -> bool:
+    normalized = value.strip().lower()
+    return (
+        (normalized.startswith("__") and normalized.endswith("__"))
+        or normalized in RESERVED_USERNAMES
+    )
+
+
 class UsernameRequest(BaseModel):
     username: str = Field(min_length=3, max_length=20, pattern=r"^[a-zA-Z0-9_]+$")
+
+    @field_validator("username")
+    @classmethod
+    def validate_firestore_document_id(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if is_reserved_username(normalized):
+            raise ValueError("This username is reserved.")
+        return normalized

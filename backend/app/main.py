@@ -13,7 +13,14 @@ from pydantic import BaseModel, Field
 
 from .config import settings
 from .firestore import get_firestore
-from .schemas import UserPublic, UsernameRequest, WatchCreate, WatchPublic, WatchUpdate
+from .schemas import (
+    UserPublic,
+    UsernameRequest,
+    WatchCreate,
+    WatchPublic,
+    WatchUpdate,
+    is_reserved_username,
+)
 from .services.firebase_auth import verify_firebase_token
 from .services.tmdb import TMDBError, TMDBService
 from .services.taste import (
@@ -21,6 +28,7 @@ from .services.taste import (
     build_taste_contribution,
     delete_watch_atomically,
     update_watch_atomically,
+    run_transaction,
 )
 from .services.tmdb_catalog import TMDBCatalog
 from .services.taste_backfill import backfill_watched_page, MAX_BACKFILL_PAGE_SIZE
@@ -248,6 +256,8 @@ async def username_available(
     db=Depends(get_firestore),
 ) -> dict[str, bool]:
     key = normalize_username(username)
+    if is_reserved_username(key):
+        return {"available": False}
     snapshot = await db.collection(USERNAME_REGISTRY).document(key).get()
     return {"available": not snapshot.exists}
 
@@ -258,242 +268,50 @@ async def set_username(
     current=Depends(current_user),
     db=Depends(get_firestore),
 ) -> UserPublic:
-    firebase_uid, data = current
+    firebase_uid, _ = current
     username = normalize_username(payload.username)
     registry_ref = db.collection(USERNAME_REGISTRY).document(username)
-    existing = await registry_ref.get()
+    account_ref = user_ref(db, firebase_uid)
+    now = datetime.now(timezone.utc)
 
-    if existing.exists:
-        existing_uid = str((existing.to_dict() or {}).get("firebase_uid", ""))
-        if existing_uid != firebase_uid:
+    async def claim(transaction):
+        account_snapshot = await account_ref.get(transaction=transaction)
+        if not account_snapshot.exists:
+            raise HTTPException(status_code=401, detail="Dex account not synchronized")
+
+        registry_snapshot = await registry_ref.get(transaction=transaction)
+        registry_data = registry_snapshot.to_dict() or {}
+        existing_uid = str(registry_data.get("firebase_uid", "")) if registry_snapshot.exists else ""
+        if existing_uid and existing_uid != firebase_uid:
             raise HTTPException(status_code=409, detail="That username is already taken.")
-    else:
-        try:
-            await registry_ref.create({"firebase_uid": firebase_uid, "created_at": datetime.now(timezone.utc)})
-        except AlreadyExists:
-            raise HTTPException(status_code=409, detail="That username is already taken.") from None
 
-    old_username = data.get("username")
-    await user_ref(db, firebase_uid).update({"username": username})
+        account_data = account_snapshot.to_dict() or {}
+        old_username = normalize_username(str(account_data.get("username") or ""))
+        old_ref = (
+            db.collection(USERNAME_REGISTRY).document(old_username)
+            if old_username and old_username != username
+            else None
+        )
+        old_snapshot = await old_ref.get(transaction=transaction) if old_ref is not None else None
 
-    if old_username and old_username != username:
-        old_ref = db.collection(USERNAME_REGISTRY).document(normalize_username(old_username))
-        old_snapshot = await old_ref.get()
-        if old_snapshot.exists and (old_snapshot.to_dict() or {}).get("firebase_uid") == firebase_uid:
-            await old_ref.delete()
+        # All reads happen before writes. Firestore retries the transaction if
+        # another account claims this username between the read and commit.
+        if not existing_uid:
+            transaction.set(
+                registry_ref,
+                {"firebase_uid": firebase_uid, "created_at": now},
+            )
+        transaction.set(account_ref, {"username": username}, merge=True)
+        if old_ref is not None and old_snapshot is not None and old_snapshot.exists:
+            old_data = old_snapshot.to_dict() or {}
+            if old_data.get("firebase_uid") == firebase_uid:
+                transaction.delete(old_ref)
 
-    data["username"] = username
+        account_data["username"] = username
+        return account_data
+
+    data = await run_transaction(db, claim)
     return user_public(firebase_uid, data)
 
 
-@app.get("/api/me", response_model=UserPublic)
-async def me(current=Depends(current_user)) -> UserPublic:
-    firebase_uid, data = current
-    return user_public(firebase_uid, data)
 
-
-@app.post("/api/watches", response_model=WatchPublic, status_code=status.HTTP_201_CREATED)
-async def add_watch(
-    payload: WatchCreate,
-    current=Depends(current_user),
-    db=Depends(get_firestore),
-) -> WatchPublic:
-    firebase_uid, _ = current
-    doc_id = f"{payload.media_type}_{payload.tmdb_id}"
-    user_document = user_ref(db, firebase_uid)
-    ref = user_document.collection("watches").document(doc_id)
-    existing = await ref.get()
-    if existing.exists:
-        raise HTTPException(status_code=409, detail="This title is already in your library")
-
-    if payload.status not in WATCH_STATUS_VALUES:
-        raise HTTPException(status_code=422, detail="Invalid watch status")
-
-    data = payload.model_dump()
-    data["created_at"] = datetime.now(timezone.utc)
-    data["taste_contribution"] = None
-
-    if payload.status == "watched":
-        data["watched_at"] = payload.watched_at or data["created_at"]
-        try:
-            features = await tmdb_catalog.get_features(
-                db, tmdb, payload.media_type, payload.tmdb_id
-            )
-        except TMDBError:
-            features = None
-        data["taste_metadata_status"] = "ready" if features is not None else "pending"
-        data["taste_features"] = features or {}
-        if features is not None:
-            data["taste_contribution"] = build_taste_contribution(payload.rating, features)
-    else:
-        data["taste_metadata_status"] = "not_applicable"
-
-    created = await add_watch_atomically(db, user_document, ref, data)
-    if not created:
-        raise HTTPException(status_code=409, detail="This title is already in your library")
-    return watch_public(doc_id, data)
-
-
-@app.get("/api/watches/{watch_id}", response_model=WatchPublic)
-async def get_watch(
-    watch_id: str,
-    current=Depends(current_user),
-    db=Depends(get_firestore),
-) -> WatchPublic:
-    firebase_uid, _ = current
-    snapshot = await user_ref(db, firebase_uid).collection("watches").document(watch_id).get()
-    if not snapshot.exists:
-        raise HTTPException(status_code=404, detail="Watch entry not found")
-    return watch_public(watch_id, snapshot.to_dict() or {})
-
-
-@app.patch("/api/watches/{watch_id}", response_model=WatchPublic)
-async def update_watch(
-    watch_id: str,
-    payload: WatchUpdate,
-    current=Depends(current_user),
-    db=Depends(get_firestore),
-) -> WatchPublic:
-    firebase_uid, _ = current
-    user_document = user_ref(db, firebase_uid)
-    ref = user_document.collection("watches").document(watch_id)
-    snapshot = await ref.get()
-    if not snapshot.exists:
-        raise HTTPException(status_code=404, detail="Watch entry not found")
-
-    changes = payload.model_dump(exclude_unset=True)
-    if "status" in changes and changes["status"] not in WATCH_STATUS_VALUES:
-        raise HTTPException(status_code=422, detail="Invalid watch status")
-    if not changes:
-        return watch_public(watch_id, snapshot.to_dict() or {})
-
-    previous_data = snapshot.to_dict() or {}
-    target_status = changes.get("status", previous_data.get("status", "want_to_watch"))
-    metadata_features = None
-    metadata_status = None
-    if target_status == "watched" and previous_data.get("taste_metadata_status") != "ready":
-        try:
-            metadata_features = await tmdb_catalog.get_features(
-                db, tmdb, previous_data["media_type"], int(previous_data["tmdb_id"])
-            )
-            metadata_status = "ready"
-        except TMDBError:
-            metadata_status = "pending"
-
-    data = await update_watch_atomically(
-        db,
-        user_document,
-        ref,
-        changes,
-        metadata_features=metadata_features,
-        metadata_status=metadata_status,
-    )
-    if data is None:
-        raise HTTPException(status_code=404, detail="Watch entry not found")
-    return watch_public(watch_id, data)
-
-
-@app.delete("/api/watches/{watch_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_watch(
-    watch_id: str,
-    current=Depends(current_user),
-    db=Depends(get_firestore),
-):
-    firebase_uid, _ = current
-    user_document = user_ref(db, firebase_uid)
-    ref = user_document.collection("watches").document(watch_id)
-    deleted = await delete_watch_atomically(db, user_document, ref)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Watch entry not found")
-
-
-@app.get("/api/recommendations")
-@limiter.limit("10/minute")
-async def recommendations(
-    request: Request,
-    response: Response,
-    current=Depends(current_user),
-    db=Depends(get_firestore),
-) -> dict:
-    firebase_uid, _ = current
-    try:
-        return await recommendation_service.recommend(
-            db,
-            user_ref(db, firebase_uid),
-        )
-    except TMDBError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-
-@app.post("/api/taste/backfill")
-@limiter.limit("5/minute")
-async def taste_backfill(
-    request: Request,
-    response: Response,
-    limit: int = Query(25, ge=1, le=MAX_BACKFILL_PAGE_SIZE),
-    cursor: str | None = Query(None, min_length=1, max_length=128),
-    current=Depends(current_user),
-    db=Depends(get_firestore),
-) -> dict:
-    firebase_uid, _ = current
-    try:
-        return await backfill_watched_page(
-            db,
-            user_ref(db, firebase_uid),
-            tmdb,
-            tmdb_catalog,
-            limit=limit,
-            cursor=cursor,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@app.get("/api/watches", response_model=list[WatchPublic])
-async def list_watches(
-    current=Depends(current_user),
-    db=Depends(get_firestore),
-) -> list[WatchPublic]:
-    firebase_uid, _ = current
-    snapshots = [snapshot async for snapshot in user_ref(db, firebase_uid).collection("watches").stream()]
-    entries = [(snapshot, snapshot.to_dict() or {}) for snapshot in snapshots]
-    entries.sort(
-        key=lambda entry: entry[1].get("created_at") or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
-    )
-
-    # Backfill poster metadata for titles saved before poster paths were stored.
-    missing_posters = [
-        (snapshot, data)
-        for snapshot, data in entries
-        if not data.get("poster_path")
-        and data.get("media_type") in {"movie", "tv"}
-        and data.get("tmdb_id")
-    ]
-    if missing_posters:
-        try:
-            media_details = await tmdb.get_many(*[
-                (f"/{data['media_type']}/{int(data['tmdb_id'])}", None)
-                for _, data in missing_posters
-            ])
-        except TMDBError:
-            # The library should still load if TMDB is temporarily unavailable.
-            media_details = []
-
-        for (snapshot, data), details in zip(missing_posters, media_details):
-            updates = {
-                key: details[key]
-                for key in ("poster_path", "backdrop_path")
-                if not data.get(key) and details.get(key)
-            }
-            if not updates:
-                continue
-
-            data.update(updates)
-            try:
-                await snapshot.reference.update(updates)
-            except Exception:
-                # Return the image for this response even if the backfill write fails.
-                pass
-
-    return [watch_public(snapshot.id, data) for snapshot, data in entries]
