@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from .config import settings
 from .firestore import get_firestore
-from .schemas import UserPublic, UsernameRequest, WatchCreate, WatchPublic, WatchUpdate, is_reserved_username
+from .schemas import UserPublic, UsernameRequest, WatchCreate, WatchPage, WatchPublic, WatchUpdate, is_reserved_username
 from .services.firebase_auth import verify_firebase_token
 from .services.tmdb import TMDBError, TMDBNotFoundError, TMDBService
 from .services.taste import (
