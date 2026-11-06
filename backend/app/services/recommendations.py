@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 from datetime import datetime, timezone
 from math import log, sqrt
 from typing import Any
@@ -16,6 +17,8 @@ NEGATIVE_PENALTY = 1.0
 PRIMARY_CANDIDATE_LIMIT = 18
 WILDCARD_CANDIDATE_LIMIT = 12
 ENRICH_CONCURRENCY = 4
+RECOMMENDATION_CACHE_TTL_SECONDS = 6 * 60 * 60
+EXPLORATION_TOP_K = 5
 RELATED_SEED_LIMIT = 4
 RELATED_CANDIDATE_PAGES = (1, 2)
 RELATED_ENDPOINTS = ("recommendations", "similar")
@@ -555,7 +558,66 @@ class TasteRecommendationService:
         overlap = set(positive_genres) & set(candidate_features.get("genres", []))
         return 1.0 - len(overlap) / max(1, len(set(positive_genres)))
 
+    @staticmethod
+    def _weighted_pick(candidates: list[dict[str, Any]]) -> dict[str, Any] | None:
+        if not candidates:
+            return None
+        pool = candidates[:EXPLORATION_TOP_K]
+        weights = list(range(len(pool), 0, -1))
+        return random.choices(pool, weights=weights, k=1)[0]
+
+    def _sample_cached_recommendations(self, cached: dict[str, Any]) -> dict[str, Any]:
+        primary = cached.get("primary_candidates") or []
+        wildcard = cached.get("wildcard_candidates") or []
+        safe = self._weighted_pick(primary)
+        remaining = [
+            candidate for candidate in primary
+            if candidate.get("public", {}).get("id") != (safe or {}).get("public", {}).get("id")
+            or candidate.get("public", {}).get("media_type") != (safe or {}).get("public", {}).get("media_type")
+        ]
+        if safe is not None:
+            remaining.sort(
+                key=lambda candidate: mmr_score(
+                    _number(candidate.get("raw_score")),
+                    feature_jaccard(
+                        candidate.get("features") or {},
+                        safe.get("features") or {},
+                    ),
+                ),
+                reverse=True,
+            )
+        adjacent = self._weighted_pick(remaining)
+        wildcard_candidates = [
+            candidate for candidate in wildcard
+            if candidate.get("public", {}).get("id") != (safe or {}).get("public", {}).get("id")
+            or candidate.get("public", {}).get("media_type") != (safe or {}).get("public", {}).get("media_type")
+        ]
+        wildcard = self._weighted_pick(wildcard_candidates)
+        return {
+            **(cached.get("metadata") or {}),
+            "slots": {
+                "safe": (safe or {}).get("public"),
+                "adjacent": (adjacent or {}).get("public"),
+                "wildcard": (wildcard or {}).get("public"),
+            },
+        }
+
     async def recommend(self, db: Any, user_document: Any) -> dict[str, Any]:
+        profile_snapshot = await user_document.collection("taste").document("profile").get()
+        profile_version = int(_number((profile_snapshot.to_dict() or {}).get("profile_version")))
+        cache_ref = user_document.collection("recommendations").document("current")
+        cache_snapshot = await cache_ref.get()
+        cached = cache_snapshot.to_dict() if cache_snapshot.exists else None
+        cached_at = _datetime((cached or {}).get("generated_at"))
+        cache_is_fresh = (
+            cached is not None
+            and int(_number(cached.get("profile_version"), -1)) == profile_version
+            and cached_at is not None
+            and (datetime.now(timezone.utc) - cached_at).total_seconds() < RECOMMENDATION_CACHE_TTL_SECONDS
+        )
+        if cache_is_fresh:
+            return self._sample_cached_recommendations(cached)
+
         watch_snapshots = [
             snapshot async for snapshot in user_document.collection("watches").stream()
         ]
@@ -748,9 +810,55 @@ class TasteRecommendationService:
                 "all_time_blend": 1.0 - RECENT_ALL_TIME_BLEND,
                 "recent_blend": RECENT_ALL_TIME_BLEND,
             },
-            "slots": {
-                "safe": public_candidate(safe),
-                "adjacent": public_candidate(adjacent),
-                "wildcard": public_candidate(wildcard),
-            },
         }
+
+        primary_pool = [
+            {
+                "public": public_candidate(candidate),
+                "features": candidate["features"],
+                "raw_score": candidate["raw_score"],
+            }
+            for candidate in scored_primary
+        ]
+        wildcard_pool = []
+        for candidate in wildcard_ranked:
+            scored_candidate = by_key.get(self._key(candidate))
+            if scored_candidate is None:
+                continue
+            wildcard_pool.append({
+                "public": public_candidate(scored_candidate),
+                "features": scored_candidate["features"],
+                "raw_score": scored_candidate["raw_score"],
+            })
+
+        cache_data = {
+            "profile_version": profile_version,
+            "generated_at": datetime.now(timezone.utc),
+            "metadata": {
+                "generated_at": datetime.now(timezone.utc),
+                "algorithm_version": 2,
+                "personalized": personalized,
+                "match_score_semantics": (
+                    "Percentile rank within this request's enriched candidate pool; not a probability of liking."
+                    if personalized else "No complete taste signal is available; results use TMDB quality/popularity."
+                ),
+                "profile_status": {
+                    "watched_titles": len(watched),
+                    "metadata_ready_titles": len(ready),
+                    "pending_titles": pending,
+                    "metadata_unavailable_titles": unavailable,
+                    "profiled_titles": all_time_count,
+                    "backfill_complete": pending == 0,
+                },
+                "recent_profile": {
+                    "half_life_days": RECENT_HALF_LIFE_DAYS,
+                    "recently_weighted_titles": recent_count,
+                    "all_time_blend": 1.0 - RECENT_ALL_TIME_BLEND,
+                    "recent_blend": RECENT_ALL_TIME_BLEND,
+                },
+            },
+            "primary_candidates": primary_pool,
+            "wildcard_candidates": wildcard_pool,
+        }
+        await cache_ref.set(cache_data)
+        return self._sample_cached_recommendations(cache_data)
