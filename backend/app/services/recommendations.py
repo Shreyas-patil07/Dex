@@ -773,6 +773,17 @@ class TasteRecommendationService:
                 "features": scored_candidate["features"],
                 "raw_score": scored_candidate["raw_score"],
             })
+        wildcard_pool.sort(
+            key=lambda item: (
+                0.55 * self._wildcard_novelty({"features": item["features"]}, all_time)
+                + 0.45 * (
+                    (_number(item["public"].get("vote_average")) / 10.0)
+                    * (0.65 + 0.35 * min(1.0, _number(item["public"].get("vote_count")) / 500.0))
+                )
+                - max(0.0, -_number(item.get("raw_score")) - 0.2)
+            ),
+            reverse=True,
+        )
 
         cache_data = {
             "profile_version": profile_version,
