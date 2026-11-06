@@ -589,8 +589,13 @@ class TasteRecommendationService:
         adjacent = self._weighted_pick(remaining)
         wildcard_candidates = [
             candidate for candidate in wildcard
-            if candidate.get("public", {}).get("id") != (safe or {}).get("public", {}).get("id")
-            or candidate.get("public", {}).get("media_type") != (safe or {}).get("public", {}).get("media_type")
+            if (
+                candidate.get("public", {}).get("media_type"),
+                candidate.get("public", {}).get("id"),
+            ) not in {
+                ((safe or {}).get("public", {}).get("media_type"), (safe or {}).get("public", {}).get("id")),
+                ((adjacent or {}).get("public", {}).get("media_type"), (adjacent or {}).get("public", {}).get("id")),
+            }
         ]
         wildcard = self._weighted_pick(wildcard_candidates)
         return {
@@ -724,47 +729,8 @@ class TasteRecommendationService:
             candidate["match_percent"] = percentile if personalized else None
 
         primary_keys = {self._key(candidate) for candidate in primary_ranked}
-        wildcard_keys = {self._key(candidate) for candidate in wildcard_ranked}
         scored_primary = [by_key[key] for key in primary_keys if key in by_key]
         scored_primary.sort(key=lambda candidate: candidate["raw_score"], reverse=True)
-        safe = scored_primary[0] if scored_primary else None
-
-        adjacent = None
-        if scored_primary:
-            remaining = [candidate for candidate in scored_primary if candidate is not safe]
-            if remaining:
-                adjacent = max(
-                    remaining,
-                    key=lambda candidate: mmr_score(
-                        candidate["raw_score"],
-                        feature_jaccard(candidate["features"], safe["features"]),
-                    ),
-                )
-
-        chosen_keys = {
-            self._key(candidate)
-            for candidate in (safe, adjacent)
-            if candidate is not None
-        }
-        wildcard_pool = [
-            by_key[key] for key in wildcard_keys
-            if key in by_key and key not in chosen_keys
-        ]
-        if wildcard_pool:
-            wildcard = max(
-                wildcard_pool,
-                key=lambda candidate: (
-                    0.55 * self._wildcard_novelty(candidate, all_time)
-                    + 0.45 * self._quality(candidate)
-                    - max(0.0, -candidate["raw_score"] - 0.2)
-                ),
-            )
-            wildcard["reasons"] = [
-                "Explores genres less represented in your watch history",
-                *wildcard["reasons"][:1],
-            ]
-        else:
-            wildcard = None
 
         def public_candidate(candidate: dict[str, Any] | None) -> dict[str, Any] | None:
             if candidate is None:
