@@ -1,0 +1,6 @@
+# Test dependencies layered on the production lock.
+-r requirements.lock
+iniconfig==2.3.1
+pluggy==1.7.0
+Pygments==2.21.0
+pytest==8.4.2
