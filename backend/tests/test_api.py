@@ -742,7 +742,11 @@ def test_public_search_is_rate_limited(api_client):
 
 
 
-def test_public_search_rate_limit_uses_forwarded_client_ip(api_client):
+def test_public_search_rate_limit_uses_forwarded_client_ip(api_client, monkeypatch):
+    async def fake_search(query, page, media_type):
+        return {"results": [], "total_pages": 0, "total_results": 0, "page": page}
+
+    monkeypatch.setattr(main.tmdb, "search", fake_search)
     for _ in range(31):
         response = api_client.get(
             "/api/search",
