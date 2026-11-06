@@ -668,6 +668,7 @@ class TasteRecommendationService:
         primary_ranked = sorted(
             primary_by_key.values(),
             key=lambda candidate: (
+                int(candidate.get("_retrieval_source") in {"recommendations", "similar"}),
                 self._cheap_genre_score(candidate, all_time),
                 self._quality(candidate),
                 _number(candidate.get("popularity")),
