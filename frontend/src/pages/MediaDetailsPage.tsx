@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, CalendarDays, Check, Clock3, ExternalLink, ListPlus, LogIn, Star } from 'lucide-react';
+import { ArrowLeft, Bookmark, CalendarDays, Check, Clock3, ExternalLink, LogIn, Star } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { getCachedAuthState, subscribeToAuthSession } from '../lib/authSession';
@@ -38,7 +38,7 @@ export const MediaDetailsPage: React.FC = () => {
   const [error, setError] = useState('');
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const [signedIn, setSignedIn] = useState(getCachedAuthState() === 'signed_in');
-  const [adding, setAdding] = useState(false);
+  const [addingStatus, setAddingStatus] = useState<'watched' | 'want_to_watch' | 'in_future' | null>(null);
   const [checkingList, setCheckingList] = useState(false);
   const [existingStatus, setExistingStatus] = useState<'watched' | 'want_to_watch' | 'in_future' | null>(null);
   const [listError, setListError] = useState('');
@@ -137,14 +137,14 @@ export const MediaDetailsPage: React.FC = () => {
     });
   }, [providers]);
 
-  const addToList = async () => {
-    if (!isSignedIn || existingStatus || !item || !mediaType || !tmdbId) return;
+  const addToList = async (status: 'watched' | 'want_to_watch' | 'in_future') => {
+    if (!isSignedIn || existingStatus || addingStatus || !item || !mediaType || !tmdbId) return;
     const currentUser = auth.currentUser;
     if (!currentUser) {
       window.location.assign('/sign-up');
       return;
     }
-    setAdding(true);
+    setAddingStatus(status);
     setListError('');
     try {
       const token = await currentUser.getIdToken();
@@ -158,7 +158,7 @@ export const MediaDetailsPage: React.FC = () => {
           tmdb_id: Number(tmdbId),
           media_type: mediaType,
           title,
-          status: 'want_to_watch',
+          status,
           poster_path: item.poster_path || undefined,
           backdrop_path: item.backdrop_path || undefined,
         }),
@@ -171,23 +171,23 @@ export const MediaDetailsPage: React.FC = () => {
         );
         if (existingResponse.ok) {
           const existingData = await existingResponse.json();
-          const status = existingData.status;
+          const existing = existingData.status;
           setExistingStatus(
-            status === 'watched' || status === 'want_to_watch' || status === 'in_future'
-              ? status
+            existing === 'watched' || existing === 'want_to_watch' || existing === 'in_future'
+              ? existing
               : 'want_to_watch'
           );
         } else {
-          setExistingStatus('want_to_watch');
+          setListError('This title is already in your library. Refresh the page to see its status.');
         }
         return;
       }
-      if (!response.ok) throw new Error(data.detail || 'Could not add this title to your list.');
-      setExistingStatus('want_to_watch');
+      if (!response.ok) throw new Error(data.detail || 'Could not save this title to your list.');
+      setExistingStatus(status);
     } catch (err) {
-      setListError(err instanceof Error ? err.message : 'Could not add this title to your list.');
+      setListError(err instanceof Error ? err.message : 'Could not save this title to your list.');
     } finally {
-      setAdding(false);
+      setAddingStatus(null);
     }
   };
 
@@ -236,23 +236,62 @@ export const MediaDetailsPage: React.FC = () => {
         <p className="mt-4 text-xs text-[#475569]">Availability can vary by location and subscription. Data provided by TMDB.</p>
       </section>
 
-      <section className="mt-5 flex flex-wrap items-center gap-3">
-        <button onClick={addToList} disabled={!isSignedIn || !user || checkingList || adding || existingStatus !== null} className={`inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-colors ${existingStatus ? 'border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 text-[#99F6E4]' : 'bg-[#7C3AED] text-white hover:bg-[#6D28D9]'} disabled:cursor-default disabled:opacity-70`}>
-          {existingStatus ? <Check size={17} /> : checkingList ? <Clock3 size={17} /> : <ListPlus size={17} />}
-          {existingStatus === 'watched'
-            ? 'Already watched'
-            : existingStatus === 'want_to_watch'
-              ? 'In your watchlist'
-              : existingStatus === 'in_future'
-                ? 'Planned for later'
-                : checkingList
-                  ? 'Checking your list…'
-                  : adding
-                    ? 'Adding…'
-                    : 'Add to list'}
-        </button>
+      <section className="mt-5 space-y-3">
+        {existingStatus ? (
+          <div className="inline-flex items-center gap-2 rounded-xl border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 px-5 py-3 text-sm font-semibold text-[#99F6E4]">
+            <Check size={17} />
+            {existingStatus === 'watched'
+              ? 'Already watched'
+              : existingStatus === 'want_to_watch'
+                ? 'In your watchlist'
+                : 'Planned for later'}
+          </div>
+        ) : (
+          <>
+            <div>
+              <h2 className="text-sm font-semibold text-white">Add to your list</h2>
+              <p className="mt-1 text-sm text-[#64748B]">Where should this title go?</p>
+            </div>
+            <div className="grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
+              <button
+                onClick={() => addToList('watched')}
+                disabled={!isSignedIn || !user || checkingList || addingStatus !== null}
+                className="group flex min-h-[84px] items-center gap-3 rounded-xl border border-[#2DD4BF]/20 bg-[#2DD4BF]/[0.06] px-4 py-3 text-left transition-colors hover:border-[#2DD4BF]/50 hover:bg-[#2DD4BF]/[0.12] disabled:cursor-wait disabled:opacity-60"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2DD4BF]/10 text-[#5EEAD4]"><Check size={19} /></span>
+                <span>
+                  <span className="block text-sm font-semibold text-[#99F6E4]">{addingStatus === 'watched' ? 'Saving…' : 'Watched'}</span>
+                  <span className="mt-1 block text-xs text-[#94A3B8]">I've seen it</span>
+                </span>
+              </button>
+              <button
+                onClick={() => addToList('want_to_watch')}
+                disabled={!isSignedIn || !user || checkingList || addingStatus !== null}
+                className="group flex min-h-[84px] items-center gap-3 rounded-xl border border-[#A78BFA]/20 bg-[#A78BFA]/[0.06] px-4 py-3 text-left transition-colors hover:border-[#A78BFA]/50 hover:bg-[#A78BFA]/[0.12] disabled:cursor-wait disabled:opacity-60"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#A78BFA]/10 text-[#C4B5FD]"><Bookmark size={19} /></span>
+                <span>
+                  <span className="block text-sm font-semibold text-[#C4B5FD]">{addingStatus === 'want_to_watch' ? 'Saving…' : 'Want to watch'}</span>
+                  <span className="mt-1 block text-xs text-[#94A3B8]">Add to watchlist</span>
+                </span>
+              </button>
+              <button
+                onClick={() => addToList('in_future')}
+                disabled={!isSignedIn || !user || checkingList || addingStatus !== null}
+                className="group flex min-h-[84px] items-center gap-3 rounded-xl border border-white/[0.10] bg-white/[0.025] px-4 py-3 text-left transition-colors hover:border-white/[0.25] hover:bg-white/[0.06] disabled:cursor-wait disabled:opacity-60"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-[#CBD5E1]"><Clock3 size={19} /></span>
+                <span>
+                  <span className="block text-sm font-semibold text-[#E2E8F0]">{addingStatus === 'in_future' ? 'Saving…' : 'In future'}</span>
+                  <span className="mt-1 block text-xs text-[#94A3B8]">Maybe later</span>
+                </span>
+              </button>
+            </div>
+            {checkingList && <p className="text-xs text-[#64748B]">Checking your list…</p>}
+          </>
+        )}
         {!isSignedIn && <a href="/sign-up" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] px-5 py-3 text-sm font-semibold text-[#CBD5E1] hover:border-white/[0.14] hover:text-white"><LogIn size={16} /> Sign in to add</a>}
-        {listError && <p className="basis-full text-sm text-rose-300">{listError}</p>}
+        {listError && <p className="text-sm text-rose-300">{listError}</p>}
       </section>
     </main>
   </div>;
