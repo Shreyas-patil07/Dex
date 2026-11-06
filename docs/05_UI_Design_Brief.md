@@ -2,7 +2,7 @@
 
 > **Status:** Maintained UX brief — derived from current frontend  
 > **Owner:** Dex maintainers  
-> **Last updated:** 2026-11-02
+> **Last updated:** 2026-11-07
 
 ## 1. UX objectives
 

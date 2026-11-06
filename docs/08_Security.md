@@ -2,7 +2,7 @@
 
 > **Status:** Maintained security design with outstanding production verification items  
 > **Owner:** Dex maintainers  
-> **Last updated:** 2026-11-02
+> **Last updated:** 2026-11-07
 
 ## 1. Objectives and scope
 
