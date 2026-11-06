@@ -4,6 +4,12 @@ Notable changes to Dex. Dates use YYYY-MM-DD.
 
 ## [Unreleased]
 
+### Product direction and delivery controls
+- Approved v0.6 Reliability and Discovery Intelligence plan, gated on production Render verification.
+- Added recommendation event instrumentation, explicit feedback, offline evaluation, security and data-lifecycle workstreams to the roadmap (planning only; not implemented).
+- Added change-aware Vercel ignoreCommand configuration so docs-only and backend-only commits can skip frontend builds; frontend changes continue to build.
+- Documented Vercel canceled-deployment quota caveat and manual validation steps.
+
 ### Product and backend
 - Added user-scoped single-watch lookup so media details can show an existing watch status and avoid duplicate adds.
 - Added paginated, idempotent historical taste metadata backfill for watched titles.

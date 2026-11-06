@@ -57,6 +57,7 @@ See [testing evidence](09_Testing.md) and [deployment diagnostics](12_Deployment
 2. Add a dated entry to the development log with commit/PR/test evidence. Do not reconstruct undocumented history as fact.
 3. Keep implementation status separate from production deployment status.
 4. Label proposed targets and unverified controls as such. Never present an unrun end-to-end test as a pass.
+5. Keep the Vercel deployment filter aligned with the actual project root directory; test docs-only, backend-only and frontend commits before relying on it.
 5. Keep secrets, Firebase tokens, service-account JSON, and real user data out of documentation and screenshots.
 
 ## Repository links

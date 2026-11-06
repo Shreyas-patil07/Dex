@@ -53,11 +53,14 @@ The browser diagnostics received on 2026-11-07 reported:
 - The detail-page status check therefore displayed Method Not Allowed. This is consistent with the live API lacking the current GET lookup route; it does not establish that POST /api/watches is broken.
 - Console messages from chrome-extension://.../processor.js and content-script MaxListeners warnings originate from a browser extension context and are not evidence of a Dex application defect.
 
-## 5. Immediate next work — release blocker
+## 5. Immediate next work — release blocker and v0.6 gate
 
 | Priority | Task | Acceptance condition | Status |
 |---|---|---|---|
 | P0 | Confirm Render service is linked to Shreyas-patil07/Dex, branch main, rootDir backend | Dashboard/service settings match root render.yaml | Pending |
+| P0 | Audit production Firestore Rules and Firebase IAM | Access policy reviewed and evidence recorded; no public/private data leakage | Pending |
+| P0 | Define event retention, pause/clear, export and deletion semantics before event collection | Data lifecycle approved and deletion coverage designed | Pending |
+| P0 | Stop unnecessary Vercel frontend builds | Docs-only and backend-only commits skip frontend build; frontend changes still build | Config added; live behaviour unverified |
 | P0 | Confirm Render Blueprint changes were applied and latest main commit deployed | Render deploy history shows a successful deployment containing 2101f34 or later | Pending |
 | P0 | Verify GET /api/health | JSON reports version 0.5.1 or a later source version | Pending |
 | P0 | Verify protected recommendation and watch routes | With valid auth: recommendation endpoint returns 200; watch lookup returns 200 or 404, never 405 | Pending |
@@ -68,7 +71,15 @@ The browser diagnostics received on 2026-11-07 reported:
 
 See [Deployment Runbook](12_Deployment_Runbook.md) for exact probes and Render settings.
 
-## 6. Engineering backlog
+## 6. Approved v0.6 direction
+
+The approved next release is **Reliability and Discovery Intelligence**. Render verification is the release gate. After that, implement first-party recommendation events in Firestore (batched per page view, idempotent, server-derived UID), explicit More like this / Less like this / Not interested feedback, and an offline evaluation harness with 3–5 predeclared fixture profiles. Do not infer dislike from silence or tune model parameters by eye.
+
+The v0.6 event pipeline must not collect tokens or free text and must have retention, pause/clear, export and deletion semantics before production collection. Audit Firestore Rules and IAM first. Keep TMDB as the sole catalogue. Defer Kafka/Flink, vector databases, neural recommenders, social features, streaming, watch parties and gamification.
+
+Detailed scope, event fields, decision register, bias controls and exit gates: [v0.6 Reliability and Discovery Intelligence](13_v0.6_Reliability_and_Discovery_Intelligence.md).
+
+## 7. Engineering backlog
 
 | Priority | Work item | Rationale |
 |---|---|---|
@@ -82,11 +93,11 @@ See [Deployment Runbook](12_Deployment_Runbook.md) for exact probes and Render s
 | P2 | Accessibility and formal browser support matrix | Responsive utility classes are present; full audit is not evidenced |
 | P2 | Dependency/action warning maintenance | Latest CI reports deprecation warnings that should be tracked |
 
-## 7. Definition of done
+## 8. Definition of done
 
 A delivery is complete only when acceptance criteria are met, tests pass, authentication and data isolation are preserved, taste contribution reversal remains correct, docs are updated, secrets remain protected, and deployment is verified at the correct hosting platform. Do not close a production deployment task based only on GitHub Actions or Vercel status when the backend is hosted separately on Render.
 
-## 8. Work tracking
+## 9. Work tracking
 
 - Repository: https://github.com/Shreyas-patil07/Dex
 - CI: https://github.com/Shreyas-patil07/Dex/actions

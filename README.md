@@ -244,6 +244,7 @@ The backend defaults to `memory://` for rate-limit storage. Use shared storage s
 | [10 — Development Log](docs/10_Development_Log.md) | Chronological implementation and validation record |
 | [11 — Recommendation Engine](docs/11_Recommendations_Engine.md) | Recommendation retrieval, scoring, slots, and semantics |
 | [12 — Deployment Runbook](docs/12_Deployment_Runbook.md) | Render/Vercel configuration and production smoke tests |
+| [13 — v0.6 Plan](docs/13_v0.6_Reliability_and_Discovery_Intelligence.md) | Approved release scope, decisions, evidence and gates |
 | [Documentation index](docs/README.md) | Start here; current implementation and evidence |
 | [ADR index](ADR/README.md) | Durable architecture decisions |
 

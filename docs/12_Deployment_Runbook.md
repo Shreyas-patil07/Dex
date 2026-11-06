@@ -156,7 +156,33 @@ Only run against a user's real history with their consent:
 4. Record scanned/enriched/skipped/pending counts and verify profile counters.
 5. Do not infer completion from the button click alone; inspect the actual endpoint response.
 
-## 7. Frontend verification
+## 7. Vercel change-aware build filtering
+
+Dex has one frontend application in frontend/ and a separate FastAPI backend in backend/. The repository now includes Vercel ignoreCommand configuration in both root vercel.json and frontend/vercel.json to support either common project-root configuration:
+
+- If the Vercel project Root Directory is the repository root, root vercel.json compares only frontend/.
+- If the Vercel project Root Directory is frontend/, frontend/vercel.json compares only the project root (the frontend directory).
+
+The command compares the current commit with its parent. Exit code 0 skips the frontend build; exit code 1 continues the build. If the parent commit cannot be resolved or the diff command fails, the command deliberately proceeds with the build rather than risk publishing stale frontend assets.
+
+**Expected behaviour**
+- Documentation-only changes: skip frontend build.
+- Backend-only changes (backend/, Render config): skip frontend build.
+- Frontend source, public assets, package files or frontend Vercel config changes: run the frontend build.
+- Mixed frontend and backend changes: run the frontend build.
+
+**Verify the project root before relying on this.** In Vercel Dashboard open the Dex project → Settings → Build and Deployment → Root Directory. It should be either the repository root or frontend; the corresponding vercel.json above handles both. Confirm the project's ignored build step is not overridden by a conflicting dashboard setting. The vercel.json ignoreCommand overrides the dashboard Ignored Build Step command.
+
+**Quota caveat:** Vercel documents that an ignored build is marked CANCELED and can still count against deployment quotas/concurrent deployment limits. The command prevents the actual build from running, avoiding repeated install/build work and build-minute usage; it is not a guarantee that every canceled deployment event is free of all quota impact. For a strict zero-deployment-event policy, the Vercel Git integration or project deployment settings must be changed in the Vercel Dashboard, or deployment must be triggered selectively through an authenticated CI workflow.
+
+**Validation checklist**
+1. Make a docs-only commit and confirm Vercel reports the build as skipped/canceled before install/build starts.
+2. Make a backend-only commit and confirm the same.
+3. Make a harmless frontend-only change and confirm a normal deployment builds successfully.
+4. Confirm the existing production URL remains dex-list.vercel.app.
+5. If the root directory differs from the two supported configurations, correct the config before relying on the filter.
+
+## 8. Frontend verification
 
 Confirm the Vercel project has VITE_API_URL set to the intended production API origin and Firebase browser configuration populated. VITE_* variables are public browser configuration; never set Firebase Admin credentials or TMDB secret there.
 
@@ -170,7 +196,7 @@ After the backend checks pass:
 - Test a new title and confirm Add to list once, then reload to confirm the duplicate is not offered.
 - Check desktop and mobile widths, navigation and provider cards.
 
-## 8. Diagnosis guide
+## 9. Diagnosis guide
 
 | Observed result | Likely meaning | Action |
 |---|---|---|
@@ -186,7 +212,7 @@ After the backend checks pass:
 
 HTTP 404/405 from the API is not a CORS error. Browser extension console errors (chrome-extension:// URLs, injected content scripts, extension listener warnings) are separate from Dex unless a reproduction occurs with extensions disabled and points to Dex-owned code.
 
-## 9. Known status at the time of this document
+## 10. Known status at the time of this document
 
 On 2026-11-07, user-provided browser evidence showed:
 - GET /api/recommendations returned 404.
@@ -198,7 +224,7 @@ Main source includes the recommendation and watch lookup routes. The repository'
 
 Current blocker: verify that the existing Render service is linked to the intended repository/branch and has applied the Blueprint; then verify version 0.5.1 or later from /api/health and run all route smoke tests.
 
-## 10. Incident notes and security
+## 11. Incident notes and security
 
 - Never paste Firebase ID tokens, service-account JSON, API keys, or private user notes into issue trackers or logs.
 - Use a dedicated test account for destructive watch create/delete checks.
@@ -206,11 +232,13 @@ Current blocker: verify that the existing Render service is linked to the intend
 - Do not make recommendation or watch routes public as a workaround.
 - If a deploy fails, preserve relevant redacted build/runtime evidence, correct the service configuration, redeploy and repeat smoke tests.
 
-## 11. Related references
+## 12. Related references
 
 - [Render Blueprint YAML](https://render.com/docs/blueprint-spec)
 - [Render Deploys](https://render.com/docs/deploys)
 - [Render Health Checks](https://render.com/docs/health-checks)
+- [Vercel vercel.json configuration](https://vercel.com/docs/project-configuration/vercel-json)
+- [Vercel Ignored Build Step](https://vercel.com/kb/guide/how-do-i-use-the-ignored-build-step-field-on-vercel)
 - [GitHub Actions CI](https://github.com/Shreyas-patil07/Dex/actions)
 - [Main branch](https://github.com/Shreyas-patil07/Dex/tree/main)
 - [Deployment ADR](../ADR/0005-vercel-render-deployment.md)

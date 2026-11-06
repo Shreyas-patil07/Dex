@@ -16,6 +16,14 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 
 ## Entries
 
+### 2026-11-07 — v0.6 direction approved and Vercel build filtering added
+
+- **Type:** Product decision / Deployment-cost optimization
+- **Summary:** Adopted the Dex Upgrade Brief as the product direction. v0.6 is Reliability and Discovery Intelligence, gated on live Render verification. Added a plan covering first-party batched recommendation events, explicit feedback, offline evaluation, Firebase Rules/IAM audit and data lifecycle controls. Added Vercel ignoreCommand configuration at repository and frontend roots so docs-only and backend-only changes can skip the frontend build while frontend changes still build.
+- **Evidence:** [v0.6 plan](13_v0.6_Reliability_and_Discovery_Intelligence.md); Vercel configuration in vercel.json and frontend/vercel.json; [Vercel ignoreCommand documentation](https://vercel.com/docs/project-configuration/vercel-json).
+- **Outcome:** Configuration and plan are committed in source. Vercel project root and live skip behaviour have not yet been verified from the Vercel Dashboard. Vercel documents that ignored builds are canceled deployments and may still count against deployment quotas, even though the build itself is skipped.
+- **Next action:** Confirm Vercel Root Directory and test docs-only, backend-only and frontend-code commits; verify Render before starting v0.6 event implementation.
+
 ### 2026-11-07 — Render API deployment mismatch documented
 
 - **Type:** Issue / Operations
