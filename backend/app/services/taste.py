@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import datetime, timezone
 from math import sqrt
 from typing import Any, Awaitable, Callable
-from urllib.parse import quote
 
 from google.cloud import firestore
 
