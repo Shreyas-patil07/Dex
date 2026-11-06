@@ -150,6 +150,7 @@ def test_local_idf_uses_watched_titles_and_current_candidate_pool():
     idf = build_local_idf(profile, watches, candidates)
     assert idf["genres"]["18"] == pytest.approx(calculate_idf(3, 2))
     assert idf["genres"]["53"] == pytest.approx(calculate_idf(3, 1))
+    assert idf["decades"]["1990s"] == pytest.approx(calculate_idf(2, 2))
     assert "99" not in idf["genres"]
 
 
