@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from ..services.taste import normalize_taste_features
 from ..services.tmdb import TMDBError, TMDBNotFoundError, TMDBService
 
 
