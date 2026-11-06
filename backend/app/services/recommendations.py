@@ -246,7 +246,7 @@ class TasteRecommendationService:
         for group in FEATURE_GROUPS:
             stats_ref = db.collection("tmdb_feature_stats").document(group)
             cache = self._idf_cache[group]
-            if now - cache["loaded_at"] >= IDF_CACHE_TTL_SECONDS:
+            if not cache["loaded_at"] or now - cache["loaded_at"] >= IDF_CACHE_TTL_SECONDS:
                 stats_snapshot = await stats_ref.get()
                 cache["document_count"] = max(
                     0,
