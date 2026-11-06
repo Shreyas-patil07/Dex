@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     cors_origins: str = "https://dex-list.vercel.app,http://localhost:3000"
     tmdb_api_key: str = ""
+    tmdb_read_access_token: str = ""
     tmdb_base_url: str = "https://api.themoviedb.org/3"
     firebase_project_id: str = "dex-07"
     firebase_service_account: str = ""

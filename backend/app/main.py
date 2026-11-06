@@ -31,7 +31,11 @@ from .services.taste_backfill import backfill_watched_page, MAX_BACKFILL_PAGE_SI
 from .services.recommendations import TasteRecommendationService
 
 
-tmdb = TMDBService(settings.tmdb_api_key, settings.tmdb_base_url)
+tmdb = TMDBService(
+    settings.tmdb_api_key,
+    settings.tmdb_base_url,
+    read_access_token=settings.tmdb_read_access_token,
+)
 tmdb_catalog = TMDBCatalog()
 recommendation_service = TasteRecommendationService(tmdb, tmdb_catalog)
 bearer = HTTPBearer(auto_error=False)

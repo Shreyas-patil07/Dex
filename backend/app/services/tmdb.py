@@ -23,8 +23,10 @@ class TMDBService:
         api_key: str,
         base_url: str = "https://api.themoviedb.org/3",
         transport: httpx.AsyncBaseTransport | None = None,
+        read_access_token: str = "",
     ):
         self.api_key = api_key
+        self.read_access_token = read_access_token
         self.base_url = base_url.rstrip("/")
         self._transport = transport
         self._client: httpx.AsyncClient | None = None
@@ -69,9 +71,14 @@ class TMDBService:
         client: httpx.AsyncClient,
         path: str,
         query: dict[str, Any],
+        headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         try:
-            response = await client.get(f"{self.base_url}{path}", params=query)
+            response = await client.get(
+                f"{self.base_url}{path}",
+                params=query,
+                headers=headers,
+            )
         except httpx.HTTPError as exc:
             raise TMDBError("TMDB service is temporarily unavailable") from exc
 
@@ -90,8 +97,8 @@ class TMDBService:
         return payload
 
     async def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        if not self.api_key:
-            raise TMDBError("TMDB_API_KEY is not configured")
+        if not self.read_access_token and not self.api_key:
+            raise TMDBError("TMDB_READ_ACCESS_TOKEN or TMDB_API_KEY is not configured")
 
         cache_ttl = self._cache_ttl(path)
         cache_key = self._cache_key(path, params)
@@ -104,15 +111,21 @@ class TMDBService:
                 return deepcopy(value)
             self._cache.pop(cache_key, None)
 
-        query = {"api_key": self.api_key, **(params or {})}
+        query = dict(params or {})
+        headers = {}
+        if self.read_access_token:
+            headers["Authorization"] = f"Bearer {self.read_access_token}"
+        else:
+            query["api_key"] = self.api_key
+
         if self._client is None or self._client.is_closed:
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(10.0, connect=5.0),
                 transport=self._transport,
             ) as client:
-                payload = await self._request(client, path, query)
+                payload = await self._request(client, path, query, headers)
         else:
-            payload = await self._request(self._client, path, query)
+            payload = await self._request(self._client, path, query, headers)
 
         if cache_ttl:
             self._cache[cache_key] = (time.monotonic(), deepcopy(payload))

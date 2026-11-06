@@ -150,3 +150,29 @@ def test_upstream_404_uses_permanent_not_found_error():
             await service.close()
 
     run(scenario())
+
+
+
+def test_read_access_token_is_sent_as_bearer_not_query_parameter():
+    captured = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json={"results": []})
+
+    async def scenario():
+        service = TMDBService(
+            "",
+            transport=httpx.MockTransport(handler),
+            read_access_token="secret-read-token",
+        )
+        await service.start()
+        try:
+            await service.get("/search/multi", {"query": "Dune"})
+            assert captured[0].headers["authorization"] == "Bearer secret-read-token"
+            assert "api_key" not in captured[0].url.params
+            assert captured[0].url.params["query"] == "Dune"
+        finally:
+            await service.close()
+
+    run(scenario())

@@ -18,13 +18,15 @@ services:
       - key: FRONTEND_URL
         value: https://dex-list.vercel.app
       - key: CORS_ORIGINS
-        value: https://dex-list.vercel.app,http://localhost:3000
+        value: https://dex-list.vercel.app
       - key: FIREBASE_PROJECT_ID
         value: dex-07
       - key: GOOGLE_APPLICATION_CREDENTIALS
         value: /etc/secrets/service-account.json
       - key: RATE_LIMIT_STORAGE_URI
         value: memory://
+      - key: TMDB_READ_ACCESS_TOKEN
+        sync: false
       - key: TMDB_API_KEY
         sync: false
       - key: FIREBASE_SERVICE_ACCOUNT
