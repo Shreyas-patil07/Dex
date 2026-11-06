@@ -285,8 +285,8 @@ def test_username_availability_is_rate_limited(api_client):
         ).status_code
         for index in range(31)
     ]
-    assert statuses[-1] == 429
-    assert statuses.count(429) == 1
+    assert statuses[:20] == [200] * 20
+    assert statuses[20:] == [429] * 11
 
 
 def test_username_rename_transaction_releases_old_claim(api_client):
