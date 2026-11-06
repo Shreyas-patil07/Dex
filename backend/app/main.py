@@ -61,7 +61,7 @@ async def lifespan(_: FastAPI):
         await tmdb.close()
 
 
-app = FastAPI(title=settings.app_name, version="0.5.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.5.1", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
@@ -128,9 +128,15 @@ async def current_user(
     raise HTTPException(status_code=401, detail="Dex account not synchronized")
 
 
+@app.get("/api/health")
 @app.head("/api/health")
-async def health() -> Response:
-    return Response(status_code=200)
+async def health() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": "dex-api",
+        "version": app.version,
+        "watch_write_endpoint": "POST /api/watches",
+    }
 
 @app.get("/api/search")
 @limiter.limit("30/minute")
