@@ -1,5 +1,6 @@
 import asyncio
 import time
+from collections import OrderedDict
 from copy import deepcopy
 from typing import Any
 
@@ -11,6 +12,8 @@ class TMDBError(Exception):
 
 
 class TMDBService:
+    MAX_CACHE_ENTRIES = 1024
+
     def __init__(
         self,
         api_key: str,
@@ -21,7 +24,7 @@ class TMDBService:
         self.base_url = base_url.rstrip("/")
         self._transport = transport
         self._client: httpx.AsyncClient | None = None
-        self._cache: dict[tuple[str, tuple[tuple[str, str], ...]], tuple[float, dict[str, Any]]] = {}
+        self._cache: OrderedDict[tuple[str, tuple[tuple[str, str], ...]], tuple[float, dict[str, Any]]] = OrderedDict()
 
     async def start(self) -> None:
         if self._client is None or self._client.is_closed:
@@ -91,6 +94,7 @@ class TMDBService:
         if cached is not None:
             created_at, value = cached
             if now - created_at < cache_ttl:
+                self._cache.move_to_end(cache_key)
                 return deepcopy(value)
             self._cache.pop(cache_key, None)
 
@@ -106,6 +110,9 @@ class TMDBService:
 
         if cache_ttl:
             self._cache[cache_key] = (time.monotonic(), deepcopy(payload))
+            self._cache.move_to_end(cache_key)
+            while len(self._cache) > self.MAX_CACHE_ENTRIES:
+                self._cache.popitem(last=False)
         return payload
 
     async def get_many(self, *requests: tuple[str, dict[str, Any] | None]) -> list[dict[str, Any]]:

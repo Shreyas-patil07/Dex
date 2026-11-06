@@ -102,3 +102,34 @@ def test_search_uses_selected_media_type_endpoint():
             await service.close()
 
     run(scenario())
+
+
+
+def test_response_cache_uses_bounded_lru_eviction():
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        query = request.url.params["query"]
+        calls.append(query)
+        return httpx.Response(200, json={"results": [{"query": query}]})
+
+    async def scenario():
+        service = TMDBService("test-key", transport=httpx.MockTransport(handler))
+        service.MAX_CACHE_ENTRIES = 2
+        await service.start()
+        try:
+            await service.get("/search/multi", {"query": "first"})
+            await service.get("/search/multi", {"query": "second"})
+            await service.get("/search/multi", {"query": "first"})
+            await service.get("/search/multi", {"query": "third"})
+
+            keys = [key[1][0][1] for key in service._cache.keys()]
+            assert keys == ["first", "third"]
+            assert len(service._cache) == 2
+
+            await service.get("/search/multi", {"query": "first"})
+            assert calls == ["first", "second", "third"]
+        finally:
+            await service.close()
+
+    run(scenario())
