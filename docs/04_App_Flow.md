@@ -1,6 +1,6 @@
 # Application and Operational Flow
 
-> **Status:** Baseline — current principal journeys  
+> **Status:** Maintained flow specification — current principal journeys  
 > **Owner:** Dex maintainers  
 > **Last updated:** 2026-11-02
 
@@ -13,7 +13,8 @@
 | Visitor | Media details | Inspect media | Valid media ID |
 | User | Sign-in | Establish account | Firebase-supported sign-in |
 | User | Profile | Review identity/history | Authenticated session |
-| User | Watch management | Record viewing activity | Authenticated API access |
+| User | Watch management | Record viewing activity and inspect current list state | Authenticated API access |
+| User | For You | Refresh Safe/Adjacent/Wildcard suggestions and build taste history | Signed-in home page |
 
 ## 2. Primary journeys
 
@@ -45,23 +46,48 @@ flowchart TD
     I --> J
 ```
 
-### Watch mutation
+### Watch detail and add-to-list flow
 
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant UI as Frontend
+    participant UI as Detail page
     participant API as Backend
     participant DB as Firestore
-    U->>UI: Add to list
-    UI->>UI: Obtain Firebase ID token
-    UI->>API: POST /api/watches
-    API->>API: Verify token and validate payload
-    API->>DB: Persist watch and taste state
-    DB-->>API: Commit
-    API-->>UI: Result
-    UI-->>U: Show success/error
+    U->>UI: Open movie/series detail
+    UI->>API: GET /api/watches/{media_type}_{tmdb_id} + token
+    API->>DB: Read only users/{verified_uid}/watches/{id}
+    alt Entry exists
+      API-->>UI: 200 + existing status
+      UI-->>U: Already watched / In your watchlist / Planned for later
+    else Entry absent
+      API-->>UI: 404
+      UI-->>U: Enable Add to list
+      U->>UI: Add to list
+      UI->>API: POST /api/watches + token
+      API->>DB: Transactionally create watch and taste state
+      API-->>UI: 201 created or 409 conflict
+    end
 ```
+
+### For You and profile backfill
+
+```mermaid
+flowchart TD
+    A[Signed-in Home page] --> B[GET /api/recommendations]
+    B --> C{Taste metadata pending?}
+    C -- Yes --> D[Show profile setup and Build my taste profile]
+    D --> E[POST /api/taste/backfill?limit=50]
+    E --> F{next_cursor exists?}
+    F -- Yes --> G[Continue setup with cursor]
+    G --> E
+    F -- No --> H[Refresh recommendations]
+    C -- No --> I[Render Safe / Adjacent / Wildcard]
+    H --> I
+    I --> J[Open recommended media detail]
+```
+
+The backfill button runs one bounded page per click. It is not a background batch job.
 
 ## 3. Watch state model
 
@@ -101,3 +127,6 @@ Firebase SDK owns client session state. Backend owns authorization and Firestore
 | Username | FR-006 | Collision tests |
 | Watch CRUD | FR-007, FR-008 | API tests |
 | Taste mutation | FR-009, FR-010 | Taste regression tests |
+| Existing library status | FR-013 | User-scoped GET watch API tests |
+| For You | FR-014 | Authenticated recommendation API tests and manual browser checks |
+| Historical profile backfill | FR-015 | Pagination/idempotency/vector update tests |

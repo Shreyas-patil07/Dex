@@ -49,10 +49,15 @@ Firebase Authentication is the identity source. Protected requests send `Authori
 | GET | /api/auth/username/available | Check username |
 | POST | /api/auth/username | Claim username |
 | GET | /api/me | Current user |
-| GET/POST | /api/watches | Read/create watches |
-| PATCH/DELETE | /api/watches/{watch_id} | Update/delete watch |
+| GET | /api/watches | List current user's watches |
+| POST | /api/watches | Create watch |
+| GET | /api/watches/{watch_id} | Read one current-user watch (404 if absent) |
+| PATCH | /api/watches/{watch_id} | Update watch |
+| DELETE | /api/watches/{watch_id} | Delete watch |
+| GET | /api/recommendations | Personalized Safe/Adjacent/Wildcard suggestions |
+| POST | /api/taste/backfill | Paginated historical taste metadata backfill |
 | GET | /api/watch-statuses | Status options |
-| HEAD | /api/health | Health |
+| GET, HEAD | /api/health | Health and backend source version |
 
 Live OpenAPI: https://dex-connect.onrender.com/docs
 
@@ -92,7 +97,13 @@ Call the authenticated `POST /api/taste/backfill?limit=25` endpoint until it ret
 
 ### Historical profile and recommendations
 
-- `POST /api/taste/backfill?limit=25` incrementally enriches existing watched records. Continue with the returned `next_cursor` until `complete` is true. If `pending_watch_ids` is non-empty, rerun from the first page later to retry upstream TMDB failures.
-- `GET /api/recommendations` returns Safe, Adjacent, and Wildcard candidates. Safe uses highest personalized relevance, Adjacent uses MMR diversification, and Wildcard comes from a separate weekly-trending retriever and favors less represented genres.
-- Recommendations combine the all-time signed vector with a 90-day exponential-decay vector (25% recent blend, 75% all-time). Feature IDF is `ln((N+1)/(DF+1))+1` and is indexed from the shared TMDB catalog. Candidate match percentages are percentile ranks within the request's enriched candidate pool, not probabilities of liking a title.
-- The recommendation endpoint reports `profile_status.backfill_complete`. A partial profile can produce partial recommendations; finish backfill for full historical coverage.
+- `POST /api/taste/backfill?limit=25` incrementally enriches existing watched records. Page size is 1–50 (default 25); the homepage uses 50. Continue with the returned `next_cursor` until `complete` is true. If `pending_watch_ids` is non-empty, rerun from the first page later to retry upstream TMDB failures. Completed records are skipped, making repeat passes idempotent.
+- `GET /api/recommendations` is authenticated and rate-limited to 10/minute. It returns Safe, Adjacent, and Wildcard slots. Safe uses highest personalized relevance, Adjacent uses MMR diversification, and Wildcard comes from a separate weekly-trending retriever with a novelty preference for less represented genres.
+- Recommendations combine the all-time signed vector with a 90-day exponential-decay profile (25% recent blend, 75% all-time). Feature IDF is `ln((N+1)/(DF+1)) + 1` and is indexed from the shared TMDB catalogue. Candidate match percentages are percentile ranks within the request's enriched candidate pool, not probabilities of liking a title.
+- The recommendation endpoint reports `profile_status.backfill_complete` and the pending/ready counts. A partial profile can produce partial recommendations; finish backfill for full historical coverage.
+
+## Deployment diagnostics
+
+The source API version is currently `0.5.1`. `GET /api/health` returns the version and expected watch write route; `HEAD /api/health` returns 200 without a body. The Render Blueprint sets branch `main`, root directory `backend`, auto-deploy on commit and the health-check path. Repository configuration is not proof that an existing Render service has synced or deployed it.
+
+On 2026-11-07, browser evidence showed the live API returning 404 for `/api/recommendations` and 405 for `GET /api/watches/{watch_id}`. The latest main CI run passed, but the active Render deployment remained unverified. Use [the deployment runbook](../docs/12_Deployment_Runbook.md) before treating production as healthy.

@@ -1,6 +1,6 @@
 # UI / UX Design Brief
 
-> **Status:** Baseline — derived from current frontend  
+> **Status:** Maintained UX brief — derived from current frontend  
 > **Owner:** Dex maintainers  
 > **Last updated:** 2026-11-02
 
@@ -25,10 +25,14 @@ flowchart TD
     A --> D[About]
     A --> E[Authentication]
     B --> F[Movie / TV details]
-    F --> G[Add to list]
-    E --> H[Profile]
-    H --> I[Watch history]
-    H --> J[Taste profile]
+    F --> G[Check existing library state]
+    G --> H[Add to list when absent]
+    E --> I[Profile]
+    B --> J[For You / Personalized discovery]
+    J --> K[Safe / Adjacent / Wildcard]
+    K --> F
+    I --> L[Watch history]
+    I --> M[Taste profile]
 ```
 
 Check the router/navigation source for exact route paths before changing contracts.
@@ -37,9 +41,9 @@ Check the router/navigation source for exact route paths before changing contrac
 
 | Screen | Purpose | Actions | Key states |
 |---|---|---|---|
-| Home | Trending discovery | Filter/open title | Loading/populated/error |
+| Home | Trending and personalized discovery | Search, filter, refresh recommendations, open title, build taste profile | Loading/populated/empty/error/backfill pending |
 | Search | Find media | Search/filter/open | Empty/loading/results/error |
-| Media details | Inspect title | Back/add to list | Loading/error/details/added |
+| Media details | Inspect title and current list state | Back/add when absent | Loading/error/details/checking/already watched/in watchlist/planned/add pending/error |
 | Authentication | Establish identity | Sign-in/sign-up | Pending/success/error |
 | Profile | User identity | View history/actions | Loading/signed-in/out |
 | Watch list/history | Manage records | Add/edit/delete/status/rating | Empty/populated/mutation |
@@ -48,11 +52,11 @@ Check the router/navigation source for exact route paths before changing contrac
 
 ## 5. Key screen specifications
 
-### Home and search
-Present discovery controls and catalogue cards. Use loading, populated, empty, and recoverable error states. Search inputs are bounded by the API.
+### Home, For You and search
+Present the search entry point and trending catalogue. For authenticated users, render a Personalized Discovery section with Safe, Adjacent, and Wildcard cards plus refresh. If no watched titles exist, prompt the user to mark titles watched and rate them. If watched items have pending metadata, expose the profile-build/backfill action and progress/error state. Explain that match values are candidate-pool percentiles, not probabilities. Use loading, populated, empty, and recoverable error states.
 
 ### Media details
-Present poster/backdrop, title, type, release/air date, runtime, rating, genres, overview, and India provider data when returned. Adding to a list requires authentication; show pending, added, and error feedback.
+Present poster/backdrop, title, type, release/air date, runtime, rating, genres, overview, and India provider data when returned. Once authenticated, check `GET /api/watches/{watch_id}` before enabling Add to list. Render an existing-state label (Already watched, In your watchlist, Planned for later) rather than encouraging a duplicate. Show pending and API error feedback; do not show success before the API confirms it.
 
 ### Profile and watch records
 Present the user's Dex identity and records. All private records must remain server-authorized and UID-scoped.
@@ -68,6 +72,7 @@ Current UI uses a dark visual theme, violet/purple accents, muted slate text, tr
 - Prevent repeated mutation submissions while pending where implemented.
 - Clearly label watch statuses.
 - Do not show success until the API confirms it.
+- Treat `404` from the user-scoped watch lookup as “not in this user's library”; treat `405` as an API deployment/route mismatch, not as “not found.”
 - Streaming-provider data is availability information, not playback delivered by Dex.
 
 ## 8. Responsive/platform behaviour

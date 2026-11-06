@@ -38,7 +38,7 @@ Start with `npm run dev`.
 
 ## Responsibilities
 
-Render discovery, search, details, authentication, profile and history. Maintain Firebase client session state, send Firebase ID tokens to protected API routes, and render TMDB-backed data returned by backend.
+Render discovery, search, details, authentication, profile and history. The signed-in Home page loads the authenticated For You recommendation slots and can run one historical taste-backfill page per action. Media detail pages query the user's existing watch state before offering Add to list. Maintain Firebase client session state, send Firebase ID tokens to protected API routes, and render TMDB-backed data returned by backend.
 
 ## Configuration and security
 
@@ -55,5 +55,7 @@ npm run build
 ## Deployment
 
 Production frontend: https://dex-list.vercel.app/
+
+The frontend currently expects the backend to expose `GET /api/recommendations`, `POST /api/taste/backfill`, and `GET /api/watches/{watch_id}` in addition to watch CRUD. See [API contract](../docs/06_Protocol_and_Data_Schema.md) and [deployment runbook](../docs/12_Deployment_Runbook.md).
 
 Configure the production API URL and Firebase client configuration in Vercel environment variables.

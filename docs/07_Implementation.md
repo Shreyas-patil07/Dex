@@ -1,64 +1,95 @@
-# Implementation Plan
+# Implementation Status and Roadmap
 
-> **Status:** Existing product baseline with ongoing improvement backlog  
+> **Status:** Main-branch implementation status — 2026-11-07  
 > **Owner:** Dex maintainers  
-> **Last updated:** 2026-11-02
+> **Source branch:** main  
+> **Current backend source version:** 0.5.1
 
-## 1. Delivery strategy
+## 1. Delivery summary
 
-Dex already has a deployed end-to-end implementation. Future delivery should protect user data and taste consistency, close security/operational gaps, then expand recommendation capabilities.
+Dex has a deployed frontend and a FastAPI backend source tree. The latest main-branch work extended taste tracking into a recommendation pipeline and connected it to the signed-in homepage. A production API revision mismatch is still open: browser evidence showed the deployed Render host returning 404 for GET /api/recommendations and 405 for GET /api/watches/{watch_id}, although those routes exist in main and are covered by tests. The source configuration now pins the Render service to main and uses the health endpoint; live deployment has not been confirmed.
 
-## 2. Work breakdown
+Implementation status and production status are separate. A feature marked implemented below means that the code exists in main and is covered by the listed tests; it does not mean the current production host is serving it.
 
-| Phase | Objective | Deliverables | Exit criteria |
+## 2. Delivered milestones
+
+| Area | Delivered behaviour | Main evidence | Status |
 |---|---|---|---|
-| 0. Baseline | Preserve working product | React frontend, FastAPI API, Firebase/Firestore, TMDB | CI and health verified |
-| 1. Integrity | Protect user/watch/taste data | Authz review, transaction tests, reconciliation | UID isolation and mutation invariants pass |
-| 2. Product | Improve discovery/profile flows | UX edge-case fixes | Acceptance criteria met |
-| 3. Taste validation | Assess signal quality | Fixtures, model evaluation, versioned scoring | Quality and limits documented |
-| 4. Operations | Improve service operation | Shared rate limits, metrics, backup/recovery plan | Runbooks reviewed |
-| 5. Release | Ship verified changes | Release notes and smoke checks | No release blockers |
+| Discovery | Trending, search and media details backed by TMDB | backend/app/main.py and TMDB service | Implemented |
+| Identity | Firebase token verification, Dex profile sync and normalized unique usernames | Firebase auth service and API tests | Implemented |
+| Watch library | User-scoped create/list/update/delete | watch API and regression tests | Implemented |
+| Detail-page status | Load existing watch state before offering Add to list; handle create conflicts | commit 806a536; GET watch route and frontend state labels | Implemented in source |
+| Taste Engine V1 | Signed genre/keyword/person/decade vectors with reversible contributions | taste.py; commit cf454433; tests | Implemented |
+| Legacy backfill | Authenticated, idempotent cursor pagination, max 50 per page | taste_backfill.py; commit 7b477b1; API tests | Implemented |
+| Shared IDF statistics | Catalogue document frequency indexed transactionally | tmdb_catalog.py; commit 183aa13 | Implemented |
+| Recommendations | Signed scoring, recent profile, IDF, MMR and three slots | recommendations.py; commits faf006b, 127a48f, b66bd4f | Implemented |
+| Homepage For You | Signed-in recommendation section, refresh and historical profile setup | HomePage.tsx; commits c80af93, 4ae1e22, 86b6356 | Implemented in source |
+| API deployment diagnostics | GET/HEAD health returns API version and expected watch write route | main.py; commit 477cb23 | Implemented in source |
+| Render source alignment | Blueprint sets branch main, backend root, auto deploy and health check | render.yaml; commit 2101f34 | Configured in repository; service sync/deploy unverified |
 
-## 3. Dependency order
+## 3. Recommendation and profile lifecycle
 
-```mermaid
-flowchart TD
-    A[Audit routes and data rules] --> B[Add test/observability baselines]
-    B --> C[Verify identity and isolation]
-    C --> D[Verify watch/taste transactions]
-    D --> E[Evaluate taste quality]
-    E --> F[Extend UX]
-    F --> G[Release and monitor]
-```
+1. When a user marks a title watched, the backend attempts to load shared TMDB feature metadata.
+2. If metadata is available, the exact signed contribution is stored on the watch record and aggregate vectors/profile counters are updated transactionally.
+3. If metadata is unavailable, the watched record can remain pending; the watch itself is not silently discarded.
+4. Legacy watched records are processed using POST /api/taste/backfill with cursor pagination. The endpoint skips records already current and can retry pending records on a later pass.
+5. GET /api/recommendations reads the user's watched records and all-time vectors, rebuilds a recent profile, retrieves/enriches candidates and returns Safe, Adjacent and Wildcard slots.
+6. The signed-in homepage displays the slots and lets the user refresh. One backfill page is run per action, not as an unbounded client loop.
 
-## 4. Milestones
+## 4. Current validation evidence
 
-| Milestone | Target | Evidence | Status |
+Latest checked commit: 2101f34e2b9408b965b1d92658e424b04a47db9a.  
+GitHub Actions run: https://github.com/Shreyas-patil07/Dex/actions/runs/42286609985
+
+- Backend compileall passed.
+- Backend Pytest reported 30 passed, 1 warning.
+- Frontend npm ci, npm run typecheck and npm run build passed.
+- Vercel status check was successful.
+- Render active revision and protected production route checks remain unverified.
+
+The browser diagnostics received on 2026-11-07 reported:
+- GET /api/recommendations returned HTTP 404.
+- GET /api/watches/{watch_id} returned HTTP 405.
+- The detail-page status check therefore displayed Method Not Allowed. This is consistent with the live API lacking the current GET lookup route; it does not establish that POST /api/watches is broken.
+- Console messages from chrome-extension://.../processor.js and content-script MaxListeners warnings originate from a browser extension context and are not evidence of a Dex application defect.
+
+## 5. Immediate next work — release blocker
+
+| Priority | Task | Acceptance condition | Status |
 |---|---|---|---|
-| Production web/API baseline | Existing | Vercel/Render URLs | Deployed |
-| Taste engine V1 | Existing | Service and regression tests | Implemented; continue evaluation |
-| Documentation baseline | 2026-11-02 | Core docs and ADR set | In progress |
-| Security/data lifecycle audit | TBD | Review and tests | Not started |
-| Taste model evaluation | TBD | Reproducible report | Not started |
+| P0 | Confirm Render service is linked to Shreyas-patil07/Dex, branch main, rootDir backend | Dashboard/service settings match root render.yaml | Pending |
+| P0 | Confirm Render Blueprint changes were applied and latest main commit deployed | Render deploy history shows a successful deployment containing 2101f34 or later | Pending |
+| P0 | Verify GET /api/health | JSON reports version 0.5.1 or a later source version | Pending |
+| P0 | Verify protected recommendation and watch routes | With valid auth: recommendation endpoint returns 200; watch lookup returns 200 or 404, never 405 | Pending |
+| P0 | Retest detail-page Add to list flow | Existing title renders existing status; missing title can be created once; duplicate race is handled | Pending |
+| P1 | Backfill actual existing user histories | Run pages until complete; retry pending IDs; verify profile counts match watched records with contributions | Not yet evidenced |
+| P1 | Validate recommendation quality with representative histories | Document test users/fixtures, expected relevance, diversity and known failure cases | Pending |
+| P1 | Add automated browser tests | Home, For You, detail status, add flow and mobile/desktop smoke checks pass | Pending |
 
-## 5. Work tracking
+See [Deployment Runbook](12_Deployment_Runbook.md) for exact probes and Render settings.
+
+## 6. Engineering backlog
+
+| Priority | Work item | Rationale |
+|---|---|---|
+| P1 | Production Firebase Security Rules and IAM audit | Rules/config are not represented in the repository |
+| P1 | Account export, deletion and retention design | Define lifecycle for users, watches, taste vectors and private notes |
+| P1 | Firestore backup and restore exercise | Protect user history and aggregate state |
+| P1 | Shared rate-limit store before multi-instance scaling | memory:// counters are per process |
+| P1 | Operational metrics and alerting | CI/health alone do not provide production SLO evidence |
+| P2 | Taste model offline evaluation | Ranking quality is not established by unit tests |
+| P2 | Recommendation cold-start and sparse-history UX review | Small profiles can produce weak or generic recommendations |
+| P2 | Accessibility and formal browser support matrix | Responsive utility classes are present; full audit is not evidenced |
+| P2 | Dependency/action warning maintenance | Latest CI reports deprecation warnings that should be tracked |
+
+## 7. Definition of done
+
+A delivery is complete only when acceptance criteria are met, tests pass, authentication and data isolation are preserved, taste contribution reversal remains correct, docs are updated, secrets remain protected, and deployment is verified at the correct hosting platform. Do not close a production deployment task based only on GitHub Actions or Vercel status when the backend is hosted separately on Render.
+
+## 8. Work tracking
 
 - Repository: https://github.com/Shreyas-patil07/Dex
 - CI: https://github.com/Shreyas-patil07/Dex/actions
-- Deployments: Vercel and Render dashboards.
-
-Use GitHub issues for task status.
-
-## 6. Definition of done
-
-Acceptance criteria met; automated tests pass; auth/data-isolation reviewed; watch/taste integrity preserved; docs updated; secrets safe; CI/deployment checks pass.
-
-## 7. Risks
-
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Taste aggregate drift | Incorrect profile | Reversal/reconciliation tests and backups |
-| TMDB schema changes | Discovery/detail failures | Contract tests and validation |
-| Firestore growth/cost | Cost/latency | Profile query and usage |
-| Multi-instance backend | Divergent local rate limits | Shared Redis |
-| Unreviewed Firestore rules | Data exposure | Production security audit |
+- Frontend: https://dex-list.vercel.app/
+- Backend: https://dex-connect.onrender.com/
+- API docs: https://dex-connect.onrender.com/docs

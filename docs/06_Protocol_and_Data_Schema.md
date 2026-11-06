@@ -1,116 +1,280 @@
 # Protocol and Data Schema
 
-> **Status:** Baseline — current API and Firestore structures  
+> **Status:** Maintained contract summary — checked against main source  
 > **Owner:** Dex maintainers  
-> **Last updated:** 2026-11-02
+> **Last updated:** 2026-11-07  
+> **Backend source version:** 0.5.1
 
-## 1. Scope
+## 1. Scope and authority
 
-Covers browser-to-backend HTTP, Firebase bearer-token authentication, Firestore models, and taste features. TMDB is an external upstream dependency.
+This document summarises browser-to-backend HTTP routes, Firebase bearer-token authentication, Firestore paths, taste state, and recommendation response semantics. The code in backend/app/main.py, Pydantic schemas, service modules, and tests is authoritative. The live OpenAPI page is https://dex-connect.onrender.com/docs; it reflects the currently deployed service and may lag behind main while Render is not serving the latest revision.
 
 ## 2. Communication topology
 
 | Producer | Consumer | Transport | Direction |
 |---|---|---|---|
-| Browser | Firebase Auth | SDK/HTTPS | Bidirectional |
+| Browser | Firebase Authentication | Firebase SDK / HTTPS | Bidirectional |
 | Browser | Dex API | HTTPS JSON REST | Bidirectional |
-| Dex API | Firebase Auth/Admin | Admin SDK | Request/response |
-| Dex API | Firestore | Admin SDK | Request/response/transaction |
+| Dex API | Firebase Admin | Admin SDK | Request/response |
+| Dex API | Cloud Firestore | Admin SDK | Read/write/transaction |
 | Dex API | TMDB | HTTPS | Request/response |
 
-## 3. API contracts
+## 3. API route inventory
 
-Live OpenAPI: https://dex-connect.onrender.com/docs. This route inventory is a summary, not a replacement for runtime schema.
+All protected routes require a Firebase ID token in the Authorization Bearer header. The UID is derived from the verified token, not from a client-supplied UID.
 
-| Method | Route | Auth | Purpose |
-|---|---|---|---|
-| HEAD | /api/health | Public | Health |
-| GET | /api/search | Public | Search TMDB |
-| GET | /api/media/trending | Public | Trending |
-| GET | /api/media/{media_type}/{tmdb_id} | Public | Media details/providers |
-| POST | /api/auth/sync | Firebase bearer | Sync profile |
-| GET | /api/auth/username/available | Public | Username availability |
-| POST | /api/auth/username | Protected | Claim username |
-| GET | /api/watch-statuses | Public | Status options |
-| GET | /api/me | Protected | Current profile |
-| GET/POST | /api/watches | Protected | Read/create watches |
-| PATCH/DELETE | /api/watches/{watch_id} | Protected | Update/delete watch |
+| Method | Route | Auth | Rate limit | Purpose |
+|---|---|---|---|---|
+| GET, HEAD | /api/health | Public | None | Liveness and backend source version |
+| GET | /api/search | Public | 30/minute | Search movies/series |
+| GET | /api/media/trending | Public | 60/minute | Trending catalogue |
+| GET | /api/media/{media_type}/{tmdb_id} | Public | 60/minute | Media details and India provider data |
+| POST | /api/auth/sync | Firebase bearer | None | Create/read Dex profile for verified Firebase identity |
+| GET | /api/auth/username/available | Public | None | Check normalized username availability |
+| POST | /api/auth/username | Protected | None | Claim username |
+| GET | /api/watch-statuses | Public | None | Supported watch status values |
+| GET | /api/me | Protected | None | Current Dex profile |
+| GET | /api/watches | Protected | None | List current user's watch records |
+| POST | /api/watches | Protected | None | Create watch record |
+| GET | /api/watches/{watch_id} | Protected | None | Fetch one current-user watch record |
+| PATCH | /api/watches/{watch_id} | Protected | None | Update watch record |
+| DELETE | /api/watches/{watch_id} | Protected | None | Delete watch record |
+| GET | /api/recommendations | Protected | 10/minute | Return Safe, Adjacent and Wildcard slots |
+| POST | /api/taste/backfill | Protected | 5/minute | Enrich legacy watched records page by page |
 
-Protected request header:
+Rate limits are applied by SlowAPI using the configured storage backend. The default configuration is memory://; this is not a shared counter across multiple API instances.
 
-```http
+## 4. Common request conventions
+
+Protected requests use:
+
+~~~http
 Authorization: Bearer <firebase-id-token>
 Content-Type: application/json
-```
+~~~
 
-Search parameters: query required (1–100 chars), page 1–500 (default 1), media_type all/movie/tv (default all). Trending parameters: media_type all/movie/tv and time_window day/week.
+Search parameters:
 
-### Watch create schema
+| Parameter | Constraint | Default |
+|---|---|---|
+| query | Required, 1–100 characters | — |
+| page | 1–500 | 1 |
+| media_type | all, movie, tv | all |
+
+Trending parameters:
+
+| Parameter | Constraint | Default |
+|---|---|---|
+| media_type | all, movie, tv | all |
+| time_window | day, week | week |
+
+Media detail media_type must be movie or tv and tmdb_id must be positive.
+
+## 5. Watch record contract
+
+### Identifier
+
+Watch document IDs are deterministic:
+
+- movie_ followed by the TMDB movie ID
+- tv_ followed by the TMDB series ID
+
+Example: movie_550.
+
+### Create request
 
 | Field | Type | Required | Constraint |
 |---|---|---:|---|
-| tmdb_id | integer | Yes | Positive upstream media ID |
+| tmdb_id | integer | Yes | TMDB identifier |
 | media_type | string | Yes | movie or tv |
-| title | string | Yes | 1–255 chars |
-| status | string | No | watched, want_to_watch, in_future |
+| title | string | Yes | 1–255 characters |
+| status | string | No | watched, want_to_watch, in_future; defaults to want_to_watch |
 | rating | number/null | No | 0–10 |
-| watched_at | datetime/null | No | Timestamp |
-| notes | string/null | No | Max 2,000 chars |
+| watched_at | datetime/null | No | ISO-compatible datetime |
+| notes | string/null | No | Maximum 2,000 characters |
 | poster_path | string/null | No | TMDB image path |
 | backdrop_path | string/null | No | TMDB image path |
 
-Update schema accepts optional status, rating, watched date, notes, poster path, backdrop path. Confirm null/omission semantics from runtime contract and tests.
+### Update request
 
-## 4. Firestore models
+PATCH accepts optional status, rating, watched_at, notes, poster_path and backdrop_path. Pydantic distinguishes omitted fields from explicitly supplied fields; nullable values can be used to clear nullable watch attributes. An empty update returns the current record without mutation.
 
-### User: users/{firebase_uid}
-email, username, display_name, tagline, created_at.
+### Status semantics
 
-### Username registry: usernames/{normalized_username}
-firebase_uid, created_at. Backend normalizes username to lowercase; validation is 3–20 characters, letters/digits/underscore.
+| Value | Meaning | Taste effect |
+|---|---|---|
+| watched | User has watched the title | Contributes when metadata is ready and a non-zero contribution can be built |
+| want_to_watch | User wants to watch it | No taste contribution |
+| in_future | User plans to watch it later | No taste contribution |
 
-### Watch: users/{uid}/watches/{media_type}_{tmdb_id}
-TMDB ID, media type, title, status, optional rating/date/notes, artwork paths, creation timestamp, and taste contribution snapshot needed for reversal.
+### Watch response
 
-### Taste profile: users/{uid}/taste/profile
-Profile/model schema versions and counters tracking profiled watch records.
+Watch responses include id, tmdb_id, media_type, title, status, rating, watched_at, notes, poster_path, backdrop_path and created_at.
 
-### Taste vectors: users/{uid}/taste_vectors/{group}/features/{feature_id}
-Positive and negative all-time feature sums. Groups: genres, keywords, people (movie directors or TV creators), decades.
+### Duplicate handling and lookup
 
-### Shared cache: tmdb_catalog/{media_type}_{tmdb_id}
-TMDB-derived feature metadata. Backend documentation describes a 180-day cache; verify code when changing cache policy.
+- POST /api/watches creates a record with HTTP 201.
+- A record that already exists returns HTTP 409.
+- GET /api/watches/{watch_id} returns HTTP 200 for the current user's record.
+- The same lookup returns HTTP 404 when the record is absent or belongs to another user.
+- The lookup is intentionally user-scoped; it must never reveal whether a different user's record exists.
+- The detail page checks the lookup before enabling Add to list. If a concurrent create wins after the lookup, the frontend handles HTTP 409 by fetching the current user's record again.
 
-## 5. Taste model and consistency
+## 6. Recommendation API contract
+
+GET /api/recommendations requires authentication and is limited to 10 requests per minute.
+
+Top-level response:
+
+| Field | Type | Meaning |
+|---|---|---|
+| generated_at | datetime | Generation timestamp |
+| algorithm_version | integer | Recommendation algorithm version; currently 1 |
+| personalized | boolean | Whether a usable taste signal exists |
+| match_score_semantics | string | Explicit interpretation of match values |
+| profile_status | object | Counts of watched, metadata-ready and pending titles; backfill state |
+| recent_profile | object | Half-life, recently weighted count and all-time/recent blend |
+| slots | object | safe, adjacent and wildcard candidates; any slot can be null |
+
+Profile status fields:
+
+- watched_titles — number of watched records.
+- metadata_ready_titles — watched records with ready taste metadata and contribution field.
+- pending_titles — watched records not yet ready.
+- backfill_complete — true when pending_titles is zero.
+
+Recent profile fields:
+
+- half_life_days — currently 90.
+- recently_weighted_titles — count of recent-profile records with feature signal.
+- all_time_blend — currently 0.75.
+- recent_blend — currently 0.25.
+
+Each non-null slot candidate contains:
+
+| Field | Type | Meaning |
+|---|---|---|
+| id | integer | TMDB ID |
+| media_type | string | movie or tv |
+| title | string | Display title |
+| poster_path, backdrop_path | string/null | TMDB image paths |
+| release_date | string/null | Release date or first air date |
+| vote_average | number | TMDB vote average |
+| vote_count | integer | TMDB vote count |
+| overview | string | Synopsis, possibly empty |
+| raw_score | number | Internal signed relevance score |
+| match_percent | integer/null | Percentile within this request's enriched candidate pool |
+| match_semantics | string | Candidate-pool percentile or not personalized |
+| reasons | string[] | Human-readable explanation labels |
+
+Important: match_percent is a within-request candidate-pool percentile, **not** a probability of liking the title, calibrated confidence, or promise of user satisfaction. When no complete taste signal is available, the endpoint can return non-personalized quality/popularity-based candidates and match_percent is null.
+
+## 7. Historical taste backfill contract
+
+POST /api/taste/backfill is authenticated and rate-limited to 5 requests per minute.
+
+| Query parameter | Constraint | Default |
+|---|---|---|
+| limit | 1–50 | 25 |
+| cursor | Existing watch document ID, optional | None |
+
+The homepage uses limit=50. The endpoint processes only watched records.
+
+Response:
+
+~~~json
+{
+  "scanned": 50,
+  "enriched": 47,
+  "skipped": 2,
+  "pending": 1,
+  "pending_watch_ids": ["movie_123"],
+  "next_cursor": "tv_456",
+  "complete": false
+}
+~~~
+
+The values above illustrate the shape, not a live result. The actual response reports counts for the requested page.
+
+- scanned: number of records in this page.
+- enriched: records enriched successfully.
+- skipped: records already current for the taste model.
+- pending: records that could not be enriched because TMDB failed.
+- pending_watch_ids: IDs to retry later.
+- next_cursor: last processed ID when another page exists; otherwise null.
+- complete: whether another page remains after this page.
+
+Continue with next_cursor until complete is true. If pending_watch_ids is non-empty, rerun later **without a cursor** to retry pending records. Completed records are skipped, so retry passes are idempotent. The operation does not run in the background and one frontend click processes one page.
+
+## 8. Firestore data model
+
+~~~text
+users/{firebase_uid}
+  email, username, display_name, tagline, created_at
+
+usernames/{normalized_username}
+  firebase_uid, created_at
+
+users/{uid}/watches/{media_type}_{tmdb_id}
+  media fields, status, rating, watched_at, notes, artwork paths,
+  taste_features, taste_contribution, taste_metadata_status
+
+users/{uid}/taste/profile
+  schema_version, model_version, profiled_watch_count,
+  profiled_rated_count, timestamps
+
+users/{uid}/taste_vectors/{group}/features/{feature_id}
+  positive_sum, negative_sum, updated_at
+
+tmdb_catalog/{media_type}_{tmdb_id}
+  TMDB details, extracted feature IDs, display labels, catalog version,
+  fetched_at, indexed feature snapshot and stats indexing version
+
+tmdb_feature_stats/{group}
+  document_count, stats_version, updated_at
+
+tmdb_feature_stats/{group}/features/{feature_id}
+  document_frequency, stats_version, updated_at
+~~~
+
+The shared catalogue is application-wide metadata cache; user watch and taste records remain UID-scoped. The catalogue feature index increments each media item once per feature-stat version and adjusts document-frequency counters if its indexed feature snapshot changes.
+
+## 9. Taste Engine V1 invariants
 
 - Only watched records contribute.
-- Rating baseline is 5.5; rating sentiment maps to [-1, 1].
-- Unrated watched title contribution is +0.15.
-- Feature groups are L2-normalized independently.
-- Current group weights: genres 1.0, keywords 1.2, people 1.0, decades 0.35.
-- Exact contribution is stored on each watch so edits/deletes can reverse it.
-- Watch mutation and vector change occur in the same Firestore transaction.
-- TMDB metadata failure may leave contribution pending while the watch write succeeds; later metadata-dependent operations can retry.
+- Rating baseline is 5.5. Ratings below 5.5 map to negative sentiment; ratings above 5.5 map to positive sentiment, bounded to [-1, 1].
+- An unrated watched title contributes a weak positive signal of +0.15.
+- Feature groups are genres, keywords, people, and decades.
+- Movie people features use directors; TV people features use creators.
+- Per-group feature contributions are independently L2-normalized.
+- Group weights used by the recommender are genres 1.0, keywords 1.2, people 1.0, decades 0.35.
+- The exact contribution snapshot is stored on the watch record.
+- Add, edit, status transition and delete operations reverse old deltas and apply new deltas inside the same Firestore transaction as the watch update.
+- TMDB metadata failure can leave a watched record in pending state without pretending that its taste contribution was applied.
+- Model and schema versions are persisted; change scoring/extraction rules only with an explicit migration strategy.
 
-These scoring values are V1 implementation details and should be model-versioned. Taste is an inferred preference summary, not an objective psychological profile.
+## 10. Shared cache and errors
 
-## 6. Errors
+TMDB feature metadata cache TTL is 180 days. The in-memory TMDB client cache has endpoint-specific short TTLs and is not a durable source of truth.
 
-| Condition | Expected class |
+| Condition | Expected status/behaviour |
 |---|---|
 | Missing/invalid bearer token | 401 |
-| Username conflict | 409 |
+| Unsynchronized Dex profile on protected route | 401 |
+| Username already claimed | 409 |
+| Duplicate watch create | 409 |
+| Missing or other-user watch lookup | 404 |
 | Invalid request/query | 422 |
-| TMDB upstream failure | 502 where mapped |
-| Rate limit exceeded | SlowAPI response |
-| Infrastructure failure | 5xx |
+| TMDB upstream failure | 502 where explicitly mapped |
+| Rate limit exceeded | 429 |
+| Unhandled infrastructure failure | 5xx |
 
-Use current OpenAPI for exact response bodies.
+Use runtime OpenAPI for exact response schemas. Do not interpret a 404/405 from the live host as proof of the current main-branch route definition; compare the deployed version in /api/health.
 
-## 7. Persistence and lifecycle
+## 11. Versioning and related docs
 
-Firestore is the application store. User data is nested under UID-scoped paths; shared TMDB feature metadata has a separate cache path. A formal backup, restore, retention, export, and deletion runbook is not established in this documentation.
+The HTTP API has no /v1 URL prefix. Coordinate breaking changes with the frontend. Taste model and recommendation algorithm versions are separately versioned.
 
-## 8. Versioning
-
-The API currently has no explicit /v1 URL prefix. Coordinate breaking changes with frontend deployment. Version the taste model independently from the HTTP API.
+- [Architecture](03_Architecture.md)
+- [Recommendation Engine](11_Recommendations_Engine.md)
+- [Deployment Runbook](12_Deployment_Runbook.md)

@@ -1,6 +1,6 @@
 # System Architecture
 
-> **Status:** Baseline — current logical architecture  
+> **Status:** Maintained architecture — current logical architecture  
 > **Owner:** Dex maintainers  
 > **Last updated:** 2026-11-02
 
@@ -42,6 +42,8 @@ flowchart LR
 | TMDB service | Search/trending/details | HTTPX |
 | TMDB catalog service | Cache taste feature metadata | Firestore + TMDB |
 | Taste service | Compute/reverse vector contributions | Python + Firestore transactions |
+| Recommendation service | Retrieve candidates, calculate signed relevance, diversify slots | Python + TMDB + Firestore feature statistics |
+| Backfill service | Enrich legacy watched records with repeatable cursor pagination | Python + Firestore transactions |
 | Hosting | Serve app and API | Vercel / Render |
 
 ## 5. Runtime and deployment
@@ -90,7 +92,27 @@ sequenceDiagram
     API-->>UI: Mutation result
 ```
 
-When TMDB metadata is unavailable, current backend documentation describes saving the watch with taste metadata pending; verify this invariant in regression tests.
+When TMDB metadata is unavailable, a watch can persist with taste metadata pending; the backfill endpoint can retry later.
+
+### Personalized recommendations
+
+```mermaid
+sequenceDiagram
+    participant UI as Home page
+    participant API as FastAPI
+    participant DB as Firestore
+    participant TMDB
+    UI->>API: GET /api/recommendations + Firebase ID token
+    API->>DB: Read watches, all-time vectors and feature statistics
+    API->>TMDB: Retrieve primary and weekly-trending candidates
+    API->>TMDB: Enrich selected candidates through shared catalog cache
+    API->>API: Score, explain, percentile-rank and diversify
+    API-->>UI: Safe / Adjacent / Wildcard slots + profile status
+```
+
+### Historical taste backfill
+
+The user invokes `POST /api/taste/backfill` in bounded pages. The service fetches missing TMDB features and uses the same transactional watch/taste mutation path used by normal watch updates. Cursor pagination resumes after the last processed watch; completed entries are skipped on a repeated pass.
 
 ## 7. State ownership
 
@@ -101,6 +123,7 @@ When TMDB metadata is unavailable, current backend documentation describes savin
 | Username ownership | usernames/{name} | Registry conflict handling |
 | Watch | User watch subcollection | API mutation path |
 | Taste counters | User taste profile | Updated with watch transaction |
+| Recommendation feature frequencies | `tmdb_feature_stats` | Shared catalogue document-frequency index |
 | Taste vectors | User taste_vectors hierarchy | Exact contribution reversal |
 | Shared media features | tmdb_catalog | Cached/re-fetched metadata |
 
@@ -115,7 +138,8 @@ When TMDB metadata is unavailable, current backend documentation describes savin
 | TMDB failure | Controlled upstream error |
 | Rate limit exceeded | SlowAPI response |
 | Firestore failure | Mutation fails |
-| Taste metadata unavailable | Pending metadata behaviour where implemented |
+| Taste metadata unavailable | Watch can persist as pending; backfill can retry |
+| Missing production API routes | Deployment/version mismatch | Inspect `/api/health`, Render service branch/root, and active deploy; see runbook |
 
 ## 9. Observability
 
@@ -132,3 +156,5 @@ Firestore avoids operating a relational database but requires careful transactio
 - [Security](08_Security.md)
 - [Testing](09_Testing.md)
 - [ADRs](../ADR/README.md)
+- [Recommendation Engine](11_Recommendations_Engine.md)
+- [Deployment Runbook](12_Deployment_Runbook.md)

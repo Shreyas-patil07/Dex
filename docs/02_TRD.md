@@ -1,6 +1,6 @@
 # Technical Requirements Document (TRD)
 
-> **Status:** Baseline — reflects repository configuration  
+> **Status:** Maintained technical specification — reflects current main-branch configuration  
 > **Owner:** Dex maintainers  
 > **Last updated:** 2026-11-02
 
@@ -19,6 +19,8 @@ Dex uses a React browser client backed by a Python FastAPI service. Firebase Aut
 | Identity | Firebase Authentication | Auth tests |
 | Persistence | Cloud Firestore | Integration tests |
 | Catalogue | TMDB API v3 | Service tests |
+| Recommendations | Feature-vector retrieval/scoring, IDF, recent decay, MMR | Recommendation unit/API tests |
+| Historical profile migration | Cursor-paginated Firestore backfill | Backfill idempotency and vector tests |
 | Hosting | Vercel + Render | Deployment checks |
 | Network | HTTPS in production | Configuration review |
 
@@ -62,6 +64,10 @@ Respect TMDB current terms, attribution, branding, image and rate-limit requirem
 - Watch/taste mutations must preserve transaction integrity.
 - Frontend variables prefixed with VITE_ are browser-visible.
 - Shared rate-limit storage is required before horizontally scaling API instances.
+- Recommendations read the persisted all-time profile and rebuild a 90-day-half-life recent profile from watched contribution snapshots at request time.
+- The recommendation score blends all-time evidence (75%) and recent evidence (25%); candidate-pool percentiles are not probabilities.
+- Shared catalogue feature statistics maintain document frequency for IDF weighting; catalogue entries are versioned and cached for 180 days.
+- Historical backfill is intentionally paginated (max 50 records per request) and rate-limited to 5 requests/minute.
 
 ## 6. Build and delivery
 
@@ -77,8 +83,8 @@ Keep route orchestration in API layer and reusable logic in services. Derive use
 |---|---|---|
 | Rate-limit store | memory:// default | High; shared store before scaling |
 | Firestore rules | Not in source tree | Unknown; audit Firebase console |
-| Taste model versioning | Version metadata exists | High; document migration/rebuild |
-| Recommendation ranking | Product intent exists; verify shipped surface | Validate current API/UI |
+| Taste model versioning | Model/schema version 1 in stored contributions/profile | High; version migrations and rebuilds |
+| Recommendation ranking | V1 API and home-page UI are implemented | Validate live API and evaluate ranking quality |
 | Data export/deletion | Not specified here | Define lifecycle |
 | Observability/SLO | Host logs/health/CI; no SLO | Add metrics/alerts |
 
@@ -88,3 +94,5 @@ Keep route orchestration in API layer and reusable logic in services. Derive use
 - [Architecture](03_Architecture.md)
 - [Data schema](06_Protocol_and_Data_Schema.md)
 - [ADRs](../ADR/README.md)
+- [Recommendation Engine](11_Recommendations_Engine.md)
+- [Deployment Runbook](12_Deployment_Runbook.md)

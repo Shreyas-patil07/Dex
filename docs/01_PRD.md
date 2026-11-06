@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD)
 
-> **Status:** Baseline — inferred from current product and implementation  
+> **Status:** Maintained specification — reflects current main-branch implementation  
 > **Owner:** Dex maintainers  
 > **Last updated:** 2026-11-02
 
@@ -19,7 +19,9 @@ Entertainment activity is fragmented across streaming services, search engines, 
 - Search titles and inspect metadata.
 - Provide Firebase-backed sign-in and a unique Dex profile.
 - Maintain authenticated watch records.
-- Derive taste signals from watched media and maintain them as records change.
+- Derive signed taste signals from watched media and maintain them incrementally.
+- Generate explainable Safe, Adjacent, and Wildcard recommendations.
+- Migrate legacy watched records into the taste profile through safe, repeatable backfill.
 - Provide responsive web access with deployed frontend/API.
 
 ### Non-goals
@@ -41,9 +43,9 @@ Primary journeys: browse trending titles; search/open a title; sign in and synch
 
 ## 5. Scope
 
-Current: trending, search, media details, Firebase authentication, normalized unique usernames, profile/watch CRUD, taste feature extraction and incremental updates, Vercel/Render deployment.
+Current: trending, search, media details, Firebase authentication, normalized unique usernames, profile/watch CRUD, taste feature extraction and incremental updates, historical taste backfill, personalized three-slot recommendations, per-title library status lookup, Vercel/Render configuration.
 
-Potential future scope (not a commitment): explainable recommendation ranking, taste visualisations, expanded social features, account export/deletion, and broader regional provider coverage.
+Potential future scope (not a commitment): taste visualisations, expanded social features, account export/deletion, recommendation-quality evaluation, and broader regional provider coverage.
 
 Out of scope: video playback, content licensing, scraping private streaming accounts, and storing streaming credentials.
 
@@ -63,6 +65,9 @@ Out of scope: video playback, content licensing, scraping private streaming acco
 | FR-010 | Reverse taste contributions on edit/delete | MUST | Watch and vectors mutate atomically |
 | FR-011 | Expose health endpoint | MUST | GET /api/health returns HTTP 200 |
 | FR-012 | Support responsive core flows | SHOULD | Core pages usable on mobile/desktop |
+| FR-013 | Read one user's watch entry | MUST | `GET /api/watches/{watch_id}` returns only the authenticated user's entry; absent/other-user entry returns 404 |
+| FR-014 | Generate personalized discovery slots | SHOULD | Authenticated recommendations return Safe, Adjacent, and Wildcard slots with explicit score semantics |
+| FR-015 | Backfill historical watched titles | MUST | Idempotent cursor pagination enriches only watched records and applies each taste contribution transactionally |
 
 ## 7. Non-functional requirements
 
@@ -93,6 +98,7 @@ Firebase Authentication, Cloud Firestore, TMDB terms/attribution, Vercel, Render
 | TMDB outage/quota | Discovery/detail failures | Controlled errors and monitoring |
 | In-memory limits across instances | Divergent counters | Shared Redis before scaling |
 | Sparse-history taste bias | Weak profiles | Evaluate model and expose coverage |
+| Backend deployment drift | Frontend calls routes missing from the active API revision | Health/version endpoint, Render branch/build config, authenticated smoke tests |
 | Firestore rule/config drift | Exposure/service failure | Audit production rules and IAM |
 | Provider data changes | Stale/incomplete availability | Avoid guarantees |
 | Data export/deletion unclear | Privacy risk | Specify and test lifecycle |
@@ -107,3 +113,5 @@ Critical API/taste tests pass; frontend typecheck/build pass; production secrets
 - [Architecture](03_Architecture.md)
 - [API and data schema](06_Protocol_and_Data_Schema.md)
 - [Testing](09_Testing.md)
+- [Recommendation Engine](11_Recommendations_Engine.md)
+- [Deployment Runbook](12_Deployment_Runbook.md)

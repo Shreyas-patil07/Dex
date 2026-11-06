@@ -1,6 +1,6 @@
 # Test Strategy and Validation
 
-> **Status:** Current automated test baseline plus recommended coverage  
+> **Status:** Current automated test baseline with latest main-branch evidence  
 > **Owner:** Dex maintainers  
 > **Last updated:** 2026-11-02
 
@@ -37,6 +37,10 @@ Verify catalogue endpoints, Firebase identity, username ownership, watch lifecyc
 | T-009 | FR-010 | Repeated edits/deletes | No vector drift/double subtraction |
 | T-010 | NFR-002 | Cross-user request | No other user's data |
 | T-011 | NFR-001 | Secret scan | No credentials in repo/build |
+| T-012 | FR-013 | Read single watch as owner and another user | Owner receives 200; another user receives 404 |
+| T-013 | FR-014 | Recommendation endpoint auth/slots | Missing auth is 401; authenticated call returns Safe/Adjacent/Wildcard keys |
+| T-014 | FR-015 | Backfill pagination and repeat pass | Cursor and counters correct; repeated run skips completed record |
+| T-015 | NFR-004 | API health method/version contract | GET returns JSON version; HEAD returns 200 with no body |
 
 ## 4. Environments
 
@@ -76,7 +80,19 @@ No verified benchmark values are recorded. Measure p50/p95 trending/search/detai
 - Secrets and allowed origins are reviewed.
 - Known limitations are documented.
 
-## 8. Evidence
+## 8. Latest verified CI evidence
+
+**Commit:** `2101f34e2b9408b965b1d92658e424b04a47db9a` (`Configure Render to deploy main and health-check the API`)  
+**Workflow run:** [42286609985](https://github.com/Shreyas-patil07/Dex/actions/runs/42286609985) — completed successfully on 2026-11-07 local date.
+
+- Backend: `python -m compileall app tests` passed; `pytest -q` reported **30 passed, 1 warning**.
+- Frontend: `npm ci`, `npm run typecheck`, and `npm run build` passed.
+- Vercel status check for the commit: success.
+- Render live deployment and authenticated production API smoke tests: **not verified**. Browser evidence supplied on 2026-11-07 showed `/api/recommendations` returning 404 and `GET /api/watches/{watch_id}` returning 405 from the live API. See [Deployment Runbook](12_Deployment_Runbook.md).
+
+The pytest warning was a Starlette/httpx TestClient deprecation warning. The workflow also emitted GitHub Actions Node 20 deprecation warnings for some actions; these are maintenance warnings, not failing checks.
+
+## 9. Evidence
 
 - CI: https://github.com/Shreyas-patil07/Dex/actions
 - Backend tests: backend/tests/
@@ -84,7 +100,7 @@ No verified benchmark values are recorded. Measure p50/p95 trending/search/detai
 - TMDB client: backend/app/services/tmdb.py
 - API: backend/app/main.py
 
-## 9. Current CI commands
+## 10. Current CI commands
 
 Frontend: `npm ci`, `npm run typecheck`, `npm run build`.  
 Backend: `pip install -r requirements-dev.txt`, `python -m compileall app tests`, `pytest -q`.

@@ -4,7 +4,9 @@
 
 Dex is a movie and series discovery, watch-history, and taste-profiling platform. It brings discovery, viewing records, ratings, and a personal entertainment profile into one place.
 
-> **Documentation status:** Project documentation baseline  
+> **Documentation status:** Maintained engineering docs — updated 2026-11-07  
+> **Backend source version:** 0.5.1  
+> **Production API status:** Render deployment still requires live verification  
 > **Frontend:** https://dex-list.vercel.app/  
 > **Backend API:** https://dex-connect.onrender.com/  
 > **API docs:** https://dex-connect.onrender.com/docs
@@ -18,6 +20,8 @@ Dex is a movie and series discovery, watch-history, and taste-profiling platform
 - Create a unique Dex username and profile.
 - Track watched, want-to-watch, and in-future titles with optional ratings, dates, and notes.
 - Maintain an evolving taste profile derived from watched titles.
+- Generate personalized Safe, Adjacent, and Wildcard recommendations for signed-in users.
+- Backfill historical watched titles into the taste model with a paginated, idempotent operation.
 
 ## Technology stack
 
@@ -37,7 +41,10 @@ Dex is a movie and series discovery, watch-history, and taste-profiling platform
 Dex/
 ├── .github/                    # CI workflow and PR template
 ├── ADR/                        # Architecture Decision Records
-├── docs/                       # Product and engineering documents
+├── docs/                       # Product, engineering, recommendation and operations docs
+│   ├── README.md                 # Documentation index and current status
+│   ├── 11_Recommendations_Engine.md
+│   └── 12_Deployment_Runbook.md
 ├── Research documentation/     # Supporting product/design research
 ├── backend/
 │   ├── app/services/             # Firebase auth, TMDB, taste engine
@@ -135,7 +142,7 @@ uvicorn app.main:app --reload
 
 | Method | Route | Purpose |
 |---|---|---|
-| GET | `/api/health` | Health check |
+| GET/HEAD | `/api/health` | Public health check and source API version |
 | GET | `/api/search` | Search movies and TV titles |
 | GET | `/api/media/trending` | Trending media |
 | GET | `/api/media/{media_type}/{tmdb_id}` | Media details and India provider data |
@@ -143,8 +150,12 @@ uvicorn app.main:app --reload
 | GET | `/api/auth/username/available` | Check username availability |
 | POST | `/api/auth/username` | Claim username |
 | GET | `/api/me` | Current user profile |
-| GET/POST | `/api/watches` | List/create watch records |
+| GET | `/api/watches` | List current user's watch records |
+| POST | `/api/watches` | Create a watch record |
+| GET | `/api/watches/{watch_id}` | Read one current-user watch record (404 when absent) |
 | PATCH/DELETE | `/api/watches/{watch_id}` | Update/delete watch record |
+| GET | `/api/recommendations` | Authenticated Safe/Adjacent/Wildcard recommendations |
+| POST | `/api/taste/backfill` | Paginated historical watched-title metadata backfill |
 | GET | `/api/watch-statuses` | Supported watch statuses |
 
 Protected requests send `Authorization: Bearer <firebase-id-token>`. The live OpenAPI document is the definitive contract.
@@ -166,15 +177,24 @@ users/{firebase_uid}/taste/profile
   model/schema versions and profiled watch counters
 
 users/{firebase_uid}/taste_vectors/{group}/features/{feature_id}
-  positive and negative feature sums
+  positive and negative all-time feature sums
 
 tmdb_catalog/{media_type}_{tmdb_id}
-  cached TMDB-derived feature metadata
+  cached TMDB-derived feature metadata and display labels
+
+tmdb_feature_stats/{group}/features/{feature_id}
+  shared document-frequency statistics used by recommendation IDF weighting
 ```
 
 ## Taste engine V1
 
 Only `watched` records contribute; want-to-watch and in-future records are excluded. Current backend design uses genre, keyword, people (movie directors or TV creators), and decade features. Feature groups are independently L2-normalized. Weights are genres 1.0, keywords 1.2, people 1.0, decades 0.35. A rating baseline of 5.5 maps ratings to signed sentiment in [-1, 1]; unrated watched titles contribute +0.15. Exact contributions are persisted so edits and deletes can reverse them in the same Firestore transaction as the watch mutation.
+
+## Personalized recommendations
+
+The authenticated `GET /api/recommendations` endpoint returns three slots: `safe` (highest relevance), `adjacent` (relevance/diversity trade-off), and `wildcard` (separate weekly-trending retrieval with novelty bias). The V1 scorer combines 75% all-time profile evidence with 25% recent evidence using a 90-day half-life, signed positive/negative taste vectors, and feature IDF weighting. `match_percent` is a percentile within the request's enriched candidate pool, **not** a probability that the user will like a title. See [Recommendation Engine](docs/11_Recommendations_Engine.md).
+
+Existing watched titles may require `POST /api/taste/backfill?limit=50` after deployment. Continue with the returned `next_cursor` until `complete` is true; rerun from the first page later to retry TMDB-pending records. Backfill is authenticated, rate-limited, idempotent, and excludes non-watched titles.
 
 ## Quality checks
 
@@ -201,6 +221,10 @@ CI runs frontend typechecking/build and backend compilation/tests on pushes and 
 - Frontend: Vercel — https://dex-list.vercel.app/
 - Backend: Render — https://dex-connect.onrender.com/
 - Identity and persistence: Firebase Authentication and Cloud Firestore.
+- Render Blueprint: root `render.yaml` specifies `branch: main`, `rootDir: backend`, `autoDeployTrigger: commit`, and `healthCheckPath: /api/health`.
+- Backend source version 0.5.1 is committed on `main`. The Render service's active deployment has **not yet been verified** against this source revision; do not treat a successful GitHub/Vercel check as proof of a successful Render deploy.
+
+For deployment verification commands and expected HTTP codes, see the [Deployment Runbook](docs/12_Deployment_Runbook.md).
 
 The backend defaults to `memory://` for rate-limit storage. Use shared storage such as Redis before running multiple backend instances. Never expose Firebase Admin credentials or TMDB secrets through frontend `VITE_*` variables.
 
@@ -217,7 +241,10 @@ The backend defaults to `memory://` for rate-limit storage. Use shared storage s
 | [07 — Implementation](docs/07_Implementation.md) | Delivery plan and backlog |
 | [08 — Security](docs/08_Security.md) | Threats, identity, privacy |
 | [09 — Testing](docs/09_Testing.md) | Verification strategy |
-| [10 — Development Log](docs/10_Development_Log.md) | Milestones and changes |
+| [10 — Development Log](docs/10_Development_Log.md) | Chronological implementation and validation record |
+| [11 — Recommendation Engine](docs/11_Recommendations_Engine.md) | Recommendation retrieval, scoring, slots, and semantics |
+| [12 — Deployment Runbook](docs/12_Deployment_Runbook.md) | Render/Vercel configuration and production smoke tests |
+| [Documentation index](docs/README.md) | Start here; current implementation and evidence |
 | [ADR index](ADR/README.md) | Durable architecture decisions |
 
 Supporting research: [Research documentation](Research%20documentation/).
