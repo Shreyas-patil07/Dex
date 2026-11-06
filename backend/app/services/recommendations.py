@@ -103,6 +103,13 @@ def build_recent_profile(
     return recent, included
 
 
+def build_all_time_profile(
+    watches: list[dict[str, Any]],
+) -> tuple[dict[str, dict[str, dict[str, float]]], int]:
+    """Rebuild the signed all-time profile from each watch's stored contribution."""
+    return build_recent_profile(watches, half_life_days=float("inf"))
+
+
 def cosine_group_score(
     user_positive: dict[str, float],
     user_negative: dict[str, float],
@@ -219,24 +226,6 @@ class TasteRecommendationService:
             }
             for group in FEATURE_GROUPS
         }
-
-    async def _load_vectors(self, user_document: Any) -> dict[str, dict[str, dict[str, float]]]:
-        profile = _empty_profile()
-        for group in FEATURE_GROUPS:
-            feature_collection = (
-                user_document.collection("taste_vectors")
-                .document(group)
-                .collection("features")
-            )
-            async for snapshot in feature_collection.stream():
-                data = snapshot.to_dict() or {}
-                positive = _number(data.get("positive_sum"))
-                negative = _number(data.get("negative_sum"))
-                if positive:
-                    profile[group]["positive"][snapshot.id] = positive
-                if negative:
-                    profile[group]["negative"][snapshot.id] = negative
-        return profile
 
     async def _load_idf(
         self,
@@ -574,7 +563,7 @@ class TasteRecommendationService:
         unavailable = sum(1 for watch in watched if watch.get("taste_metadata_status") == "not_found")
         pending = len(watched) - len(ready) - unavailable
 
-        all_time = await self._load_vectors(user_document)
+        all_time, all_time_count = build_all_time_profile(watches)
         recent, recent_count = build_recent_profile(watches)
         idf = await self._load_idf(db, all_time)
         primary_candidates, wildcard_candidates = await self._retrieve_candidates(all_time, watches)
@@ -744,6 +733,7 @@ class TasteRecommendationService:
                 "metadata_ready_titles": len(ready),
                 "pending_titles": pending,
                 "metadata_unavailable_titles": unavailable,
+                "profiled_titles": all_time_count,
                 "backfill_complete": pending == 0,
             },
             "recent_profile": {
