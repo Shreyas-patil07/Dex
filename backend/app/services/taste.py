@@ -104,39 +104,6 @@ def _has_signal(contribution: dict[str, Any] | None) -> bool:
     )
 
 
-def _feature_document_id(feature_id: str) -> str:
-    # Feature IDs are normally TMDB numeric IDs or decade strings. Quote any
-    # remaining reserved characters so no user-controlled slash enters a path.
-    return quote(str(feature_id), safe="-_.~")
-
-
-def _accumulate_contribution(
-    deltas: dict[tuple[str, str], dict[str, float]],
-    contribution: dict[str, Any] | None,
-    multiplier: float,
-) -> None:
-    if not _has_signal(contribution):
-        return
-    direction = contribution.get("direction")
-    if direction not in {"positive", "negative"}:
-        return
-    field = "positive_sum" if direction == "positive" else "negative_sum"
-    weights = contribution.get("weights") or {}
-    for group, feature_weights in weights.items():
-        if group not in FEATURE_GROUPS or not isinstance(feature_weights, dict):
-            continue
-        for feature_id, value in feature_weights.items():
-            try:
-                numeric_value = float(value)
-            except (TypeError, ValueError):
-                continue
-            if not feature_id or abs(numeric_value) <= EPSILON:
-                continue
-            key = (group, str(feature_id))
-            deltas.setdefault(key, {"positive_sum": 0.0, "negative_sum": 0.0})
-            deltas[key][field] += multiplier * numeric_value
-
-
 def _apply_profile_delta(
     transaction: Any,
     user_document: Any,
@@ -146,27 +113,7 @@ def _apply_profile_delta(
 ) -> None:
     old_has_signal = _has_signal(old_contribution)
     new_has_signal = _has_signal(new_contribution)
-    if old_contribution == new_contribution:
-        return
-
-    deltas: dict[tuple[str, str], dict[str, float]] = {}
-    _accumulate_contribution(deltas, old_contribution, -1.0)
-    _accumulate_contribution(deltas, new_contribution, 1.0)
-
     now = datetime.now(timezone.utc)
-    vectors = user_document.collection("taste_vectors")
-    for (group, feature_id), amounts in deltas.items():
-        updates: dict[str, Any] = {"updated_at": now}
-        for field, amount in amounts.items():
-            if abs(amount) > EPSILON:
-                updates[field] = firestore.Increment(round(amount, 12))
-        if len(updates) > 1:
-            feature_ref = (
-                vectors.document(group)
-                .collection("features")
-                .document(_feature_document_id(feature_id))
-            )
-            transaction.set(feature_ref, updates, merge=True)
 
     profiled_delta = int(new_has_signal) - int(old_has_signal)
     rated_delta = int(
@@ -179,6 +126,7 @@ def _apply_profile_delta(
     profile_data: dict[str, Any] = {
         "schema_version": TASTE_SCHEMA_VERSION,
         "model_version": TASTE_MODEL_VERSION,
+        "profile_version": firestore.Increment(1),
         "updated_at": now,
     }
     if not profile_snapshot.exists:
