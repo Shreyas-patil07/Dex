@@ -324,6 +324,19 @@ async def add_watch(
     return watch_public(doc_id, data)
 
 
+@app.get("/api/watches/{watch_id}", response_model=WatchPublic)
+async def get_watch(
+    watch_id: str,
+    current=Depends(current_user),
+    db=Depends(get_firestore),
+) -> WatchPublic:
+    firebase_uid, _ = current
+    snapshot = await user_ref(db, firebase_uid).collection("watches").document(watch_id).get()
+    if not snapshot.exists:
+        raise HTTPException(status_code=404, detail="Watch entry not found")
+    return watch_public(watch_id, snapshot.to_dict() or {})
+
+
 @app.patch("/api/watches/{watch_id}", response_model=WatchPublic)
 async def update_watch(
     watch_id: str,

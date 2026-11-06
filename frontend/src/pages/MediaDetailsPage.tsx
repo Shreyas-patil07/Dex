@@ -39,7 +39,8 @@ export const MediaDetailsPage: React.FC = () => {
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const [signedIn, setSignedIn] = useState(getCachedAuthState() === 'signed_in');
   const [adding, setAdding] = useState(false);
-  const [added, setAdded] = useState(false);
+  const [checkingList, setCheckingList] = useState(false);
+  const [existingStatus, setExistingStatus] = useState<'watched' | 'want_to_watch' | 'in_future' | null>(null);
   const [listError, setListError] = useState('');
 
   useEffect(() => subscribeToAuthSession((currentUser) => {
@@ -57,7 +58,7 @@ export const MediaDetailsPage: React.FC = () => {
     setLoading(true);
     setError('');
     setItem(null);
-    setAdded(false);
+    setExistingStatus(null);
     fetch(`${API_BASE}/api/media/${mediaType}/${tmdbId}`, { signal: controller.signal })
       .then(async response => {
         if (!response.ok) throw new Error('Could not load this title.');
@@ -70,6 +71,59 @@ export const MediaDetailsPage: React.FC = () => {
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, [mediaType, tmdbId]);
+
+  useEffect(() => {
+    if (!user || !mediaType || !tmdbId) {
+      setExistingStatus(null);
+      setCheckingList(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    let active = true;
+    setCheckingList(true);
+    setListError('');
+
+    (async () => {
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch(
+          `${API_BASE}/api/watches/${mediaType}_${tmdbId}`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
+        );
+
+        if (response.status === 404) {
+          if (active) setExistingStatus(null);
+          return;
+        }
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.detail || 'Could not check your list.');
+        }
+
+        const data = await response.json();
+        if (active) {
+          const status = data.status;
+          setExistingStatus(
+            status === 'watched' || status === 'want_to_watch' || status === 'in_future'
+              ? status
+              : 'want_to_watch'
+          );
+        }
+      } catch (err) {
+        if (active && err instanceof Error && err.name !== 'AbortError') {
+          setListError(err.message || 'Could not check your list.');
+        }
+      } finally {
+        if (active) setCheckingList(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [user, mediaType, tmdbId]);
 
   const isSignedIn = user !== null || signedIn;
   const title = item?.title || item?.name || 'Untitled';
@@ -84,7 +138,7 @@ export const MediaDetailsPage: React.FC = () => {
   }, [providers]);
 
   const addToList = async () => {
-    if (!isSignedIn || !item || !mediaType || !tmdbId) return;
+    if (!isSignedIn || existingStatus || !item || !mediaType || !tmdbId) return;
     const currentUser = auth.currentUser;
     if (!currentUser) {
       window.location.assign('/sign-up');
@@ -111,11 +165,25 @@ export const MediaDetailsPage: React.FC = () => {
       });
       const data = await response.json().catch(() => ({}));
       if (response.status === 409) {
-        setAdded(true);
+        const existingResponse = await fetch(
+          `${API_BASE}/api/watches/${mediaType}_${tmdbId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (existingResponse.ok) {
+          const existingData = await existingResponse.json();
+          const status = existingData.status;
+          setExistingStatus(
+            status === 'watched' || status === 'want_to_watch' || status === 'in_future'
+              ? status
+              : 'want_to_watch'
+          );
+        } else {
+          setExistingStatus('want_to_watch');
+        }
         return;
       }
       if (!response.ok) throw new Error(data.detail || 'Could not add this title to your list.');
-      setAdded(true);
+      setExistingStatus('want_to_watch');
     } catch (err) {
       setListError(err instanceof Error ? err.message : 'Could not add this title to your list.');
     } finally {
@@ -169,9 +237,19 @@ export const MediaDetailsPage: React.FC = () => {
       </section>
 
       <section className="mt-5 flex flex-wrap items-center gap-3">
-        <button onClick={addToList} disabled={!isSignedIn || adding || added} className={`inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-colors ${added ? 'border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 text-[#99F6E4]' : 'bg-[#7C3AED] text-white hover:bg-[#6D28D9]'} disabled:cursor-default disabled:opacity-70`}>
-          {added ? <Check size={17} /> : <ListPlus size={17} />}
-          {added ? 'Added to list' : adding ? 'Adding…' : 'Add to list'}
+        <button onClick={addToList} disabled={!isSignedIn || !user || checkingList || adding || existingStatus !== null} className={`inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-colors ${existingStatus ? 'border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 text-[#99F6E4]' : 'bg-[#7C3AED] text-white hover:bg-[#6D28D9]'} disabled:cursor-default disabled:opacity-70`}>
+          {existingStatus ? <Check size={17} /> : checkingList ? <Clock3 size={17} /> : <ListPlus size={17} />}
+          {existingStatus === 'watched'
+            ? 'Already watched'
+            : existingStatus === 'want_to_watch'
+              ? 'In your watchlist'
+              : existingStatus === 'in_future'
+                ? 'Planned for later'
+                : checkingList
+                  ? 'Checking your list…'
+                  : adding
+                    ? 'Adding…'
+                    : 'Add to list'}
         </button>
         {!isSignedIn && <a href="/sign-up" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] px-5 py-3 text-sm font-semibold text-[#CBD5E1] hover:border-white/[0.14] hover:text-white"><LogIn size={16} /> Sign in to add</a>}
         {listError && <p className="basis-full text-sm text-rose-300">{listError}</p>}

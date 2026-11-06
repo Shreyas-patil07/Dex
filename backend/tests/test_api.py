@@ -212,6 +212,42 @@ def test_watch_crud_is_isolated_by_firebase_uid(api_client):
 
 
 
+
+def test_get_watch_returns_existing_status_and_is_user_scoped(api_client):
+    sync_account(api_client, "alice")
+    sync_account(api_client, "bob")
+    created = api_client.post(
+        "/api/watches",
+        headers=auth_headers("alice"),
+        json={
+            "tmdb_id": 550,
+            "media_type": "movie",
+            "title": "Fight Club",
+            "status": "want_to_watch",
+        },
+    )
+    assert created.status_code == 201
+
+    found = api_client.get(
+        "/api/watches/movie_550",
+        headers=auth_headers("alice"),
+    )
+    missing_for_other_user = api_client.get(
+        "/api/watches/movie_550",
+        headers=auth_headers("bob"),
+    )
+    missing_title = api_client.get(
+        "/api/watches/movie_999",
+        headers=auth_headers("alice"),
+    )
+
+    assert found.status_code == 200
+    assert found.json()["id"] == "movie_550"
+    assert found.json()["status"] == "want_to_watch"
+    assert missing_for_other_user.status_code == 404
+    assert missing_title.status_code == 404
+
+
 def test_watched_title_updates_positive_and_negative_vectors_atomically(api_client, monkeypatch):
     sync_account(api_client, "taste-user")
 
