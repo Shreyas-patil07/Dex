@@ -136,10 +136,20 @@ class TMDBCatalog:
         db: Any,
         cache_ref: Any,
         features: dict[str, list[str]],
+        cached_snapshot: Any | None = None,
     ) -> None:
         """Maintain global document-frequency counters exactly once per catalog item."""
         if not hasattr(db, "transaction"):
             return
+
+        if cached_snapshot is not None and cached_snapshot.exists:
+            cached = cached_snapshot.to_dict() or {}
+            normalized = normalize_taste_features(features)
+            if (
+                cached.get("stats_indexed_version") == FEATURE_STATS_VERSION
+                and normalize_taste_features(cached.get("indexed_features")) == normalized
+            ):
+                return
 
         normalized = normalize_taste_features(features)
         now = datetime.now(timezone.utc)
@@ -242,14 +252,17 @@ class TMDBCatalog:
             and isinstance((cached or {}).get("labels"), dict)
         )
         if is_fresh:
-            # The snapshot already proves whether this catalogue version has
-            # been indexed. Avoid opening a transaction on every cache hit.
             index_current = (
                 cached.get("stats_indexed_version") == FEATURE_STATS_VERSION
                 and normalize_taste_features(cached.get("indexed_features")) == normalize_taste_features(cached_features)
             )
             if not index_current:
-                await self._index_features(db, cache_ref, cached_features)
+                await self._index_features(
+                    db,
+                    cache_ref,
+                    cached_features,
+                    cached_snapshot=snapshot,
+                )
             return cached_features
 
         try:
