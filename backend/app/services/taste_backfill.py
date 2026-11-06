@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from .taste import TASTE_MODEL_VERSION, update_watch_atomically
-from .tmdb import TMDBError
+from .tmdb import TMDBError, TMDBNotFoundError
 
 
 DEFAULT_BACKFILL_PAGE_SIZE = 25
 MAX_BACKFILL_PAGE_SIZE = 50
+BACKFILL_FETCH_CONCURRENCY = 5
 
 
 async def backfill_watched_page(
@@ -46,9 +48,11 @@ async def backfill_watched_page(
     enriched = 0
     skipped = 0
     pending = 0
+    unavailable = 0
     pending_ids: list[str] = []
+    semaphore = asyncio.Semaphore(BACKFILL_FETCH_CONCURRENCY)
 
-    for snapshot in page:
+    async def resolve_metadata(snapshot):
         data = snapshot.to_dict() or {}
         contribution = data.get("taste_contribution")
         if (
@@ -59,17 +63,46 @@ async def backfill_watched_page(
                 or contribution.get("model_version") == TASTE_MODEL_VERSION
             )
         ):
+            return "skipped", None
+        if data.get("taste_metadata_status") == "not_found":
+            return "unavailable", None
+
+        async with semaphore:
+            try:
+                features = await catalog.get_features(
+                    db,
+                    tmdb,
+                    data["media_type"],
+                    int(data["tmdb_id"]),
+                )
+            except TMDBNotFoundError:
+                return "not_found", None
+            except TMDBError:
+                return "pending", None
+        return "ready", features
+
+    # Fetch TMDB metadata concurrently, but apply per-user profile transactions
+    # sequentially to reduce contention on the shared taste/profile documents.
+    resolved = await asyncio.gather(*(resolve_metadata(snapshot) for snapshot in page))
+
+    for snapshot, (state, features) in zip(page, resolved):
+        if state == "skipped":
             skipped += 1
             continue
-
-        try:
-            features = await catalog.get_features(
+        if state == "unavailable":
+            unavailable += 1
+            continue
+        if state == "not_found":
+            await update_watch_atomically(
                 db,
-                tmdb,
-                data["media_type"],
-                int(data["tmdb_id"]),
+                user_document,
+                snapshot.reference,
+                {},
+                metadata_status="not_found",
             )
-        except TMDBError:
+            unavailable += 1
+            continue
+        if state == "pending":
             await update_watch_atomically(
                 db,
                 user_document,
@@ -97,6 +130,7 @@ async def backfill_watched_page(
         "enriched": enriched,
         "skipped": skipped,
         "pending": pending,
+        "unavailable": unavailable,
         "pending_watch_ids": pending_ids,
         "next_cursor": page[-1].id if has_more and page else None,
         "complete": not has_more,

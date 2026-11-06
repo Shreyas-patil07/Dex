@@ -531,6 +531,78 @@ def test_watched_create_returns_404_for_unknown_tmdb_title(api_client, monkeypat
     assert ("users", "missing-tmdb", "watches", "movie_99999999") not in api_client.database.documents
 
 
+
+def test_backfill_marks_tmdb_404_permanent_and_does_not_retry(api_client, monkeypatch):
+    sync_account(api_client, "not-found-backfill")
+    database = api_client.database
+    watch_path = ("users", "not-found-backfill", "watches", "movie_99999999")
+    database.documents[watch_path] = {
+        "tmdb_id": 99999999,
+        "media_type": "movie",
+        "title": "Removed title",
+        "status": "watched",
+        "created_at": main.datetime.now(main.timezone.utc),
+    }
+    calls = []
+
+    async def missing_title(*args, **kwargs):
+        calls.append(True)
+        raise TMDBNotFoundError("TMDB title was not found")
+
+    monkeypatch.setattr(main.tmdb_catalog, "get_features", missing_title)
+    first = api_client.post(
+        "/api/taste/backfill?limit=10",
+        headers=auth_headers("not-found-backfill"),
+    )
+    second = api_client.post(
+        "/api/taste/backfill?limit=10",
+        headers=auth_headers("not-found-backfill"),
+    )
+
+    assert first.status_code == 200
+    assert first.json()["unavailable"] == 1
+    assert first.json()["pending"] == 0
+    assert second.json()["unavailable"] == 1
+    assert calls == [True]
+    assert database.documents[watch_path]["taste_metadata_status"] == "not_found"
+
+
+def test_backfill_fetches_tmdb_metadata_with_bounded_concurrency(api_client, monkeypatch):
+    import asyncio
+
+    sync_account(api_client, "concurrent-backfill")
+    database = api_client.database
+    for tmdb_id in range(100, 108):
+        database.documents[("users", "concurrent-backfill", "watches", f"movie_{tmdb_id}")] = {
+            "tmdb_id": tmdb_id,
+            "media_type": "movie",
+            "title": f"Movie {tmdb_id}",
+            "status": "watched",
+            "created_at": main.datetime.now(main.timezone.utc),
+        }
+
+    active = 0
+    max_active = 0
+
+    async def fake_get_features(db, tmdb_service, media_type, tmdb_id):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return {"genres": ["18"], "keywords": [], "people": [], "decades": []}
+
+    monkeypatch.setattr(main.tmdb_catalog, "get_features", fake_get_features)
+    response = api_client.post(
+        "/api/taste/backfill?limit=8",
+        headers=auth_headers("concurrent-backfill"),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["enriched"] == 8
+    assert 1 < max_active <= 5
+
+
 def test_recommendations_endpoint_is_authenticated_and_returns_three_slots(api_client, monkeypatch):
     sync_account(api_client, "rec-user")
 
