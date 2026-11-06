@@ -18,6 +18,12 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install --upgrade pip
+      - name: Resolve backend lock snapshot
+        run: |
+          python -m venv /tmp/dex-lock-venv
+          /tmp/dex-lock-venv/bin/python -m pip install --upgrade pip
+          /tmp/dex-lock-venv/bin/python -m pip install -r requirements-dev.txt
+          /tmp/dex-lock-venv/bin/python -m pip freeze | sort
       - run: pip install -r requirements-dev.txt
       - run: python -m compileall app tests
       - run: pytest -q
