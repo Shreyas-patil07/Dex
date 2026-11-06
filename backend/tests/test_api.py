@@ -277,6 +277,18 @@ def test_username_rejects_firestore_reserved_ids_and_names(api_client):
     ).json() == {"available": False}
 
 
+def test_username_availability_is_rate_limited(api_client):
+    statuses = [
+        api_client.get(
+            "/api/auth/username/available",
+            params={"username": f"filmfan{index}"},
+        ).status_code
+        for index in range(31)
+    ]
+    assert statuses[-1] == 429
+    assert statuses.count(429) == 1
+
+
 def test_username_rename_transaction_releases_old_claim(api_client):
     sync_account(api_client, "alice")
     sync_account(api_client, "bob")
