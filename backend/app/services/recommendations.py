@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import time
-from collections import OrderedDict
 from datetime import datetime, timezone
 from math import log, sqrt
 from typing import Any
-from urllib.parse import quote
 
 from .taste import FEATURE_GROUPS, GROUP_WEIGHTS
 from .tmdb import TMDBError
@@ -16,9 +13,6 @@ RECENT_HALF_LIFE_DAYS = 90.0
 RECENT_ALL_TIME_BLEND = 0.25
 MMR_LAMBDA = 0.45
 NEGATIVE_PENALTY = 1.0
-IDF_FEATURE_LIMIT = 100
-IDF_CACHE_TTL_SECONDS = 300
-IDF_FEATURE_CACHE_LIMIT = 1000
 PRIMARY_CANDIDATE_LIMIT = 18
 WILDCARD_CANDIDATE_LIMIT = 12
 ENRICH_CONCURRENCY = 4
@@ -58,6 +52,63 @@ def calculate_idf(document_count: int, document_frequency: int) -> float:
         return 1.0
     bounded_frequency = min(document_frequency, document_count)
     return log((document_count + 1) / (bounded_frequency + 1)) + 1.0
+
+
+def build_local_idf(
+    profile: dict[str, dict[str, dict[str, float]]],
+    watches: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+) -> dict[str, dict[str, float]]:
+    """Compute feature rarity from this user's watched set and current candidate pool."""
+    documents: list[dict[str, set[str]]] = []
+
+    for watch in watches:
+        if watch.get("status") != "watched":
+            continue
+        raw = watch.get("taste_features") or {}
+        if not isinstance(raw, dict):
+            raw = {}
+        contribution = watch.get("taste_contribution") or {}
+        weights = contribution.get("weights") or {}
+        document = {
+            group: set(map(str, raw.get(group, []) or []))
+            for group in FEATURE_GROUPS
+        }
+        for group in FEATURE_GROUPS:
+            if not document[group]:
+                document[group].update(map(str, (weights.get(group) or {}).keys()))
+        if any(document.values()):
+            documents.append(document)
+
+    for candidate in candidates:
+        features = candidate.get("features") or {}
+        documents.append({
+            group: set(map(str, features.get(group, []) or []))
+            for group in FEATURE_GROUPS
+        })
+
+    document_count = len(documents)
+    frequencies: dict[str, dict[str, int]] = {
+        group: {} for group in FEATURE_GROUPS
+    }
+    for document in documents:
+        for group, feature_ids in document.items():
+            for feature_id in feature_ids:
+                frequencies[group][feature_id] = frequencies[group].get(feature_id, 0) + 1
+
+    idf: dict[str, dict[str, float]] = {group: {} for group in FEATURE_GROUPS}
+    for group in FEATURE_GROUPS:
+        feature_ids = (
+            set(profile[group]["positive"])
+            | set(profile[group]["negative"])
+            | set(frequencies[group])
+        )
+        for feature_id in feature_ids:
+            idf[group][feature_id] = calculate_idf(
+                document_count,
+                frequencies[group].get(feature_id, 0),
+            )
+    return idf
 
 
 def build_recent_profile(
@@ -218,73 +269,6 @@ class TasteRecommendationService:
     def __init__(self, tmdb: Any, catalog: Any):
         self.tmdb = tmdb
         self.catalog = catalog
-        self._idf_cache: dict[str, dict[str, Any]] = {
-            group: {
-                "loaded_at": 0.0,
-                "document_count": 0,
-                "frequencies": OrderedDict(),
-            }
-            for group in FEATURE_GROUPS
-        }
-
-    async def _load_idf(
-        self,
-        db: Any,
-        profile: dict[str, dict[str, dict[str, float]]],
-    ) -> dict[str, dict[str, float]]:
-        idf: dict[str, dict[str, float]] = {group: {} for group in FEATURE_GROUPS}
-        now = time.monotonic()
-
-        for group in FEATURE_GROUPS:
-            stats_ref = db.collection("tmdb_feature_stats").document(group)
-            cache = self._idf_cache[group]
-            if not cache["loaded_at"] or now - cache["loaded_at"] >= IDF_CACHE_TTL_SECONDS:
-                stats_snapshot = await stats_ref.get()
-                cache["document_count"] = max(
-                    0,
-                    int(_number((stats_snapshot.to_dict() or {}).get("document_count"))),
-                )
-                cache["loaded_at"] = now
-                cache["frequencies"].clear()
-
-            candidates = set(profile[group]["positive"]) | set(profile[group]["negative"])
-            ranked = sorted(
-                candidates,
-                key=lambda feature_id: abs(
-                    profile[group]["positive"].get(feature_id, 0.0)
-                    - profile[group]["negative"].get(feature_id, 0.0)
-                ),
-                reverse=True,
-            )[:IDF_FEATURE_LIMIT]
-
-            frequencies: OrderedDict[str, int] = cache["frequencies"]
-            missing = [feature_id for feature_id in ranked if feature_id not in frequencies]
-
-            async def read_frequency(feature_id: str) -> tuple[str, int]:
-                feature_ref = stats_ref.collection("features").document(
-                    quote(feature_id, safe="-_.~")
-                )
-                snapshot = await feature_ref.get()
-                frequency = int(_number((snapshot.to_dict() or {}).get("document_frequency")))
-                return feature_id, max(0, frequency)
-
-            fetched = await asyncio.gather(*(read_frequency(feature_id) for feature_id in missing))
-            for feature_id, frequency in fetched:
-                frequencies[feature_id] = frequency
-                frequencies.move_to_end(feature_id)
-
-            for feature_id in ranked:
-                frequency = frequencies[feature_id]
-                frequencies.move_to_end(feature_id)
-                if cache["document_count"] and frequency:
-                    idf[group][feature_id] = calculate_idf(cache["document_count"], frequency)
-                else:
-                    idf[group][feature_id] = 1.0
-
-            while len(frequencies) > IDF_FEATURE_CACHE_LIMIT:
-                frequencies.popitem(last=False)
-
-        return idf
 
     async def _discover(
         self,
@@ -565,7 +549,6 @@ class TasteRecommendationService:
 
         all_time, all_time_count = build_all_time_profile(watches)
         recent, recent_count = build_recent_profile(watches)
-        idf = await self._load_idf(db, all_time)
         primary_candidates, wildcard_candidates = await self._retrieve_candidates(all_time, watches)
 
         excluded = {
@@ -615,6 +598,7 @@ class TasteRecommendationService:
         for candidate in primary_ranked + wildcard_ranked:
             selected[self._key(candidate)] = candidate
         enriched = await self._enrich(db, list(selected.values()))
+        idf = build_local_idf(all_time, watches, enriched)
 
         personalized = any(
             all_time[group]["positive"] or all_time[group]["negative"]
