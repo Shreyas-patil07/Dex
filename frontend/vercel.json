@@ -1,4 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "git rev-parse HEAD^ >/dev/null 2>&1 && git diff --quiet HEAD^ HEAD -- .; result=$?; if [ \"$result\" -eq 0 ]; then echo 'No frontend changes; skip Vercel build.'; exit 0; else echo 'Frontend changes or unavailable diff; continue Vercel build.'; exit 1; fi"
+  "ignoreCommand": "git rev-parse HEAD^ >/dev/null 2>&1 && git diff --quiet HEAD^ HEAD -- .; result=$?; if [ \"$result\" -eq 0 ]; then echo 'No frontend changes; skip Vercel build.'; exit 0; else echo 'Frontend changes or unavailable diff; continue Vercel build.'; exit 1; fi",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
