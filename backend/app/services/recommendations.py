@@ -90,9 +90,12 @@ def build_local_idf(
             for group in FEATURE_GROUPS
         })
 
-    document_count = len(documents)
     frequencies: dict[str, dict[str, int]] = {
         group: {} for group in FEATURE_GROUPS
+    }
+    document_counts = {
+        group: sum(bool(document[group]) for document in documents)
+        for group in FEATURE_GROUPS
     }
     for document in documents:
         for group, feature_ids in document.items():
@@ -108,7 +111,7 @@ def build_local_idf(
         )
         for feature_id in feature_ids:
             idf[group][feature_id] = calculate_idf(
-                document_count,
+                document_counts[group],
                 frequencies[group].get(feature_id, 0),
             )
     return idf
