@@ -248,3 +248,33 @@ def test_all_time_profile_rebuilds_exact_signed_totals_from_watch_contributions(
     assert count == 2
     assert profile["genres"]["positive"]["18"] == pytest.approx(0.8)
     assert profile["genres"]["negative"]["18"] == pytest.approx(0.3)
+
+
+def test_cached_recommendations_sample_distinct_slots_from_top_k(monkeypatch):
+    from app.services.recommendations import TasteRecommendationService
+
+    service = TasteRecommendationService(None, None)
+    monkeypatch.setattr(
+        "app.services.recommendations.random.choices",
+        lambda pool, weights, k: [pool[-1]],
+    )
+    cached = {
+        "metadata": {"personalized": True},
+        "primary_candidates": [
+            {"public": {"id": 1, "media_type": "movie"}, "features": {"genres": ["18"]}, "raw_score": 0.9},
+            {"public": {"id": 2, "media_type": "movie"}, "features": {"genres": ["53"]}, "raw_score": 0.8},
+            {"public": {"id": 3, "media_type": "movie"}, "features": {"genres": ["18", "53"]}, "raw_score": 0.7},
+        ],
+        "wildcard_candidates": [
+            {"public": {"id": 1, "media_type": "movie"}, "features": {"genres": ["18"]}, "raw_score": 0.9},
+            {"public": {"id": 4, "media_type": "movie"}, "features": {"genres": ["99"]}, "raw_score": 0.2},
+        ],
+    }
+
+    result = service._sample_cached_recommendations(cached)
+    ids = [
+        result["slots"][slot]["id"]
+        for slot in ("safe", "adjacent", "wildcard")
+    ]
+    assert len(ids) == len(set(ids)) == 3
+    assert result["personalized"] is True
