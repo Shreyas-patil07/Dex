@@ -568,51 +568,109 @@ class TasteRecommendationService:
         return 1.0 - len(overlap) / max(1, len(set(positive_genres)))
 
     @staticmethod
-    def _weighted_pick(candidates: list[dict[str, Any]]) -> dict[str, Any] | None:
-        if not candidates:
-            return None
-        pool = candidates[:EXPLORATION_TOP_K]
-        weights = list(range(len(pool), 0, -1))
-        return random.choices(pool, weights=weights, k=1)[0]
+    def _candidate_key(candidate: dict[str, Any]) -> tuple[str, int]:
+        public = candidate.get("public") or {}
+        return str(public.get("media_type") or ""), int(_number(public.get("id")))
 
-    def _sample_cached_recommendations(self, cached: dict[str, Any]) -> dict[str, Any]:
-        primary = cached.get("primary_candidates") or []
-        wildcard = cached.get("wildcard_candidates") or []
-        safe = self._weighted_pick(primary)
-        remaining = [
-            candidate for candidate in primary
-            if candidate.get("public", {}).get("id") != (safe or {}).get("public", {}).get("id")
-            or candidate.get("public", {}).get("media_type") != (safe or {}).get("public", {}).get("media_type")
-        ]
-        if safe is not None:
-            remaining.sort(
+    @classmethod
+    def _weighted_sample(
+        cls,
+        candidates: list[dict[str, Any]],
+        count: int,
+    ) -> list[dict[str, Any]]:
+        """Sample up to count distinct items from the weighted top-k pool."""
+        pool = list(candidates[:EXPLORATION_TOP_K])
+        selected: list[dict[str, Any]] = []
+        selected_keys: set[tuple[str, int]] = set()
+
+        while pool and len(selected) < count:
+            weights = list(range(len(pool), 0, -1))
+            choice = random.choices(pool, weights=weights, k=1)[0]
+            key = cls._candidate_key(choice)
+            if key not in selected_keys:
+                selected.append(choice)
+                selected_keys.add(key)
+            pool = [candidate for candidate in pool if cls._candidate_key(candidate) != key]
+
+        return selected
+
+    def _sample_adjacent(
+        self,
+        candidates: list[dict[str, Any]],
+        anchors: list[dict[str, Any]],
+        count: int,
+    ) -> list[dict[str, Any]]:
+        """Greedily diversify adjacent picks against every item already selected."""
+        remaining = list(candidates)
+        selected = list(anchors)
+        output: list[dict[str, Any]] = []
+
+        while remaining and len(output) < count:
+            ranked = sorted(
+                remaining,
                 key=lambda candidate: mmr_score(
                     _number(candidate.get("raw_score")),
-                    feature_jaccard(
-                        candidate.get("features") or {},
-                        safe.get("features") or {},
+                    max(
+                        (
+                            feature_jaccard(
+                                candidate.get("features") or {},
+                                anchor.get("features") or {},
+                            )
+                            for anchor in selected
+                        ),
+                        default=0.0,
                     ),
                 ),
                 reverse=True,
             )
-        adjacent = self._weighted_pick(remaining)
-        wildcard_candidates = [
-            candidate for candidate in wildcard
-            if (
-                candidate.get("public", {}).get("media_type"),
-                candidate.get("public", {}).get("id"),
-            ) not in {
-                ((safe or {}).get("public", {}).get("media_type"), (safe or {}).get("public", {}).get("id")),
-                ((adjacent or {}).get("public", {}).get("media_type"), (adjacent or {}).get("public", {}).get("id")),
-            }
+            choice = self._weighted_sample(ranked, 1)
+            if not choice:
+                break
+            picked = choice[0]
+            output.append(picked)
+            selected.append(picked)
+            picked_key = self._candidate_key(picked)
+            remaining = [
+                candidate for candidate in remaining
+                if self._candidate_key(candidate) != picked_key
+            ]
+
+        return output
+
+    def _sample_cached_recommendations(self, cached: dict[str, Any]) -> dict[str, Any]:
+        primary = cached.get("primary_candidates") or []
+        wildcard_pool = cached.get("wildcard_candidates") or []
+
+        safe = self._weighted_sample(primary, 2)
+        safe_keys = {self._candidate_key(candidate) for candidate in safe}
+        remaining_primary = [
+            candidate for candidate in primary
+            if self._candidate_key(candidate) not in safe_keys
         ]
-        wildcard = self._weighted_pick(wildcard_candidates)
+        adjacent = self._sample_adjacent(remaining_primary, safe, 2)
+
+        selected_keys = safe_keys | {
+            self._candidate_key(candidate) for candidate in adjacent
+        }
+        wildcard_candidates = [
+            candidate for candidate in wildcard_pool
+            if self._candidate_key(candidate) not in selected_keys
+        ]
+        wildcard = self._weighted_sample(wildcard_candidates, 2)
+
+        groups = {
+            "safe": [candidate["public"] for candidate in safe],
+            "adjacent": [candidate["public"] for candidate in adjacent],
+            "wildcard": [candidate["public"] for candidate in wildcard],
+        }
         return {
             **(cached.get("metadata") or {}),
+            "slot_groups": groups,
+            # Keep the original single-item fields for clients deployed before
+            # the frontend consumes slot_groups.
             "slots": {
-                "safe": (safe or {}).get("public"),
-                "adjacent": (adjacent or {}).get("public"),
-                "wildcard": (wildcard or {}).get("public"),
+                slot: items[0] if items else None
+                for slot, items in groups.items()
             },
         }
 

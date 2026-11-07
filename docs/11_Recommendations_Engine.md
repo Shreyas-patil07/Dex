@@ -121,11 +121,11 @@ For each enriched candidate:
 
 ### Safe
 
-The Safe slot is the highest raw relevance candidate in the primary pool.
+The Safe lane returns up to two weighted top-k primary candidates, emphasizing the strongest matches to the user's proven taste.
 
 ### Adjacent
 
-The Adjacent slot is selected from the remaining primary candidates using maximal marginal relevance. The implementation uses lambda 0.45:
+The Adjacent lane returns up to two candidates from the remaining primary pool using greedy maximal marginal relevance. Each new pick is diversified against both Safe picks and any earlier Adjacent pick. The implementation uses lambda 0.45:
 
 MMR = lambda * relevance_01 - (1 - lambda) * redundancy
 
@@ -133,9 +133,9 @@ Redundancy is a weighted feature Jaccard similarity to the Safe candidate. Relev
 
 ### Wildcard
 
-The Wildcard slot is selected from the independent trending pool. It is penalized for overlap with already selected slots and receives a novelty preference for underrepresented genres.
+The Wildcard lane returns up to two candidates from the independent trending pool. It excludes all titles selected in the Safe and Adjacent lanes and uses the novelty-ranked wildcard pool, with a preference for underrepresented genres.
 
-Slots can be null when no eligible candidate is available.
+Each lane returns an array and may contain fewer than two titles when its eligible pool is too small. The API exposes these arrays under slot_groups.safe, slot_groups.adjacent and slot_groups.wildcard. For compatibility with older frontend builds, slots.safe, slots.adjacent and slots.wildcard remain as aliases to the first item in each lane (or null). The six items are globally distinct when six eligible candidates exist.
 
 ## 8. Versioned cache and exploration
 
@@ -145,8 +145,9 @@ The recommendation cache is stored at `users/{uid}/recommendations/current` and 
 - Every watch create/update/delete and successful taste backfill increments profile_version.
 - If a cache exists, watch mutations schedule a background refresh. The next GET also rebuilds if the cache is stale or missing.
 - A fresh cache hit does not call TMDB or reread the watch collection.
-- Safe and Adjacent are sampled from weighted top-k primary candidates; Adjacent re-applies MMR against the sampled Safe candidate.
-- Wildcard is sampled from the novelty-ranked wildcard pool.
+- Safe returns up to two weighted top-k primary candidates without replacement.
+- Adjacent greedily returns up to two candidates using MMR against all picks already made in the Safe and Adjacent lanes.
+- Wildcard returns up to two weighted top-k candidates from the novelty-ranked wildcard pool after excluding all Safe and Adjacent selections.
 - Sampling is weighted toward the highest-ranked candidates, not uniform random selection.
 
 This provides controlled exploration without rerunning retrieval and enrichment on every Refresh. The first recommendation request after a profile change may still perform the full rebuild if no prior cache existed.
@@ -160,7 +161,8 @@ GET /api/recommendations returns:
 - match_score_semantics.
 - profile_status counts and backfill_complete.
 - recent_profile parameters.
-- slots.safe, slots.adjacent and slots.wildcard.
+- slot_groups.safe, slot_groups.adjacent and slot_groups.wildcard (up to two items per lane; six total).
+- Backward-compatible slots.safe, slots.adjacent and slots.wildcard aliases (first item per lane).
 
 Each candidate includes TMDB media information, raw_score, match_percent, match_semantics and reasons. Item-to-item candidates can explain which positively rated watch seeded their retrieval.
 
