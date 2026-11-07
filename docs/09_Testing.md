@@ -107,6 +107,12 @@ The script reads `backend/evaluation/recommendation_fixtures.json`, makes no TMD
 
 The fixture judgements are explicit assumptions. Do not revise them after seeing output merely to improve scores. The evaluator tests the scoring/profile logic against synthetic candidates; it does not evaluate live TMDB retrieval, randomized cache serving, user satisfaction or statistical significance. Use it as a regression baseline, not a performance claim.
 
+Initial CI baseline (five synthetic profiles, 2026-11-07):
+- Relevance-only ranking macro average: NDCG@3 1.0000, Precision@3 1.0000, Recall@3 0.9000, intra-list diversity 0.8013.
+- Greedy MMR diagnostic macro average: NDCG@3 0.9966, Precision@3 0.6667, Recall@3 1.0000, intra-list diversity 0.9286.
+
+The fixture grades were designed from the feature assumptions and are not independent labels. The perfect relevance-only NDCG/precision values therefore validate the synthetic scoring path, not real-world ranking quality. The MMR comparison shows the expected diversity/relevance trade-off on this fixture set only.
+
 ## 10. Evidence
 
 - CI: https://github.com/Shreyas-patil07/Dex/actions
