@@ -64,7 +64,7 @@ def _normalize_feature_label(group: str, label: str) -> str | None:
     if group != "keywords":
         return value
 
-    spaced = re.sub(r"[\\s_]+", " ", value).strip()
+    spaced = re.sub(r"[\s_]+", " ", value).strip()
     slug = re.sub(r"[^a-z0-9]+", "", spaced.casefold())
     if not slug or slug in KEYWORD_NOISE_SLUGS:
         return None
@@ -74,7 +74,7 @@ def _normalize_feature_label(group: str, label: str) -> str | None:
 
     title = spaced.title()
     for source, replacement in ACRONYM_LABELS.items():
-        title = re.sub(rf"\\b{source}\\b", replacement, title)
+        title = re.sub(rf"\b{source}\b", replacement, title)
     return title
 
 

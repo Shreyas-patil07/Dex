@@ -327,7 +327,7 @@ def test_watching_status_is_saved_without_taste_signal_until_marked_watched(api_
         feature_calls.append((media_type, tmdb_id))
         return {
             "genres": ["18"],
-            "keywords": ["100", "101", "102", "103", "104", "105"],
+            "keywords": ["100", "101", "102", "103", "104", "105", "106"],
             "people": ["7467"],
             "decades": ["2020s"],
         }
@@ -409,6 +409,7 @@ def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client
                     "103": 0.4,
                     "104": 0.3,
                     "105": 0.2,
+                    "106": 0.1,
                 },
                 "people": {"7467": 0.6},
                 "decades": {"1990s": 0.5},
@@ -464,6 +465,7 @@ def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client
                 "103": "marvel cinematic universe (mcu)",
                 "104": "aftercreditsstinger",
                 "105": "post-credits scene",
+                "106": "based_on_comic_book",
             },
             "people": {"7467": "David Fincher"},
             "decades": {"1990s": "1990s"},
@@ -513,6 +515,7 @@ def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client
         "Marvel Cinematic Universe (MCU)",
     }
     assert theme_labels["Psychological"]["watch_count"] == 1
+    assert theme_labels["Comic-book adaptation"]["watch_count"] == 1
     assert "Aftercreditsstinger" not in theme_labels
     assert "Post-Credits Scene" not in theme_labels
     assert groups["people"]["positive"][0]["label"] == "David Fincher"
