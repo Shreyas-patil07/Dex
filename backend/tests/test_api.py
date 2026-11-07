@@ -209,7 +209,8 @@ def sync_account(client, uid, display_name=None):
     return response.json()
 
 
-def test_health_endpoint_reports_deployed_api_version(api_client):
+def test_health_endpoint_reports_deployed_api_version(api_client, monkeypatch):
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "test-source-commit")
     head_response = api_client.head("/api/health")
     get_response = api_client.get("/api/health")
 
@@ -220,6 +221,7 @@ def test_health_endpoint_reports_deployed_api_version(api_client):
         "status": "ok",
         "service": "dex-api",
         "version": "0.5.1",
+        "source_commit": "test-source-commit",
         "watch_write_endpoint": "POST /api/watches",
     }
 
