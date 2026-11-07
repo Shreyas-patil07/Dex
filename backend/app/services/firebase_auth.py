@@ -64,14 +64,26 @@ def verify_firebase_token(token: str) -> dict:
 
     app = get_firebase_app()
     try:
-        return auth.verify_id_token(token, app=app)
+        return auth.verify_id_token(token, app=app, check_revoked=True)
     except auth.ExpiredIdTokenError as exc:
-        raise HTTPException(status_code=401, detail="Firebase ID token expired. Sign in again.") from exc
+        raise HTTPException(
+            status_code=401,
+            detail="Firebase ID token expired. Sign in again.",
+        ) from exc
+    except (
+        auth.RevokedIdTokenError,
+        auth.UserDisabledError,
+        auth.UserNotFoundError,
+    ) as exc:
+        raise HTTPException(
+            status_code=401,
+            detail="Firebase session is no longer valid. Sign in again.",
+        ) from exc
     except auth.InvalidIdTokenError as exc:
         raise HTTPException(status_code=401, detail="Invalid Firebase ID token") from exc
     except Exception as exc:
-        # Token verification can also fail when Firebase's public keys or services
-        # are temporarily unreachable. Do not misreport those outages as bad tokens.
+        # Revocation checks require a Firebase Auth lookup. Keep upstream outages
+        # distinct from invalid credentials and fail closed when verification fails.
         raise HTTPException(
             status_code=503,
             detail="Firebase token verification is temporarily unavailable",
