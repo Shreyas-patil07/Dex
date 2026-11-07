@@ -388,6 +388,7 @@ def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client
         "media_type": "movie",
         "title": "Positive signal",
         "status": "watched",
+        "rating": 9.0,
         "watched_at": now,
         "taste_metadata_status": "ready",
         "taste_features": {
@@ -412,6 +413,7 @@ def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client
         "media_type": "movie",
         "title": "Lower-rated signal",
         "status": "watched",
+        "rating": 2.0,
         "watched_at": now,
         "taste_metadata_status": "ready",
         "taste_features": {

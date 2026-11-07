@@ -129,7 +129,8 @@ async def build_taste_profile(db: Any, user_document: Any) -> dict[str, Any]:
         watch.get("taste_metadata_status") == "not_found" for watch in watched
     )
     pending = max(0, len(watched) - metadata_ready - unavailable)
-    rated_count = sum(
+    rated_count = sum(watch.get("rating") is not None for watch in watched)
+    rated_profiled_count = sum(
         bool((watch.get("taste_contribution") or {}).get("rated"))
         and bool((watch.get("taste_contribution") or {}).get("weights"))
         for watch in watched
@@ -155,7 +156,8 @@ async def build_taste_profile(db: Any, user_document: Any) -> dict[str, Any]:
             "watched_titles": len(watched),
             "profiled_titles": profiled_count,
             "rated_titles": rated_count,
-            "unrated_profiled_titles": max(0, profiled_count - rated_count),
+            "rated_profiled_titles": rated_profiled_count,
+            "unrated_profiled_titles": max(0, profiled_count - rated_profiled_count),
             "metadata_ready_titles": metadata_ready,
             "pending_titles": pending,
             "metadata_unavailable_titles": unavailable,
