@@ -40,20 +40,21 @@ Render documents branch, autoDeployTrigger and healthCheckPath in the [Blueprint
 
 ## 3. Source-level health fingerprint
 
-The current source sets FastAPI version 0.5.1. GET /api/health returns:
+The current source sets FastAPI version 0.5.1. Render also injects `RENDER_GIT_COMMIT`, the commit SHA for the deployed service. GET /api/health returns:
 
 ~~~json
 {
   "status": "ok",
   "service": "dex-api",
   "version": "0.5.1",
+  "source_commit": "<deployed Render commit SHA>",
   "watch_write_endpoint": "POST /api/watches"
 }
 ~~~
 
-HEAD /api/health returns HTTP 200 with an empty body.
+When running outside Render, `source_commit` is `null`. HEAD /api/health returns HTTP 200 with an empty body.
 
-The version reports the running app's FastAPI version. If the route is missing or reports an earlier version, the active process is not running the expected backend source/configuration.
+The version reports the FastAPI application version. The source_commit field identifies the actual Render deployment revision and should match the expected main commit SHA. This prevents an unchanged application version string from being mistaken for proof that a newer backend deployment is active. See Render's [default environment variables](https://render.com/docs/environment-variables) for the documented `RENDER_GIT_COMMIT` value.
 
 ## 4. Deployment procedure
 

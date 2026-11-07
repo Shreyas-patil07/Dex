@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from ipaddress import ip_address
@@ -211,11 +212,12 @@ async def current_user(
 
 @app.get("/api/health")
 @app.head("/api/health")
-async def health() -> dict[str, str]:
+async def health() -> dict[str, str | None]:
     return {
         "status": "ok",
         "service": "dex-api",
         "version": app.version,
+        "source_commit": os.getenv("RENDER_GIT_COMMIT"),
         "watch_write_endpoint": "POST /api/watches",
     }
 
