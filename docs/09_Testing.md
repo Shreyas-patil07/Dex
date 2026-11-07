@@ -12,7 +12,7 @@ Verify catalogue endpoints, Firebase identity, username ownership, watch lifecyc
 
 | Level | Scope | Tooling | CI status |
 |---|---|---|---|
-| Unit | Taste calculations, normalisation, TMDB client | Pytest | Backend job |
+| Unit | Taste calculations, profile reconstruction, ranking metrics, TMDB client | Pytest | Backend job |
 | API | Route validation/auth/errors | Pytest/test client | Backend job |
 | Integration | Firestore transactions/Firebase | Emulator or controlled test project | Extend as needed |
 | Frontend static | TypeScript | TypeScript compiler | CI |
@@ -34,13 +34,14 @@ Verify catalogue endpoints, Firebase identity, username ownership, watch lifecyc
 | T-006 | FR-007 | Watch CRUD | Correct per-user persistence |
 | T-007 | FR-009 | Watched vs planned | Only watched affects taste |
 | T-008 | FR-010 | Edit/delete profiled watch | Prior contribution reversed |
-| T-009 | FR-010 | Repeated edits/deletes | No vector drift/double subtraction |
+| T-009 | FR-010 | Repeated edits/deletes | No stale contribution or double reversal |
 | T-010 | NFR-002 | Cross-user request | No other user's data |
 | T-011 | NFR-001 | Secret scan | No credentials in repo/build |
 | T-012 | FR-013 | Read single watch as owner and another user | Owner receives 200; another user receives 404 |
 | T-013 | FR-014 | Recommendation endpoint auth/slots | Missing auth is 401; authenticated call returns Safe/Adjacent/Wildcard keys |
 | T-014 | FR-015 | Backfill pagination and repeat pass | Cursor and counters correct; repeated run skips completed record |
 | T-015 | NFR-004 | API health method/version contract | GET returns JSON version; HEAD returns 200 with no body |
+| T-016 | NFR-006 | Offline recommendation evaluation | Fixed synthetic fixtures produce deterministic ranking metrics and pass metric unit tests |
 
 ## 4. Environments
 
@@ -53,7 +54,7 @@ Verify catalogue endpoints, Firebase identity, username ownership, watch lifecyc
 
 ## 5. Performance and reliability
 
-No verified benchmark values are recorded. Measure p50/p95 trending/search/detail latency, TMDB error rate, Firestore reads/writes per mutation, taste update duration, frontend bundle size, and uptime. Record environment, sample size, warm-up, dataset and duration.
+No verified production performance values are recorded. Measure p50/p95 trending/search/detail latency, TMDB error rate, Firestore reads/writes per mutation, taste update duration, frontend bundle size, and uptime. The offline evaluator provides a small synthetic relevance/diversity regression baseline only; it does not measure production retrieval quality, satisfaction, latency or statistically significant outcomes. Record environment, sample size, warm-up, dataset and duration.
 
 ## 6. Fault and edge cases
 
@@ -75,32 +76,49 @@ No verified benchmark values are recorded. Measure p50/p95 trending/search/detai
 - Backend Pytest passes.
 - Python compile check passes.
 - Frontend typecheck and build pass.
-- Taste reversal/transaction invariants pass.
+- Taste contribution reversal/profile reconstruction invariants pass.
 - Cross-user access tests pass.
+- Offline synthetic evaluation tests pass before any scoring-weight changes.
 - Secrets and allowed origins are reviewed.
 - Known limitations are documented.
 
-## 8. Latest verified CI evidence
+## 8. Latest merged CI evidence
 
-**Commit:** `2101f34e2b9408b965b1d92658e424b04a47db9a` (`Configure Render to deploy main and health-check the API`)  
-**Workflow run:** [42286609985](https://github.com/Shreyas-patil07/Dex/actions/runs/42286609985) — completed successfully on 2026-11-07 local date.
+**Main merge commit:** `0908982512903f3879fa4df3f835b1e1d10d70a2` (PR #21 — Recommendation Engine V2)  
+**Workflow run:** [42347709974](https://github.com/Shreyas-patil07/Dex/actions/runs/42347709974)
 
-- Backend: `python -m compileall app tests` passed; `pytest -q` reported **30 passed, 1 warning**.
-- Frontend: `npm ci`, `npm run typecheck`, and `npm run build` passed.
-- Vercel status check for the commit: success.
-- Render live deployment and authenticated production API smoke tests: **not verified**. Browser evidence supplied on 2026-11-07 showed `/api/recommendations` returning 404 and `GET /api/watches/{watch_id}` returning 405 from the live API. See [Deployment Runbook](12_Deployment_Runbook.md).
+- Backend: compilation, dependency audit and **48 pytest tests passed**.
+- Frontend: typecheck and production build passed.
+- Frontend security audit: failed with **7 high-severity dependency findings** in the existing dependency tree. PR #21 did not change frontend dependency versions.
+- Vercel preview ignored the backend/docs-only build as configured.
+- The user-provided route probes performed before the merges returned health 200/version 0.5.1 and 401 for both unauthenticated protected endpoints. They do not verify the post-merge V2 Render deployment or authenticated operations.
 
-The pytest warning was a Starlette/httpx TestClient deprecation warning. The workflow also emitted GitHub Actions Node 20 deprecation warnings for some actions; these are maintenance warnings, not failing checks.
+CI passing does not prove the active Render deployment is running the latest main revision. See [Deployment Runbook](12_Deployment_Runbook.md).
 
-## 9. Evidence
+## 9. Offline recommendation evaluation
+
+Run from the backend directory:
+
+```bash
+python scripts/evaluate_recommendations.py
+```
+
+The script reads `backend/evaluation/recommendation_fixtures.json`, makes no TMDB/network calls, and reports macro-averaged NDCG@3, Precision@3, Recall@3, intra-list diversity and positive-feature coverage across five predeclared synthetic profiles. It also emits each profile's top-three deterministic greedy-MMR diagnostic.
+
+The fixture judgements are explicit assumptions. Do not revise them after seeing output merely to improve scores. The evaluator tests the scoring/profile logic against synthetic candidates; it does not evaluate live TMDB retrieval, randomized cache serving, user satisfaction or statistical significance. Use it as a regression baseline, not a performance claim.
+
+## 10. Evidence
 
 - CI: https://github.com/Shreyas-patil07/Dex/actions
 - Backend tests: backend/tests/
+- Offline evaluator: backend/scripts/evaluate_recommendations.py
 - Taste service: backend/app/services/taste.py
+- Recommendation service: backend/app/services/recommendations.py
 - TMDB client: backend/app/services/tmdb.py
 - API: backend/app/main.py
 
-## 10. Current CI commands
+## 11. Current CI commands
 
 Frontend: `npm ci`, `npm run typecheck`, `npm run build`.  
-Backend: `pip install -r requirements-dev.txt`, `python -m compileall app tests`, `pytest -q`.
+Backend: `pip install -r requirements-dev.lock`, `python -m compileall app tests`, `pytest -q`.  
+Offline evaluator: `python scripts/evaluate_recommendations.py`.
