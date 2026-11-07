@@ -16,6 +16,14 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 
 ## Entries
 
+### 2026-11-07 — Data lifecycle and privacy source audit
+
+- **Type:** Security / Data governance
+- **Summary:** Audited the current repository for stored user data, Firebase client usage, account export/deletion support, legacy recommendation data and the proposed event pipeline. Added a source-based collection inventory and implementation gates. No behavioural-event collection was introduced.
+- **Evidence:** [Data Lifecycle and Privacy Readiness](14_Data_Lifecycle_and_Privacy_Readiness.md); `frontend/src/lib/firebase.ts`; `backend/app/firestore.py`; `backend/app/main.py`; `backend/app/services/tmdb_catalog.py`; `frontend/src/pages/PrivacyPolicy.tsx`.
+- **Outcome:** The frontend currently uses Firebase Authentication without Firestore client SDK calls. Backend Firestore access uses the Firebase Admin SDK. No Rules file is tracked; live Firebase Rules/IAM have not been inspected. There is no account-wide export/delete endpoint. V2 ignores legacy taste_vectors/global feature stats but no production cleanup ran. Recommendation event storage is not implemented. The Privacy Policy includes some activity/social/device categories not demonstrated by current source; reconcile with actual production processing before event collection.
+- **Next action:** Review the live Firebase project's Rules and service-account IAM; approve retention, consent/pause/clear and deletion policy; implement export and resumable deletion before adding recommendation-event writes.
+
 ### 2026-11-07 — Recommendation Engine V2 merged
 
 - **Type:** Architecture / Recommendation engine

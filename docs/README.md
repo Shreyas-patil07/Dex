@@ -3,7 +3,7 @@
 > **Documentation snapshot:** 2026-11-07  
 > **Source branch:** main  
 > **Backend source version:** 0.5.1  
-> **Production Render state:** Recommendation and existing-watch UI flows visually verified; full API/version verification pending
+> **Production Render state:** Pre-merge 200/401/401 route probes passed; post-merge source commit and authenticated flows still pending
 
 This directory documents the product, software architecture, API/data contracts, security model, test evidence, implementation state, recommendation model, and deployment workflow. The repository source and automated tests are authoritative when a document and the implementation differ.
 
@@ -19,6 +19,7 @@ This directory documents the product, software architecture, API/data contracts,
 | Find API routes, payloads and Firestore paths | [06 — Protocol and Data Schema](06_Protocol_and_Data_Schema.md) |
 | See delivered work and outstanding tasks | [07 — Implementation Plan](07_Implementation.md) |
 | Review identity, authorization and privacy boundaries | [08 — Security and Privacy](08_Security.md) |
+| Audit stored data, retention, export, deletion and Firebase access controls | [14 — Data Lifecycle and Privacy Readiness](14_Data_Lifecycle_and_Privacy_Readiness.md) |
 | Review automated checks and known test gaps | [09 — Testing and Validation](09_Testing.md) |
 | Follow chronological implementation evidence | [10 — Development Log](10_Development_Log.md) |
 | Understand the ranking algorithm and score semantics | [11 — Recommendation Engine](11_Recommendations_Engine.md) |
@@ -32,22 +33,16 @@ This directory documents the product, software architecture, API/data contracts,
 | Firebase identity and Dex profiles | Implemented | auth sync, token verification and username registry |
 | Watchlist/history CRUD | Implemented | user-scoped watch endpoints and regression tests |
 | Existing-title state on detail page | Visually verified working | Screenshot shows Already watched; new-title create and duplicate race still need verification |
-| Taste Engine V1 | Implemented | signed incremental vectors, reversible transaction contributions |
+| Taste Engine V2 | Implemented | Per-watch contributions, profile rebuild, item-to-item retrieval, local IDF and versioned cache |
 | Legacy taste backfill | Implemented | authenticated cursor-paginated idempotent endpoint |
 | Personalized recommendations | Visually verified working | Screenshot shows Safe/Adjacent/Wildcard cards populated; API version/status code not captured |
-| API deployment diagnostics | Implemented in source | GET/HEAD health endpoint returns API version |
+| API deployment diagnostics | Implemented in source | GET/HEAD health returns API version and Render source commit SHA |
 | Render deployment alignment | Two user-facing API flows now visually working; runtime version still unverified | screenshots plus health/CRUD checks pending; see runbook |
 | Production recommendation/watch lookup smoke tests | Not passed on evidence supplied so far | live browser reported recommendation 404 and watch GET 405 |
 
 ## Validation snapshot
 
-The latest verified GitHub Actions run associated with main commit 2101f34e2b9408b965b1d92658e424b04a47db9a completed successfully:
-
-- Backend compile check passed.
-- Backend Pytest: 30 passed, 1 warning.
-- Frontend dependency install, TypeScript check and production build passed.
-- Vercel commit status was successful.
-- Render's active deployment was not independently confirmed. A passing frontend check must not be treated as proof that Render is serving the same backend revision.
+PR #22's CI run validated the offline evaluator and reported 55 backend tests passed, compileall and backend pip-audit passed, and frontend typecheck/build passed. The frontend npm audit remains the only failing job because of seven high-severity findings in the existing dependency tree. PR #23 adds the deployed Render commit SHA to the health response. The live Render revision after PR #23 has not yet been independently confirmed; a passing GitHub Actions or Vercel check is not proof of a successful Render deploy.
 
 See [testing evidence](09_Testing.md) and [deployment diagnostics](12_Deployment_Runbook.md).
 
@@ -58,7 +53,7 @@ See [testing evidence](09_Testing.md) and [deployment diagnostics](12_Deployment
 3. Keep implementation status separate from production deployment status.
 4. Label proposed targets and unverified controls as such. Never present an unrun end-to-end test as a pass.
 5. Keep the Vercel deployment filter aligned with the actual project root directory; test docs-only, backend-only and frontend commits before relying on it.
-5. Keep secrets, Firebase tokens, service-account JSON, and real user data out of documentation and screenshots.
+6. Keep secrets, Firebase tokens, service-account JSON, and real user data out of documentation and screenshots.
 
 ## Repository links
 

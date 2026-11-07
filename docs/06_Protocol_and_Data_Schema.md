@@ -234,7 +234,7 @@ tmdb_catalog/{media_type}_{tmdb_id}
   fetched_at
 ~~~
 
-The shared catalogue is an application-wide metadata cache; user watch, taste profile, and recommendation cache records remain UID-scoped. Per-feature taste-vector documents and global tmdb_feature_stats counters are no longer written or read. Existing legacy documents can be left for a later cleanup migration; they are ignored by the current engine.
+The shared catalogue is an application-wide metadata cache; user watch, taste profile, and recommendation cache records remain UID-scoped. Per-feature taste-vector documents and global tmdb_feature_stats counters are no longer written or read. Existing legacy documents may remain in Firestore and are not currently cleaned up. Treat legacy per-user taste documents as part of export/deletion until a verified cleanup migration has run. See [Data Lifecycle and Privacy Readiness](14_Data_Lifecycle_and_Privacy_Readiness.md) for retention, export, deletion and access-control gaps.
 
 ## 9. Taste Engine V2 invariants
 
@@ -275,3 +275,4 @@ The HTTP API has no /v1 URL prefix. Coordinate breaking changes with the fronten
 - [Architecture](03_Architecture.md)
 - [Recommendation Engine](11_Recommendations_Engine.md)
 - [Deployment Runbook](12_Deployment_Runbook.md)
+- [Data Lifecycle and Privacy Readiness](14_Data_Lifecycle_and_Privacy_Readiness.md)
