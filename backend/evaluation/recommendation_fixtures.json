@@ -1,0 +1,745 @@
+{
+  "evaluation_version": 1,
+  "description": "Synthetic, predeclared relevance judgements for deterministic Taste Engine V2 scorer evaluation. No user data or TMDB requests.",
+  "reference_time": "2026-11-07T00:00:00Z",
+  "k": 3,
+  "profiles": [
+    {
+      "id": "sparse-drama-mystery",
+      "watches": [
+        {
+          "status": "watched",
+          "watched_at": "2026-10-28T00:00:00Z",
+          "taste_contribution": {
+            "direction": "positive",
+            "weights": {
+              "genres": {
+                "18": 1
+              },
+              "keywords": {
+                "mystery": 1
+              }
+            }
+          }
+        }
+      ],
+      "candidates": [
+        {
+          "id": 101,
+          "media_type": "movie",
+          "title": "Drama Mystery",
+          "features": {
+            "genres": [
+              "18"
+            ],
+            "keywords": [
+              "mystery"
+            ],
+            "people": [
+              "901"
+            ],
+            "decades": [
+              "2010s"
+            ]
+          },
+          "relevance": 3
+        },
+        {
+          "id": 102,
+          "media_type": "movie",
+          "title": "Mystery Thriller",
+          "features": {
+            "genres": [
+              "53"
+            ],
+            "keywords": [
+              "mystery"
+            ],
+            "people": [
+              "902"
+            ],
+            "decades": [
+              "2010s"
+            ]
+          },
+          "relevance": 2
+        },
+        {
+          "id": 103,
+          "media_type": "movie",
+          "title": "Space Opera",
+          "features": {
+            "genres": [
+              "878"
+            ],
+            "keywords": [
+              "space"
+            ],
+            "people": [
+              "903"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 0
+        },
+        {
+          "id": 104,
+          "media_type": "movie",
+          "title": "Courtroom Drama",
+          "features": {
+            "genres": [
+              "18"
+            ],
+            "keywords": [
+              "legal"
+            ],
+            "people": [
+              "904"
+            ],
+            "decades": [
+              "1990s"
+            ]
+          },
+          "relevance": 1
+        },
+        {
+          "id": 105,
+          "media_type": "movie",
+          "title": "Action Chase",
+          "features": {
+            "genres": [
+              "28"
+            ],
+            "keywords": [
+              "chase"
+            ],
+            "people": [
+              "905"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 0
+        }
+      ]
+    },
+    {
+      "id": "mixed-drama-scifi",
+      "watches": [
+        {
+          "status": "watched",
+          "watched_at": "2026-10-30T00:00:00Z",
+          "taste_contribution": {
+            "direction": "positive",
+            "weights": {
+              "genres": {
+                "18": 0.8,
+                "878": 0.8
+              },
+              "keywords": {
+                "emotional": 0.7,
+                "space": 0.7
+              }
+            }
+          }
+        },
+        {
+          "status": "watched",
+          "watched_at": "2026-10-20T00:00:00Z",
+          "taste_contribution": {
+            "direction": "positive",
+            "weights": {
+              "genres": {
+                "18": 0.6
+              },
+              "keywords": {
+                "character-study": 0.8
+              }
+            }
+          }
+        }
+      ],
+      "candidates": [
+        {
+          "id": 201,
+          "media_type": "movie",
+          "title": "Emotional Science Fiction",
+          "features": {
+            "genres": [
+              "878",
+              "18"
+            ],
+            "keywords": [
+              "emotional",
+              "space"
+            ],
+            "people": [
+              "911"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 3
+        },
+        {
+          "id": 202,
+          "media_type": "movie",
+          "title": "Character Drama",
+          "features": {
+            "genres": [
+              "18"
+            ],
+            "keywords": [
+              "character-study"
+            ],
+            "people": [
+              "912"
+            ],
+            "decades": [
+              "2010s"
+            ]
+          },
+          "relevance": 2
+        },
+        {
+          "id": 203,
+          "media_type": "movie",
+          "title": "Outer Space Adventure",
+          "features": {
+            "genres": [
+              "878"
+            ],
+            "keywords": [
+              "space"
+            ],
+            "people": [
+              "913"
+            ],
+            "decades": [
+              "2000s"
+            ]
+          },
+          "relevance": 2
+        },
+        {
+          "id": 204,
+          "media_type": "movie",
+          "title": "Slapstick Comedy",
+          "features": {
+            "genres": [
+              "35"
+            ],
+            "keywords": [
+              "slapstick"
+            ],
+            "people": [
+              "914"
+            ],
+            "decades": [
+              "1990s"
+            ]
+          },
+          "relevance": 0
+        },
+        {
+          "id": 205,
+          "media_type": "movie",
+          "title": "Pure Horror",
+          "features": {
+            "genres": [
+              "27"
+            ],
+            "keywords": [
+              "supernatural"
+            ],
+            "people": [
+              "915"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 0
+        }
+      ]
+    },
+    {
+      "id": "explicit-negative-horror",
+      "watches": [
+        {
+          "status": "watched",
+          "watched_at": "2026-10-29T00:00:00Z",
+          "taste_contribution": {
+            "direction": "positive",
+            "weights": {
+              "genres": {
+                "16": 0.7,
+                "35": 1
+              },
+              "keywords": {
+                "comedy": 1,
+                "family": 0.5
+              }
+            }
+          }
+        },
+        {
+          "status": "watched",
+          "watched_at": "2026-10-25T00:00:00Z",
+          "taste_contribution": {
+            "direction": "negative",
+            "weights": {
+              "genres": {
+                "27": 1
+              },
+              "keywords": {
+                "gore": 1,
+                "slasher": 0.8
+              }
+            }
+          }
+        }
+      ],
+      "candidates": [
+        {
+          "id": 301,
+          "media_type": "movie",
+          "title": "Animated Comedy",
+          "features": {
+            "genres": [
+              "35",
+              "16"
+            ],
+            "keywords": [
+              "comedy",
+              "family"
+            ],
+            "people": [
+              "921"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 3
+        },
+        {
+          "id": 302,
+          "media_type": "movie",
+          "title": "Family Comedy",
+          "features": {
+            "genres": [
+              "35"
+            ],
+            "keywords": [
+              "comedy",
+              "family"
+            ],
+            "people": [
+              "922"
+            ],
+            "decades": [
+              "2010s"
+            ]
+          },
+          "relevance": 2
+        },
+        {
+          "id": 303,
+          "media_type": "movie",
+          "title": "Gore Slasher",
+          "features": {
+            "genres": [
+              "27"
+            ],
+            "keywords": [
+              "gore",
+              "slasher"
+            ],
+            "people": [
+              "923"
+            ],
+            "decades": [
+              "2010s"
+            ]
+          },
+          "relevance": 0
+        },
+        {
+          "id": 304,
+          "media_type": "movie",
+          "title": "Supernatural Horror",
+          "features": {
+            "genres": [
+              "27"
+            ],
+            "keywords": [
+              "supernatural"
+            ],
+            "people": [
+              "924"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 0
+        },
+        {
+          "id": 305,
+          "media_type": "movie",
+          "title": "Crime Thriller",
+          "features": {
+            "genres": [
+              "53",
+              "80"
+            ],
+            "keywords": [
+              "investigation"
+            ],
+            "people": [
+              "925"
+            ],
+            "decades": [
+              "2000s"
+            ]
+          },
+          "relevance": 1
+        }
+      ]
+    },
+    {
+      "id": "recent-preference-shift",
+      "watches": [
+        {
+          "status": "watched",
+          "watched_at": "2024-02-01T00:00:00Z",
+          "taste_contribution": {
+            "direction": "positive",
+            "weights": {
+              "genres": {
+                "28": 0.9
+              },
+              "keywords": {
+                "action": 0.9,
+                "crime": 0.5
+              }
+            }
+          }
+        },
+        {
+          "status": "watched",
+          "watched_at": "2026-11-03T00:00:00Z",
+          "taste_contribution": {
+            "direction": "positive",
+            "weights": {
+              "genres": {
+                "878": 0.9
+              },
+              "keywords": {
+                "space": 0.8,
+                "mystery": 0.7
+              }
+            }
+          }
+        },
+        {
+          "status": "watched",
+          "watched_at": "2026-11-04T00:00:00Z",
+          "taste_contribution": {
+            "direction": "positive",
+            "weights": {
+              "genres": {
+                "878": 0.8,
+                "9648": 0.7
+              },
+              "keywords": {
+                "mystery": 0.9
+              }
+            }
+          }
+        },
+        {
+          "status": "watched",
+          "watched_at": "2026-11-05T00:00:00Z",
+          "taste_contribution": {
+            "direction": "positive",
+            "weights": {
+              "genres": {
+                "878": 0.8
+              },
+              "keywords": {
+                "space": 0.9
+              }
+            }
+          }
+        }
+      ],
+      "candidates": [
+        {
+          "id": 401,
+          "media_type": "movie",
+          "title": "Recent Space Mystery",
+          "features": {
+            "genres": [
+              "878",
+              "9648"
+            ],
+            "keywords": [
+              "space",
+              "mystery"
+            ],
+            "people": [
+              "931"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 3
+        },
+        {
+          "id": 402,
+          "media_type": "movie",
+          "title": "Space Exploration",
+          "features": {
+            "genres": [
+              "878"
+            ],
+            "keywords": [
+              "space"
+            ],
+            "people": [
+              "932"
+            ],
+            "decades": [
+              "2010s"
+            ]
+          },
+          "relevance": 2
+        },
+        {
+          "id": 403,
+          "media_type": "movie",
+          "title": "Classic Action Crime",
+          "features": {
+            "genres": [
+              "28",
+              "80"
+            ],
+            "keywords": [
+              "action",
+              "crime"
+            ],
+            "people": [
+              "933"
+            ],
+            "decades": [
+              "2000s"
+            ]
+          },
+          "relevance": 1
+        },
+        {
+          "id": 404,
+          "media_type": "movie",
+          "title": "Historical Romance",
+          "features": {
+            "genres": [
+              "10749",
+              "36"
+            ],
+            "keywords": [
+              "historical"
+            ],
+            "people": [
+              "934"
+            ],
+            "decades": [
+              "1990s"
+            ]
+          },
+          "relevance": 0
+        },
+        {
+          "id": 405,
+          "media_type": "movie",
+          "title": "Mystery Thriller",
+          "features": {
+            "genres": [
+              "9648",
+              "53"
+            ],
+            "keywords": [
+              "mystery"
+            ],
+            "people": [
+              "935"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 2
+        }
+      ]
+    },
+    {
+      "id": "anime-heavy",
+      "watches": [
+        {
+          "status": "watched",
+          "watched_at": "2026-10-27T00:00:00Z",
+          "taste_contribution": {
+            "direction": "positive",
+            "weights": {
+              "genres": {
+                "16": 1,
+                "878": 0.7
+              },
+              "keywords": {
+                "anime": 1,
+                "mecha": 0.8
+              },
+              "people": {
+                "941": 0.7
+              },
+              "decades": {
+                "2020s": 0.4
+              }
+            }
+          }
+        },
+        {
+          "status": "watched",
+          "watched_at": "2026-10-31T00:00:00Z",
+          "taste_contribution": {
+            "direction": "positive",
+            "weights": {
+              "genres": {
+                "16": 0.9
+              },
+              "keywords": {
+                "anime": 0.9,
+                "slice-of-life": 0.6
+              },
+              "people": {
+                "942": 0.5
+              }
+            }
+          }
+        }
+      ],
+      "candidates": [
+        {
+          "id": 501,
+          "media_type": "tv",
+          "title": "Anime Mecha",
+          "features": {
+            "genres": [
+              "16",
+              "878"
+            ],
+            "keywords": [
+              "anime",
+              "mecha"
+            ],
+            "people": [
+              "941"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 3
+        },
+        {
+          "id": 502,
+          "media_type": "tv",
+          "title": "Anime Slice of Life",
+          "features": {
+            "genres": [
+              "16"
+            ],
+            "keywords": [
+              "anime",
+              "slice-of-life"
+            ],
+            "people": [
+              "942"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 3
+        },
+        {
+          "id": 503,
+          "media_type": "movie",
+          "title": "Mecha Science Fiction",
+          "features": {
+            "genres": [
+              "878"
+            ],
+            "keywords": [
+              "mecha"
+            ],
+            "people": [
+              "943"
+            ],
+            "decades": [
+              "2010s"
+            ]
+          },
+          "relevance": 2
+        },
+        {
+          "id": 504,
+          "media_type": "movie",
+          "title": "Children Animation",
+          "features": {
+            "genres": [
+              "16",
+              "10751"
+            ],
+            "keywords": [
+              "children"
+            ],
+            "people": [
+              "944"
+            ],
+            "decades": [
+              "1990s"
+            ]
+          },
+          "relevance": 1
+        },
+        {
+          "id": 505,
+          "media_type": "movie",
+          "title": "Live Action Adventure",
+          "features": {
+            "genres": [
+              "12"
+            ],
+            "keywords": [
+              "adventure"
+            ],
+            "people": [
+              "945"
+            ],
+            "decades": [
+              "2020s"
+            ]
+          },
+          "relevance": 0
+        }
+      ]
+    }
+  ]
+}

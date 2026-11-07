@@ -103,17 +103,10 @@ sequenceDiagram
     participant DB as Firestore
     participant TMDB
     UI->>API: GET /api/recommendations + Firebase ID token
-    API->>DB: Read profile_version and versioned recommendation cache
-    alt Cache current
-        API->>API: Sample weighted top-k candidate pools
-    else Cache stale or missing
-        API->>DB: Read watches and rebuild all-time/recent profiles
-        API->>TMDB: Retrieve item-to-item, discover and trending candidates
-        API->>TMDB: Enrich selected candidates through shared catalog cache
-        API->>API: Compute local IDF, score and rank candidates
-        API->>DB: Persist candidate pools keyed by profile_version
-        API->>API: Sample weighted top-k candidate pools
-    end
+    API->>DB: Read watches, all-time vectors and feature statistics
+    API->>TMDB: Retrieve primary and weekly-trending candidates
+    API->>TMDB: Enrich selected candidates through shared catalog cache
+    API->>API: Score, explain, percentile-rank and diversify
     API-->>UI: Safe / Adjacent / Wildcard slots + profile status
 ```
 
@@ -129,10 +122,10 @@ The user invokes `POST /api/taste/backfill` in bounded pages. The service fetche
 | Profile | users/{uid} | UID-scoped Firestore doc |
 | Username ownership | usernames/{name} | Registry conflict handling |
 | Watch | User watch subcollection | API mutation path |
-| Taste counters/version | User taste profile | Counts and profile_version updated with watch transaction |
-| Recommendation cache | User recommendations/current | Candidate pools invalidated by profile_version; refreshed after mutations |
-| Taste contributions | User watch documents | Exact per-watch contribution snapshots are the source of truth |
-| Shared media features | tmdb_catalog | Cached/re-fetched metadata; no global feature counters |
+| Taste counters | User taste profile | Updated with watch transaction |
+| Recommendation feature frequencies | `tmdb_feature_stats` | Shared catalogue document-frequency index |
+| Taste vectors | User taste_vectors hierarchy | Exact contribution reversal |
+| Shared media features | tmdb_catalog | Cached/re-fetched metadata |
 
 ## 8. Failure modes
 
@@ -154,7 +147,7 @@ Current signals: managed-host logs, health endpoint, and CI. No formal productio
 
 ## 10. Trade-offs
 
-Firestore avoids operating a relational database but requires careful transaction design. All-time taste profiles are rebuilt from watch contribution snapshots, trading a bounded per-request scan for fewer writes and no vector drift. Recommendation candidate pools are cached by profile_version and sampled at serve time. Local IDF avoids global hot counters but reflects only the user's watched set and current candidate pool. TMDB avoids maintaining a catalogue but creates an external dependency.
+Firestore avoids operating a relational database but requires careful transaction design. TMDB avoids maintaining a catalogue but creates an external dependency. Firebase delegates credential lifecycle while backend authorization remains mandatory. Incremental taste vectors avoid full-history recalculation but require exact reversal and schema/model versioning.
 
 ## 11. Links
 

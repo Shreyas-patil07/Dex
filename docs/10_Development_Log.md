@@ -16,6 +16,30 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 
 ## Entries
 
+### 2026-11-07 — Recommendation Engine V2 merged
+
+- **Type:** Architecture / Recommendation engine
+- **Summary:** Merged PR #21 after reconciling it with the merged reliability PR #20. V2 adds TMDB item-to-item retrieval from highly rated watches, keeps multi-page discover as fallback, rebuilds all-time and recent profiles from per-watch contribution snapshots, removes per-feature taste-vector reads/writes and global feature-stat counters, and caches enriched candidate pools for six hours using profile_version.
+- **Evidence:** [PR #21](https://github.com/Shreyas-patil07/Dex/pull/21); merge commit [0908982](https://github.com/Shreyas-patil07/Dex/commit/0908982512903f3879fa4df3f835b1e1d10d70a2); conflict-resolution commit [7b99666](https://github.com/Shreyas-patil07/Dex/commit/7b99666a788898164562e6b0b7e9d25aeacc5be5).
+- **Outcome:** PR validation passed backend tests (48), Python compilation, backend dependency audit, frontend typecheck and frontend production build. The frontend npm audit remains failing with seven high-severity findings inherited from the existing dependency tree; PR #21 did not change frontend dependency versions. Merge-triggered main CI passed backend and frontend jobs; the security audit job failed for the same reason.
+- **Next action:** Verify the active Render deployment is running the merged main revision, then complete authenticated recommendation/watch/backfill smoke tests. Do not infer production success from the merge or CI.
+
+### 2026-11-07 — Public production route-existence probes captured
+
+- **Type:** Production smoke test / User-provided terminal evidence
+- **Summary:** Before PR #20 and PR #21 were merged, the user ran GET /api/health, GET /api/recommendations without a token, and GET /api/watches/movie_550 without a token.
+- **Evidence:** PowerShell output supplied in chat at 2026-11-07 06:26 UTC: health returned HTTP 200 and version 0.5.1; both protected routes returned HTTP 401 with "Authentication required".
+- **Outcome:** This proves that the old deployed service had the route declarations and required authentication at that time. It does not verify the merged V2 backend deployment or any authenticated operation.
+- **Next action:** Repeat health and protected-route checks after Render deploys the merged main commit; then use a signed-in test account for recommendation 200, watch lookup 200/404, watch create 201, duplicate 409 and backfill completion.
+
+### 2026-11-07 — Offline recommendation evaluation harness started
+
+- **Type:** Evaluation / Test infrastructure
+- **Summary:** Added five synthetic, predeclared profiles covering sparse history, mixed genres, explicit negative preferences, recent preference shifts and anime-heavy taste. The evaluator scores with the production V2 all-time/recent scoring functions, reports NDCG@3, Precision@3, Recall@3, intra-list diversity and positive-feature coverage, and includes a deterministic greedy MMR ranking diagnostic.
+- **Evidence:** backend/evaluation/recommendation_fixtures.json; backend/scripts/evaluate_recommendations.py; backend/tests/test_recommendation_evaluation.py.
+- **Outcome:** Synthetic fixtures avoid personal data and TMDB calls. CI is responsible for validating the new harness; these results are diagnostic regression baselines, not user satisfaction or statistical proof.
+- **Next action:** Run the harness, review rankings against the predeclared judgements, and only then consider future ranking changes.
+
 ### 2026-11-07 — Media detail page status selection
 
 - **Type:** UX / Frontend change

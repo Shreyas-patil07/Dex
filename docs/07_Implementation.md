@@ -9,7 +9,7 @@
 
 Dex has a deployed frontend and a FastAPI backend. The latest user-provided screenshots now show the signed-in For You section loading Safe, Adjacent and Wildcard recommendation cards, and the media detail page correctly showing an existing title as Already watched. This supersedes the earlier screenshot evidence of 404 for GET /api/recommendations and 405 for GET /api/watches/{watch_id} for these observed UI flows. The live API health version, a new-title Add to list create flow, and full authenticated route smoke tests are still not independently confirmed.
 
-Implementation status and production status are separate. A feature marked implemented below means that the code exists in main and is covered by the listed tests. A user-provided screenshot can confirm a visible UI flow, but does not establish the exact backend version, response status codes, or every edge case.
+Implementation status and production status are separate. PR #20 (reliability) and PR #21 (Recommendation Engine V2) are merged into main. A feature marked implemented below means that the code exists in main and is covered by automated tests. A user-provided screenshot can confirm a visible UI flow, but does not establish the exact backend version, response status codes, or every edge case.
 
 ## 2. Delivered milestones
 
@@ -19,10 +19,10 @@ Implementation status and production status are separate. A feature marked imple
 | Identity | Firebase token verification, Dex profile sync and normalized unique usernames | Firebase auth service and API tests | Implemented |
 | Watch library | User-scoped create/list/update/delete | watch API and regression tests | Implemented |
 | Detail-page status | Show Watched / Want to watch / In future choices; load existing status and handle create conflicts | commit 8731aa2; `MediaDetailsPage.tsx`; existing `POST /api/watches` status contract | Implemented in source |
-| Taste Engine V1 | Signed genre/keyword/person/decade vectors with reversible contributions | taste.py; commit cf454433; tests | Implemented |
+| Taste Engine V2 | Exact per-watch contribution snapshots; all-time and recent profiles rebuilt from watches; no per-feature vector writes | recommendations.py, taste.py; PR #21; 48 backend tests before merge | Implemented |
 | Legacy backfill | Authenticated, idempotent cursor pagination, max 50 per page | taste_backfill.py; commit 7b477b1; API tests | Implemented |
-| Shared IDF statistics | Catalogue document frequency indexed transactionally | tmdb_catalog.py; commit 183aa13 | Implemented |
-| Recommendations | Signed scoring, recent profile, IDF, MMR and three slots | recommendations.py; commits faf006b, 127a48f, b66bd4f | Implemented |
+| Local IDF | Document frequency computed from this user's watched titles plus the current candidate pool; global counters removed | recommendations.py; PR #21 | Implemented |
+| Recommendations V2 | TMDB item-to-item retrieval, discover fallback, local IDF, versioned six-hour candidate cache, weighted top-k sampling and three distinct slots | recommendations.py; PR #21 | Implemented in source; post-merge Render verification pending |
 | Homepage For You | Signed-in recommendation section, refresh and historical profile setup | HomePage.tsx; commits c80af93, 4ae1e22, 86b6356 | Implemented in source |
 | API deployment diagnostics | GET/HEAD health returns API version and expected watch write route | main.py; commit 477cb23 | Implemented in source |
 | Render source alignment | Blueprint sets branch main, backend root, auto deploy and health check | render.yaml; commit 2101f34 | UI flows now work; active source version and service settings still unverified |
@@ -32,10 +32,10 @@ The media detail page now offers three explicit save actions for unsaved titles:
 ## 3. Recommendation and profile lifecycle
 
 1. When a user marks a title watched, the backend attempts to load shared TMDB feature metadata.
-2. If metadata is available, the exact signed contribution is stored on the watch record and aggregate vectors/profile counters are updated transactionally.
+2. If metadata is available, the exact signed contribution is stored on the watch record; profile counters and profile_version are updated transactionally.
 3. If metadata is unavailable, the watched record can remain pending; the watch itself is not silently discarded.
 4. Legacy watched records are processed using POST /api/taste/backfill with cursor pagination. The endpoint skips records already current and can retry pending records on a later pass.
-5. GET /api/recommendations reads the user's watched records and all-time vectors, rebuilds a recent profile, retrieves/enriches candidates and returns Safe, Adjacent and Wildcard slots.
+5. GET /api/recommendations rebuilds all-time and recent profiles from watch contributions, retrieves TMDB item-to-item candidates with discover fallback, enriches candidates, computes local IDF, and caches versioned candidate pools before sampling Safe, Adjacent and Wildcard slots.
 6. The signed-in homepage displays the slots and lets the user refresh. One backfill page is run per action, not as an unbounded client loop.
 
 ## 4. Current validation evidence
@@ -76,7 +76,7 @@ See [Deployment Runbook](12_Deployment_Runbook.md) for exact probes and Render s
 
 ## 6. Approved v0.6 direction
 
-The approved next release is **Reliability and Discovery Intelligence**. Render verification is the release gate. After that, implement first-party recommendation events in Firestore (batched per page view, idempotent, server-derived UID), explicit More like this / Less like this / Not interested feedback, and an offline evaluation harness with 3–5 predeclared fixture profiles. Do not infer dislike from silence or tune model parameters by eye.
+The approved next release is **Reliability and Discovery Intelligence**. The PR #21 recommendation architecture is now merged; it is a code-level milestone, not proof that the new backend revision has completed its Render deployment. Render verification is the release gate. After production V2 verification and the Firebase Rules/IAM audit, implement first-party recommendation events in Firestore (batched per page view, idempotent, server-derived UID), explicit More like this / Less like this / Not interested feedback, and an offline evaluation harness with 3–5 predeclared fixture profiles. Do not infer dislike from silence or tune model parameters by eye.
 
 The v0.6 event pipeline must not collect tokens or free text and must have retention, pause/clear, export and deletion semantics before production collection. Audit Firestore Rules and IAM first. Keep TMDB as the sole catalogue. Defer Kafka/Flink, vector databases, neural recommenders, social features, streaming, watch parties and gamification.
 

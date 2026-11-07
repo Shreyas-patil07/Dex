@@ -236,7 +236,7 @@ tmdb_catalog/{media_type}_{tmdb_id}
 
 The shared catalogue is an application-wide metadata cache; user watch, taste profile, and recommendation cache records remain UID-scoped. Per-feature taste-vector documents and global tmdb_feature_stats counters are no longer written or read. Existing legacy documents can be left for a later cleanup migration; they are ignored by the current engine.
 
-## 9. Taste Engine V1 invariants
+## 9. Taste Engine V2 invariants
 
 - Only watched records contribute.
 - Rating baseline is 5.5. Ratings below 5.5 map to negative sentiment; ratings above 5.5 map to positive sentiment, bounded to [-1, 1].

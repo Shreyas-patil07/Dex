@@ -183,7 +183,7 @@ tmdb_catalog/{media_type}_{tmdb_id}
   cached TMDB-derived feature metadata and display labels
 ```
 
-## Taste engine V1
+## Taste engine V2
 
 Only `watched` records contribute; want-to-watch and in-future records are excluded. Current backend design uses genre, keyword, people (movie directors or TV creators), and decade features. Feature groups are independently L2-normalized. Weights are genres 1.0, keywords 1.2, people 1.0, decades 0.35. A rating baseline of 5.5 maps ratings to signed sentiment in [-1, 1]; unrated watched titles contribute +0.15. Exact contributions are persisted so edits and deletes can reverse them in the same Firestore transaction as the watch mutation.
 

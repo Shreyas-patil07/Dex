@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from ipaddress import ip_address
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -39,16 +39,6 @@ tmdb = TMDBService(
 tmdb_catalog = TMDBCatalog()
 recommendation_service = TasteRecommendationService(tmdb, tmdb_catalog)
 bearer = HTTPBearer(auto_error=False)
-
-
-async def refresh_cached_recommendations(db, user_document) -> None:
-    cache_snapshot = await user_document.collection("recommendations").document("current").get()
-    if not cache_snapshot.exists:
-        return
-    try:
-        await recommendation_service.recommend(db, user_document)
-    except TMDBError:
-        return
 
 
 def get_client_ip(request: Request) -> str:
@@ -411,7 +401,6 @@ async def me(
 async def add_watch(
     request: Request,
     response: Response,
-    background_tasks: BackgroundTasks,
     payload: WatchCreate,
     current=Depends(current_user),
     db=Depends(get_firestore),
@@ -451,7 +440,6 @@ async def add_watch(
     created = await add_watch_atomically(db, user_document, ref, data)
     if not created:
         raise HTTPException(status_code=409, detail="This title is already in your library")
-    background_tasks.add_task(refresh_cached_recommendations, db, user_document)
     return watch_public(doc_id, data)
 
 
@@ -476,7 +464,6 @@ async def get_watch(
 async def update_watch(
     request: Request,
     response: Response,
-    background_tasks: BackgroundTasks,
     watch_id: str,
     payload: WatchUpdate,
     current=Depends(current_user),
@@ -520,7 +507,6 @@ async def update_watch(
     )
     if data is None:
         raise HTTPException(status_code=404, detail="Watch entry not found")
-    background_tasks.add_task(refresh_cached_recommendations, db, user_document)
     return watch_public(watch_id, data)
 
 
@@ -529,7 +515,6 @@ async def update_watch(
 async def delete_watch(
     request: Request,
     response: Response,
-    background_tasks: BackgroundTasks,
     watch_id: str,
     current=Depends(current_user),
     db=Depends(get_firestore),
@@ -540,7 +525,6 @@ async def delete_watch(
     deleted = await delete_watch_atomically(db, user_document, ref)
     if not deleted:
         raise HTTPException(status_code=404, detail="Watch entry not found")
-    background_tasks.add_task(refresh_cached_recommendations, db, user_document)
 
 
 @app.get("/api/recommendations")
@@ -566,26 +550,21 @@ async def recommendations(
 async def taste_backfill(
     request: Request,
     response: Response,
-    background_tasks: BackgroundTasks,
     limit: int = Query(25, ge=1, le=MAX_BACKFILL_PAGE_SIZE),
     cursor: str | None = Query(None, min_length=1, max_length=128),
     current=Depends(current_user),
     db=Depends(get_firestore),
 ) -> dict:
     firebase_uid, _ = current
-    user_document = user_ref(db, firebase_uid)
     try:
-        result = await backfill_watched_page(
+        return await backfill_watched_page(
             db,
-            user_document,
+            user_ref(db, firebase_uid),
             tmdb,
             tmdb_catalog,
             limit=limit,
             cursor=cursor,
         )
-        if result.get("enriched", 0):
-            background_tasks.add_task(refresh_cached_recommendations, db, user_document)
-        return result
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
