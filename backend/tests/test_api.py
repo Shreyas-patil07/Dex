@@ -478,6 +478,7 @@ def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client
         "watched_titles": 2,
         "profiled_titles": 2,
         "rated_titles": 2,
+        "rated_profiled_titles": 2,
         "unrated_profiled_titles": 0,
         "metadata_ready_titles": 2,
         "pending_titles": 0,
