@@ -24,7 +24,8 @@ Protect Firebase identity, private profile data, watch history/notes, taste data
 
 | Threat | Boundary | Mitigation |
 |---|---|---|
-| Spoofed identity | Browser → API | Firebase Admin token verification |
+| Spoofed identity | Browser → API | Firebase Admin token verification with revocation checking |
+| Stolen/revoked session | Browser → API | Check ID-token revocation and account disabled state on every protected request |
 | Cross-user access / IDOR | API → Firestore | Derive UID from verified token; single-watch lookup returns 404 for an absent or other-user record |
 | Username race | Concurrent claims | Registry create/conflict handling |
 | Secret disclosure | Repo/build | Keep privileged secrets server-side |
@@ -36,7 +37,15 @@ Protect Firebase identity, private profile data, watch history/notes, taste data
 
 ## 4. Identity and authorization
 
-Firebase Authentication is the client sign-in provider. Frontend sends an ID token in the Bearer header. API verifies with Firebase Admin and derives UID from verified claims. User must be synchronized to a Dex profile before protected access. Username claims are normalized and collision-guarded. Watch listing, single-watch lookup, mutations, recommendations, and taste backfill are protected and derive the owner from the verified UID; clients cannot choose another user's Firestore path.
+Firebase Authentication is the client sign-in provider. Frontend sends an ID token in the Bearer header. API verifies the token with Firebase Admin and derives UID from verified claims. User must be synchronized to a Dex profile before protected access. Username claims are normalized and collision-guarded. Watch listing, single-watch lookup, mutations, recommendations, and taste backfill are protected and derive the owner from the verified UID; clients cannot choose another user's Firestore path.
+
+### 4.1 ID-token revocation enforcement
+
+Every protected API request calls Firebase Admin verify_id_token with check_revoked=True. This validates the token and checks the associated Firebase Auth user record for revoked refresh tokens or a disabled account before accepting the identity. Revoked, expired, invalid, disabled-account, and missing-user credentials return HTTP 401 and require the client to reauthenticate. If Firebase Auth cannot complete verification (for example, an upstream/network failure), the API fails closed with HTTP 503 rather than accepting an unchecked token.
+
+Revocation checking performs an additional Firebase Auth user lookup for each protected request. The API middleware caches the verified claims only for the lifetime of that single HTTP request so route dependencies do not repeat the lookup within the same request; it does not cache claims across requests.
+
+Revoking refresh tokens is a separate administrative action. Firebase Admin auth.revoke_refresh_tokens(uid) invalidates refresh sessions and prevents new ID tokens from being minted from those sessions, while an already-issued ID token may remain usable until expiry unless the API checks revocation. Do not expose token revocation as a public user-controlled API without an explicit account/session-management design.
 
 **Required audit:** Verify every watch/profile endpoint uses the verified UID and cannot access another UID by changing request parameters. Review Firebase Security Rules and project IAM directly; these settings are not represented in the repository tree.
 
@@ -61,6 +70,10 @@ Keep real env files/service accounts ignored. Store production secrets in Render
 | Control | Verification | Acceptance |
 |---|---|---|
 | Invalid token | API tests | 401 |
+| Expired token | API tests | 401 |
+| Revoked token | Firebase Admin verification with check_revoked=True; API tests | 401 |
+| Disabled/deleted Auth user | Firebase Admin verification; API tests | 401 |
+| Firebase Auth verification outage | API tests | 503; protected request denied |
 | User isolation | Cross-UID tests for watch list and single-watch lookup | No cross-user read/write |
 | Username uniqueness | Concurrent tests | One owner |
 | Secret hygiene | Git history/build scan | No real secrets |
@@ -71,7 +84,7 @@ Keep real env files/service accounts ignored. Store production secrets in Render
 
 ## 9. Incident response
 
-Triage scope; rotate/revoke credentials; restrict affected routes if needed; preserve redacted evidence; patch/test/deploy; notify users/authorities where legally required; document root cause.
+Triage scope; revoke affected users' refresh tokens using a trusted Firebase Admin environment; restrict affected routes if needed; preserve redacted evidence; patch/test/deploy; notify users/authorities where legally required; document root cause. After revocation, the deployed API must use revocation checking to reject already-issued tokens before their natural expiry.
 
 ## 10. Open security questions
 
@@ -85,7 +98,7 @@ Triage scope; rotate/revoke credentials; restrict affected routes if needed; pre
 
 ## 11. Deployment verification boundary
 
-A passing GitHub Actions run or Vercel status does not prove that the Render API process is running the same source revision. Production checks must verify the `/api/health` source version and exercise protected watch/recommendation routes with an authenticated account. On 2026-11-07, user-provided browser evidence showed `/api/recommendations` returning 404 and `GET /api/watches/{watch_id}` returning 405; the active Render deployment was therefore still unverified. See [Deployment Runbook](12_Deployment_Runbook.md). Do not weaken authentication or make personal recommendation routes public to work around missing production routes.
+A passing GitHub Actions run or Vercel status does not prove that the Render API process is running the same source revision. Production checks must verify the /api/health source version and exercise protected watch/recommendation routes with an authenticated account. On 2026-11-07, user-provided PowerShell output confirmed Render was serving commit 4632854e8994b641b2054b921e9fca4d96056ee5, and authenticated GET /api/me, GET /api/watches, GET /api/watches/{watch_id}, and GET /api/recommendations requests returned successfully. These observations confirm those routes at that deployment, not every route or edge case. See [Deployment Runbook](12_Deployment_Runbook.md). Do not weaken authentication or make personal recommendation routes public to work around missing production routes.
 
 ## 12. Data lifecycle readiness
 
