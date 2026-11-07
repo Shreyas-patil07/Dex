@@ -63,13 +63,13 @@ Live OpenAPI: https://dex-connect.onrender.com/docs
 
 ## Taste engine V1
 
-Only watched titles contribute. Current feature groups: genres, keywords, people (movie directors or TV creators), decades. Group weights: 1.0, 1.2, 1.0, 0.35. Rating baseline: 5.5 mapped into signed sentiment [-1, 1]; unrated watched title: +0.15. Each feature group is L2-normalized independently. Exact contributions are stored on watch records so edits/deletes reverse them in the same Firestore transaction as watch mutation. TMDB metadata failure may leave taste metadata pending while watch write succeeds.
+Only watched titles contribute. Current feature groups: genres, keywords, people (movie directors or TV creators), decades. Group weights: 1.0, 1.2, 1.0, 0.35. Rating baseline: 5.5 mapped into signed sentiment [-1, 1]; unrated watched title: +0.15. Each feature group is L2-normalized independently. Exact contributions are stored on watch records and are the source of truth for all-time and recent profile reconstruction. The compact taste/profile document stores counters and profile_version only; no per-feature taste_vectors are written. Local IDF is calculated from the user's watched set plus the current candidate pool; global feature-stat counters are not used. TMDB metadata failure may leave taste metadata pending while watch write succeeds.
 
 Firestore paths:
 
 ```text
 users/{uid}/taste/profile
-users/{uid}/taste_vectors/{group}/features/{feature_id}
+users/{uid}/recommendations/current
 users/{uid}/watches/{media_type}_{tmdb_id}
 tmdb_catalog/{media_type}_{tmdb_id}
 ```
@@ -98,7 +98,7 @@ Call the authenticated `POST /api/taste/backfill?limit=25` endpoint until it ret
 ### Historical profile and recommendations
 
 - `POST /api/taste/backfill?limit=25` incrementally enriches existing watched records. Page size is 1–50 (default 25); the homepage uses 50. Continue with the returned `next_cursor` until `complete` is true. If `pending_watch_ids` is non-empty, rerun from the first page later to retry upstream TMDB failures. Completed records are skipped, making repeat passes idempotent.
-- `GET /api/recommendations` is authenticated and rate-limited to 10/minute. It returns Safe, Adjacent, and Wildcard slots. Safe uses highest personalized relevance, Adjacent uses MMR diversification, and Wildcard comes from a separate weekly-trending retriever with a novelty preference for less represented genres.
+- `GET /api/recommendations` is authenticated and rate-limited to 10/minute. It returns Safe, Adjacent, and Wildcard slots. The retriever seeds TMDB item-to-item recommendations/similar from positively rated watched titles, then supplements with multi-page discover and weekly trending. Safe and Adjacent are sampled from weighted top-k primary candidates with MMR diversification; Wildcard is sampled from a novelty-ranked trending pool. Candidate pools are cached for six hours and keyed by the user's profile_version; watch mutations refresh an existing cache in a background task.
 - Recommendations combine the all-time signed vector with a 90-day exponential-decay profile (25% recent blend, 75% all-time). Feature IDF is `ln((N+1)/(DF+1)) + 1` and is indexed from the shared TMDB catalogue. Candidate match percentages are percentile ranks within the request's enriched candidate pool, not probabilities of liking a title.
 - The recommendation endpoint reports `profile_status.backfill_complete` and the pending/ready counts. A partial profile can produce partial recommendations; finish backfill for full historical coverage.
 
