@@ -236,8 +236,8 @@ export const MediaDetailsPage: React.FC = () => {
 
       <section className="mt-5 space-y-3">
         {existingStatus ? (
-          <div className="inline-flex items-center gap-2 rounded-xl border border-[#2DD4BF]/25 bg-[#2DD4BF]/10 px-5 py-3 text-sm font-semibold text-[#99F6E4]">
-            <Check size={17} />
+          <div className={`inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold ${existingStatus === 'watching' ? 'border-amber-300/25 bg-amber-300/10 text-amber-100' : 'border-[#2DD4BF]/25 bg-[#2DD4BF]/10 text-[#99F6E4]'}`}>
+            {existingStatus === 'watching' ? <PlayCircle size={17} /> : <Check size={17} />}
             {existingStatus === 'watched'
               ? 'Already watched'
               : existingStatus === 'watching'
