@@ -327,7 +327,7 @@ def test_watching_status_is_saved_without_taste_signal_until_marked_watched(api_
         feature_calls.append((media_type, tmdb_id))
         return {
             "genres": ["18"],
-            "keywords": ["100"],
+            "keywords": ["100", "101", "102", "103", "104", "105"],
             "people": ["7467"],
             "decades": ["2020s"],
         }
@@ -402,7 +402,14 @@ def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client
             "rated": True,
             "weights": {
                 "genres": {"18": 0.8},
-                "keywords": {"100": 0.7},
+                "keywords": {
+                    "100": 0.7,
+                    "101": 0.6,
+                    "102": 0.5,
+                    "103": 0.4,
+                    "104": 0.3,
+                    "105": 0.2,
+                },
                 "people": {"7467": 0.6},
                 "decades": {"1990s": 0.5},
             },
@@ -450,7 +457,14 @@ def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client
     database.documents[("tmdb_catalog", "movie_1")] = {
         "labels": {
             "genres": {"18": "Drama"},
-            "keywords": {"100": "Psychological"},
+            "keywords": {
+                "100": "psychological",
+                "101": "based on comic",
+                "102": "superhero",
+                "103": "marvel cinematic universe (mcu)",
+                "104": "aftercreditsstinger",
+                "105": "post-credits scene",
+            },
             "people": {"7467": "David Fincher"},
             "decades": {"1990s": "1990s"},
         },
@@ -491,7 +505,16 @@ def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client
     assert groups["genres"]["positive"][0]["label"] == "Drama"
     assert groups["genres"]["lower_rated"][0]["label"] == "Horror"
     assert groups["genres"]["positive"][0]["watch_count"] == 1
-    assert groups["keywords"]["positive"][0]["label"] == "Psychological"
+    theme_labels = {item["label"]: item for item in groups["keywords"]["positive"]}
+    assert set(theme_labels) == {
+        "Psychological",
+        "Comic-book adaptation",
+        "Superheroes",
+        "Marvel Cinematic Universe (MCU)",
+    }
+    assert theme_labels["Psychological"]["watch_count"] == 1
+    assert "Aftercreditsstinger" not in theme_labels
+    assert "Post-Credits Scene" not in theme_labels
     assert groups["people"]["positive"][0]["label"] == "David Fincher"
     assert groups["decades"]["positive"][0]["label"] == "1990s"
     assert groups["genres"]["recent"][0]["label"] == "Drama"

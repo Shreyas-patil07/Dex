@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import math
+import re
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any
 
@@ -21,6 +23,65 @@ GROUP_LABELS = {
 }
 
 
+KEYWORD_NOISE_SLUGS = {
+    "aftercreditsstinger",
+    "duringcreditsstinger",
+    "aftercreditscene",
+    "duringcreditscene",
+    "postcreditscene",
+    "midcreditscene",
+    "endcreditscene",
+    "creditstinger",
+}
+KEYWORD_LABEL_OVERRIDES = {
+    "basedoncomic": "Comic-book adaptation",
+    "basedoncomicbook": "Comic-book adaptation",
+    "basedoncomicbooks": "Comic-book adaptation",
+    "superhero": "Superheroes",
+    "superheroes": "Superheroes",
+    "marvelcinematicuniverse": "Marvel Cinematic Universe (MCU)",
+    "marvelcinematicuniversemcu": "Marvel Cinematic Universe (MCU)",
+    "mcu": "Marvel Cinematic Universe (MCU)",
+}
+ACRONYM_LABELS = {
+    "Ai": "AI",
+    "Cgi": "CGI",
+    "Fbi": "FBI",
+    "Mcu": "MCU",
+    "Nasa": "NASA",
+    "Tv": "TV",
+    "Ufo": "UFO",
+    "Uk": "UK",
+    "Usa": "USA",
+}
+
+
+def _normalize_feature_label(group: str, label: str) -> str | None:
+    """Clean display labels without changing the underlying feature IDs or weights."""
+    value = unicodedata.normalize("NFKC", str(label)).strip()
+    if not value:
+        return None
+    if group != "keywords":
+        return value
+
+    spaced = re.sub(r"[\\s_]+", " ", value).strip()
+    slug = re.sub(r"[^a-z0-9]+", "", spaced.casefold())
+    if not slug or slug in KEYWORD_NOISE_SLUGS:
+        return None
+
+    if slug in KEYWORD_LABEL_OVERRIDES:
+        return KEYWORD_LABEL_OVERRIDES[slug]
+
+    title = spaced.title()
+    for source, replacement in ACRONYM_LABELS.items():
+        title = re.sub(rf"\\b{source}\\b", replacement, title)
+    return title
+
+
+def _label_key(label: str) -> str:
+    return unicodedata.normalize("NFKC", label).casefold()
+
+
 def _number(value: Any) -> float:
     try:
         result = float(value)
@@ -38,17 +99,30 @@ def _ranked_features(
     limit: int = 5,
 ) -> list[dict[str, Any]]:
     opposite = "negative" if direction == "positive" else "positive"
-    candidates: list[tuple[str, str, float]] = []
+    grouped: dict[str, dict[str, Any]] = {}
+
     for feature_id in set(profile[group]["positive"]) | set(profile[group]["negative"]):
+        label = _normalize_feature_label(group, labels.get(group, {}).get(feature_id, ""))
+        if not label:
+            continue
         strength = (
             _number(profile[group][direction].get(feature_id))
             - _number(profile[group][opposite].get(feature_id))
         )
-        label = labels.get(group, {}).get(feature_id)
-        if strength > 0 and label:
-            candidates.append((feature_id, str(label), strength))
+        if strength <= 0:
+            continue
 
-    candidates.sort(key=lambda item: item[2], reverse=True)
+        key = _label_key(label)
+        item = grouped.setdefault(key, {"label": label, "strength": 0.0, "ids": []})
+        item["strength"] += strength
+        item["ids"].append(str(feature_id))
+
+    candidates = [
+        (key, item["label"], item["strength"], item["ids"])
+        for key, item in grouped.items()
+        if item["strength"] > 0
+    ]
+    candidates.sort(key=lambda item: (-item[2], item[1].casefold()))
     visible = candidates[:limit]
     maximum = max((item[2] for item in visible), default=0.0)
     if maximum <= 0:
@@ -56,14 +130,13 @@ def _ranked_features(
 
     return [
         {
-            "id": feature_id,
+            "id": min(feature_ids),
             "label": label,
             "strength": round(strength / maximum * 100),
-            "watch_count": evidence.get(group, {}).get(feature_id, 0),
+            "watch_count": evidence.get(group, {}).get(key, 0),
         }
-        for feature_id, label, strength in visible
+        for key, label, strength, feature_ids in visible
     ]
-
 
 async def build_taste_profile(db: Any, user_document: Any) -> dict[str, Any]:
     """Build a read-only, explainable profile from stored watch contributions.
@@ -107,18 +180,23 @@ async def build_taste_profile(db: Any, user_document: Any) -> dict[str, Any]:
         for group in FEATURE_GROUPS:
             group_labels = label_set.get(group) or {}
             if isinstance(group_labels, dict):
-                for feature_id, label in group_labels.items():
-                    if label:
-                        labels[group].setdefault(str(feature_id), str(label))
+                for feature_id, raw_label in group_labels.items():
+                    if raw_label:
+                        normalized = _normalize_feature_label(group, str(raw_label))
+                        if normalized:
+                            labels[group].setdefault(str(feature_id), normalized)
 
     for watch in watched:
         contribution = watch.get("taste_contribution") or {}
         weights = contribution.get("weights") or {}
-        features = watch.get("taste_features") or {}
         for group in FEATURE_GROUPS:
-            feature_ids = features.get(group) or list((weights.get(group) or {}).keys())
-            for feature_id in set(map(str, feature_ids)):
-                evidence[group][feature_id] = evidence[group].get(feature_id, 0) + 1
+            title_labels = {
+                _label_key(label)
+                for feature_id in (weights.get(group) or {})
+                if (label := labels[group].get(str(feature_id)))
+            }
+            for label_key in title_labels:
+                evidence[group][label_key] = evidence[group].get(label_key, 0) + 1
 
     profile_snapshot = await user_document.collection("taste").document("profile").get()
     profile_data = profile_snapshot.to_dict() if profile_snapshot.exists else {}

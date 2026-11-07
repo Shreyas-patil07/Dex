@@ -361,14 +361,16 @@ export const ProfilePage: React.FC = () => {
                           <p className="text-xs text-[#64748B]">Not enough positive evidence in this category yet.</p>
                         )}
 
-                        {group.lower_rated.length > 0 && (
-                          <div className="border-t border-white/[0.06] pt-3">
-                            <p className="mb-2 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.15em] text-rose-200/80"><ThumbsDown size={12} /> Lower-rated patterns</p>
+                        <div className="border-t border-white/[0.06] pt-3">
+                          <p className="mb-2 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.15em] text-rose-200/80"><ThumbsDown size={12} /> Lower-rated patterns</p>
+                          {group.lower_rated.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
                               {group.lower_rated.map(feature => <span key={feature.id} title={`Appears in ${feature.watch_count} watched titles`} className="rounded-lg border border-rose-300/10 bg-rose-300/[0.05] px-2.5 py-1.5 text-[10px] text-rose-100/90">{feature.label}</span>)}
                             </div>
-                          </div>
-                        )}
+                          ) : (
+                            <p className="text-[11px] text-[#64748B]">No clear lower-rated pattern yet. Ratings below 5.5 create negative signals.</p>
+                          )}
+                        </div>
 
                         {group.recent.length > 0 && (
                           <div className="border-t border-white/[0.06] pt-3">
