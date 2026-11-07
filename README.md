@@ -185,7 +185,7 @@ tmdb_catalog/{media_type}_{tmdb_id}
 
 ## Taste engine V2
 
-Only `watched` records contribute; want-to-watch and in-future records are excluded. Current backend design uses genre, keyword, people (movie directors or TV creators), and decade features. Feature groups are independently L2-normalized. Weights are genres 1.0, keywords 1.2, people 1.0, decades 0.35. A rating baseline of 5.5 maps ratings to signed sentiment in [-1, 1]; unrated watched titles contribute +0.15. Exact contributions are persisted so edits and deletes can reverse them in the same Firestore transaction as the watch mutation.
+Only `watched` records contribute; want-to-watch and in-future records are excluded. Each watch stores the exact signed `taste_contribution` snapshot used for profile reconstruction. Genre, keyword, people (movie directors or TV creators), and decade features are independently L2-normalized, with group weights 1.0, 1.2, 1.0 and 0.35. A rating baseline of 5.5 maps ratings to signed sentiment in [-1, 1]; unrated watched titles contribute +0.15. Edits and deletes reverse the stored contribution in the same Firestore transaction as the watch mutation. All-time and recent profiles are rebuilt from watch snapshots; the compact profile document stores counters and `profile_version`, not per-feature vectors.
 
 ## Personalized recommendations
 
@@ -206,9 +206,10 @@ npm run build
 **Backend**
 ```bash
 cd backend
-pip install -r requirements-dev.txt
+pip install -r requirements-dev.lock
 python -m compileall app tests
 pytest -q
+python scripts/evaluate_recommendations.py
 ```
 
 CI runs frontend typechecking/build and backend compilation/tests on pushes and pull requests targeting `main`.
