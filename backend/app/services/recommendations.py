@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import time
-from collections import OrderedDict
+import random
 from datetime import datetime, timezone
 from math import log, sqrt
 from typing import Any
-from urllib.parse import quote
 
 from .taste import FEATURE_GROUPS, GROUP_WEIGHTS
 from .tmdb import TMDBError
@@ -16,12 +14,14 @@ RECENT_HALF_LIFE_DAYS = 90.0
 RECENT_ALL_TIME_BLEND = 0.25
 MMR_LAMBDA = 0.45
 NEGATIVE_PENALTY = 1.0
-IDF_FEATURE_LIMIT = 100
-IDF_CACHE_TTL_SECONDS = 300
-IDF_FEATURE_CACHE_LIMIT = 1000
 PRIMARY_CANDIDATE_LIMIT = 18
 WILDCARD_CANDIDATE_LIMIT = 12
 ENRICH_CONCURRENCY = 4
+RECOMMENDATION_CACHE_TTL_SECONDS = 6 * 60 * 60
+EXPLORATION_TOP_K = 5
+RELATED_SEED_LIMIT = 4
+RELATED_CANDIDATE_PAGES = (1, 2)
+RELATED_ENDPOINTS = ("recommendations", "similar")
 
 
 def _number(value: Any, default: float = 0.0) -> float:
@@ -55,6 +55,66 @@ def calculate_idf(document_count: int, document_frequency: int) -> float:
         return 1.0
     bounded_frequency = min(document_frequency, document_count)
     return log((document_count + 1) / (bounded_frequency + 1)) + 1.0
+
+
+def build_local_idf(
+    profile: dict[str, dict[str, dict[str, float]]],
+    watches: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+) -> dict[str, dict[str, float]]:
+    """Compute feature rarity from this user's watched set and current candidate pool."""
+    documents: list[dict[str, set[str]]] = []
+
+    for watch in watches:
+        if watch.get("status") != "watched":
+            continue
+        raw = watch.get("taste_features") or {}
+        if not isinstance(raw, dict):
+            raw = {}
+        contribution = watch.get("taste_contribution") or {}
+        weights = contribution.get("weights") or {}
+        document = {
+            group: set(map(str, raw.get(group, []) or []))
+            for group in FEATURE_GROUPS
+        }
+        for group in FEATURE_GROUPS:
+            if not document[group]:
+                document[group].update(map(str, (weights.get(group) or {}).keys()))
+        if any(document.values()):
+            documents.append(document)
+
+    for candidate in candidates:
+        features = candidate.get("features") or {}
+        documents.append({
+            group: set(map(str, features.get(group, []) or []))
+            for group in FEATURE_GROUPS
+        })
+
+    frequencies: dict[str, dict[str, int]] = {
+        group: {} for group in FEATURE_GROUPS
+    }
+    document_counts = {
+        group: sum(bool(document[group]) for document in documents)
+        for group in FEATURE_GROUPS
+    }
+    for document in documents:
+        for group, feature_ids in document.items():
+            for feature_id in feature_ids:
+                frequencies[group][feature_id] = frequencies[group].get(feature_id, 0) + 1
+
+    idf: dict[str, dict[str, float]] = {group: {} for group in FEATURE_GROUPS}
+    for group in FEATURE_GROUPS:
+        feature_ids = (
+            set(profile[group]["positive"])
+            | set(profile[group]["negative"])
+            | set(frequencies[group])
+        )
+        for feature_id in feature_ids:
+            idf[group][feature_id] = calculate_idf(
+                document_counts[group],
+                frequencies[group].get(feature_id, 0),
+            )
+    return idf
 
 
 def build_recent_profile(
@@ -98,6 +158,35 @@ def build_recent_profile(
         included += int(has_feature)
 
     return recent, included
+
+
+def build_all_time_profile(
+    watches: list[dict[str, Any]],
+) -> tuple[dict[str, dict[str, dict[str, float]]], int]:
+    """Rebuild the signed all-time profile from each watch's stored contribution."""
+    profile = _empty_profile()
+    included = 0
+    for watch in watches:
+        if watch.get("status") != "watched":
+            continue
+        contribution = watch.get("taste_contribution")
+        if not isinstance(contribution, dict):
+            continue
+        direction = contribution.get("direction")
+        if direction not in {"positive", "negative"}:
+            continue
+        has_feature = False
+        for group, feature_map in (contribution.get("weights") or {}).items():
+            if group not in FEATURE_GROUPS or not isinstance(feature_map, dict):
+                continue
+            target = profile[group][direction]
+            for feature_id, value in feature_map.items():
+                weighted_value = _number(value)
+                if weighted_value > 0 and feature_id:
+                    target[str(feature_id)] = target.get(str(feature_id), 0.0) + weighted_value
+                    has_feature = True
+        included += int(has_feature)
+    return profile, included
 
 
 def cosine_group_score(
@@ -208,91 +297,11 @@ class TasteRecommendationService:
     def __init__(self, tmdb: Any, catalog: Any):
         self.tmdb = tmdb
         self.catalog = catalog
-        self._idf_cache: dict[str, dict[str, Any]] = {
-            group: {
-                "loaded_at": 0.0,
-                "document_count": 0,
-                "frequencies": OrderedDict(),
-            }
-            for group in FEATURE_GROUPS
-        }
+        self._retrieval_semaphore = asyncio.Semaphore(5)
 
-    async def _load_vectors(self, user_document: Any) -> dict[str, dict[str, dict[str, float]]]:
-        profile = _empty_profile()
-        for group in FEATURE_GROUPS:
-            feature_collection = (
-                user_document.collection("taste_vectors")
-                .document(group)
-                .collection("features")
-            )
-            async for snapshot in feature_collection.stream():
-                data = snapshot.to_dict() or {}
-                positive = _number(data.get("positive_sum"))
-                negative = _number(data.get("negative_sum"))
-                if positive:
-                    profile[group]["positive"][snapshot.id] = positive
-                if negative:
-                    profile[group]["negative"][snapshot.id] = negative
-        return profile
-
-    async def _load_idf(
-        self,
-        db: Any,
-        profile: dict[str, dict[str, dict[str, float]]],
-    ) -> dict[str, dict[str, float]]:
-        idf: dict[str, dict[str, float]] = {group: {} for group in FEATURE_GROUPS}
-        now = time.monotonic()
-
-        for group in FEATURE_GROUPS:
-            stats_ref = db.collection("tmdb_feature_stats").document(group)
-            cache = self._idf_cache[group]
-            if not cache["loaded_at"] or now - cache["loaded_at"] >= IDF_CACHE_TTL_SECONDS:
-                stats_snapshot = await stats_ref.get()
-                cache["document_count"] = max(
-                    0,
-                    int(_number((stats_snapshot.to_dict() or {}).get("document_count"))),
-                )
-                cache["loaded_at"] = now
-                cache["frequencies"].clear()
-
-            candidates = set(profile[group]["positive"]) | set(profile[group]["negative"])
-            ranked = sorted(
-                candidates,
-                key=lambda feature_id: abs(
-                    profile[group]["positive"].get(feature_id, 0.0)
-                    - profile[group]["negative"].get(feature_id, 0.0)
-                ),
-                reverse=True,
-            )[:IDF_FEATURE_LIMIT]
-
-            frequencies: OrderedDict[str, int] = cache["frequencies"]
-            missing = [feature_id for feature_id in ranked if feature_id not in frequencies]
-
-            async def read_frequency(feature_id: str) -> tuple[str, int]:
-                feature_ref = stats_ref.collection("features").document(
-                    quote(feature_id, safe="-_.~")
-                )
-                snapshot = await feature_ref.get()
-                frequency = int(_number((snapshot.to_dict() or {}).get("document_frequency")))
-                return feature_id, max(0, frequency)
-
-            fetched = await asyncio.gather(*(read_frequency(feature_id) for feature_id in missing))
-            for feature_id, frequency in fetched:
-                frequencies[feature_id] = frequency
-                frequencies.move_to_end(feature_id)
-
-            for feature_id in ranked:
-                frequency = frequencies[feature_id]
-                frequencies.move_to_end(feature_id)
-                if cache["document_count"] and frequency:
-                    idf[group][feature_id] = calculate_idf(cache["document_count"], frequency)
-                else:
-                    idf[group][feature_id] = 1.0
-
-            while len(frequencies) > IDF_FEATURE_CACHE_LIMIT:
-                frequencies.popitem(last=False)
-
-        return idf
+    async def _retrieval_get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
+        async with self._retrieval_semaphore:
+            return await self.tmdb.get(path, params)
 
     async def _discover(
         self,
@@ -303,21 +312,60 @@ class TasteRecommendationService:
     ) -> list[dict[str, Any]]:
         if not identifiers:
             return []
+        async def fetch_page(page: int) -> list[dict[str, Any]]:
+            try:
+                payload = await self._retrieval_get(
+                    f"/discover/{media_type}",
+                    {
+                        filter_name: "|".join(identifiers),
+                        "sort_by": "popularity.desc",
+                        "vote_count.gte": vote_count,
+                        "include_adult": "false",
+                        "page": page,
+                    },
+                )
+            except TMDBError:
+                return []
+            return [
+                {**item, "media_type": media_type, "_retrieval_source": "discover"}
+                for item in payload.get("results", [])
+                if isinstance(item, dict) and item.get("id")
+            ]
+
+        pages = await asyncio.gather(*(fetch_page(page) for page in RELATED_CANDIDATE_PAGES))
+        return [item for page in pages for item in page]
+
+    async def _related(
+        self,
+        seed: dict[str, Any],
+        endpoint: str,
+    ) -> list[dict[str, Any]]:
+        media_type = str(seed.get("media_type") or "")
+        tmdb_id = int(_number(seed.get("tmdb_id")))
+        if media_type not in {"movie", "tv"} or tmdb_id <= 0:
+            return []
         try:
-            payload = await self.tmdb.get(
-                f"/discover/{media_type}",
-                {
-                    filter_name: "|".join(identifiers),
-                    "sort_by": "popularity.desc",
-                    "vote_count.gte": vote_count,
-                    "include_adult": "false",
-                    "page": 1,
-                },
+            payload = await self._retrieval_get(
+                f"/{media_type}/{tmdb_id}/{endpoint}",
+                {"page": 1},
             )
         except TMDBError:
             return []
+
+        title = str(seed.get("title") or "a title you watched")
+        rating = _number(seed.get("rating"), -1.0)
+        if rating >= 7.0:
+            reason = f"Because you rated {title} {rating:.1f}/10"
+        else:
+            reason = f"Because you watched {title}"
+
         return [
-            {**item, "media_type": media_type}
+            {
+                **item,
+                "media_type": media_type,
+                "_retrieval_source": endpoint,
+                "_retrieval_reasons": [reason],
+            }
             for item in payload.get("results", [])
             if isinstance(item, dict) and item.get("id")
         ]
@@ -325,6 +373,7 @@ class TasteRecommendationService:
     async def _retrieve_candidates(
         self,
         profile: dict[str, dict[str, dict[str, float]]],
+        watches: list[dict[str, Any]] | None = None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         genre_seeds = sorted(
             (
@@ -357,6 +406,24 @@ class TasteRecommendationService:
             reverse=True,
         )[:3]
 
+        positive_watches = [
+            watch for watch in (watches or [])
+            if watch.get("status") == "watched"
+            and isinstance(watch.get("taste_contribution"), dict)
+            and watch["taste_contribution"].get("direction") == "positive"
+            and watch.get("media_type") in {"movie", "tv"}
+            and _number(watch.get("tmdb_id")) > 0
+        ]
+        positive_watches.sort(
+            key=lambda watch: (
+                _number(watch.get("rating"), -1.0),
+                _number((watch.get("taste_contribution") or {}).get("sentiment")),
+                _datetime(watch.get("watched_at")) or _datetime(watch.get("created_at")) or datetime.min.replace(tzinfo=timezone.utc),
+            ),
+            reverse=True,
+        )
+        related_seeds = positive_watches[:RELATED_SEED_LIMIT]
+
         tasks = []
         if genre_seeds:
             tasks.extend(
@@ -370,12 +437,18 @@ class TasteRecommendationService:
             )
         if people_seeds:
             tasks.append(self._discover("movie", "with_people", people_seeds))
+        tasks.extend(
+            self._related(seed, endpoint)
+            for seed in related_seeds
+            for endpoint in RELATED_ENDPOINTS
+        )
 
         primary_sets = await asyncio.gather(*tasks) if tasks else []
         primary = [item for batch in primary_sets for item in batch]
 
         try:
-            trending_payload = await self.tmdb.trending("all", "week")
+            async with self._retrieval_semaphore:
+                trending_payload = await self.tmdb.trending("all", "week")
             wildcard = [
                 item for item in trending_payload.get("results", [])
                 if isinstance(item, dict)
@@ -494,7 +567,71 @@ class TasteRecommendationService:
         overlap = set(positive_genres) & set(candidate_features.get("genres", []))
         return 1.0 - len(overlap) / max(1, len(set(positive_genres)))
 
+    @staticmethod
+    def _weighted_pick(candidates: list[dict[str, Any]]) -> dict[str, Any] | None:
+        if not candidates:
+            return None
+        pool = candidates[:EXPLORATION_TOP_K]
+        weights = list(range(len(pool), 0, -1))
+        return random.choices(pool, weights=weights, k=1)[0]
+
+    def _sample_cached_recommendations(self, cached: dict[str, Any]) -> dict[str, Any]:
+        primary = cached.get("primary_candidates") or []
+        wildcard = cached.get("wildcard_candidates") or []
+        safe = self._weighted_pick(primary)
+        remaining = [
+            candidate for candidate in primary
+            if candidate.get("public", {}).get("id") != (safe or {}).get("public", {}).get("id")
+            or candidate.get("public", {}).get("media_type") != (safe or {}).get("public", {}).get("media_type")
+        ]
+        if safe is not None:
+            remaining.sort(
+                key=lambda candidate: mmr_score(
+                    _number(candidate.get("raw_score")),
+                    feature_jaccard(
+                        candidate.get("features") or {},
+                        safe.get("features") or {},
+                    ),
+                ),
+                reverse=True,
+            )
+        adjacent = self._weighted_pick(remaining)
+        wildcard_candidates = [
+            candidate for candidate in wildcard
+            if (
+                candidate.get("public", {}).get("media_type"),
+                candidate.get("public", {}).get("id"),
+            ) not in {
+                ((safe or {}).get("public", {}).get("media_type"), (safe or {}).get("public", {}).get("id")),
+                ((adjacent or {}).get("public", {}).get("media_type"), (adjacent or {}).get("public", {}).get("id")),
+            }
+        ]
+        wildcard = self._weighted_pick(wildcard_candidates)
+        return {
+            **(cached.get("metadata") or {}),
+            "slots": {
+                "safe": (safe or {}).get("public"),
+                "adjacent": (adjacent or {}).get("public"),
+                "wildcard": (wildcard or {}).get("public"),
+            },
+        }
+
     async def recommend(self, db: Any, user_document: Any) -> dict[str, Any]:
+        profile_snapshot = await user_document.collection("taste").document("profile").get()
+        profile_version = int(_number((profile_snapshot.to_dict() or {}).get("profile_version")))
+        cache_ref = user_document.collection("recommendations").document("current")
+        cache_snapshot = await cache_ref.get()
+        cached = cache_snapshot.to_dict() if cache_snapshot.exists else None
+        cached_at = _datetime((cached or {}).get("generated_at"))
+        cache_is_fresh = (
+            cached is not None
+            and int(_number(cached.get("profile_version"), -1)) == profile_version
+            and cached_at is not None
+            and (datetime.now(timezone.utc) - cached_at).total_seconds() < RECOMMENDATION_CACHE_TTL_SECONDS
+        )
+        if cache_is_fresh:
+            return self._sample_cached_recommendations(cached)
+
         watch_snapshots = [
             snapshot async for snapshot in user_document.collection("watches").stream()
         ]
@@ -508,10 +645,9 @@ class TasteRecommendationService:
         unavailable = sum(1 for watch in watched if watch.get("taste_metadata_status") == "not_found")
         pending = len(watched) - len(ready) - unavailable
 
-        all_time = await self._load_vectors(user_document)
+        all_time, all_time_count = build_all_time_profile(watches)
         recent, recent_count = build_recent_profile(watches)
-        idf = await self._load_idf(db, all_time)
-        primary_candidates, wildcard_candidates = await self._retrieve_candidates(all_time)
+        primary_candidates, wildcard_candidates = await self._retrieve_candidates(all_time, watches)
 
         excluded = {
             f"{watch.get('media_type')}:{watch.get('tmdb_id')}"
@@ -520,8 +656,17 @@ class TasteRecommendationService:
         primary_by_key: dict[str, dict[str, Any]] = {}
         for candidate in primary_candidates:
             key = self._key(candidate)
-            if key not in excluded:
+            if key in excluded:
+                continue
+            existing = primary_by_key.get(key)
+            if existing is None:
                 primary_by_key[key] = candidate
+            else:
+                reasons = list(existing.get("_retrieval_reasons") or [])
+                reasons.extend(candidate.get("_retrieval_reasons") or [])
+                existing["_retrieval_reasons"] = list(dict.fromkeys(reasons))
+                if candidate.get("_retrieval_source") in {"recommendations", "similar"}:
+                    existing["_retrieval_source"] = candidate["_retrieval_source"]
 
         wildcard_by_key: dict[str, dict[str, Any]] = {}
         for candidate in wildcard_candidates:
@@ -532,6 +677,7 @@ class TasteRecommendationService:
         primary_ranked = sorted(
             primary_by_key.values(),
             key=lambda candidate: (
+                int(candidate.get("_retrieval_source") in {"recommendations", "similar"}),
                 self._cheap_genre_score(candidate, all_time),
                 self._quality(candidate),
                 _number(candidate.get("popularity")),
@@ -551,6 +697,7 @@ class TasteRecommendationService:
         for candidate in primary_ranked + wildcard_ranked:
             selected[self._key(candidate)] = candidate
         enriched = await self._enrich(db, list(selected.values()))
+        idf = build_local_idf(all_time, watches, enriched)
 
         personalized = any(
             all_time[group]["positive"] or all_time[group]["negative"]
@@ -576,10 +723,14 @@ class TasteRecommendationService:
                 )
             candidate["raw_score"] = round(raw_score, 6)
             candidate["personalized"] = personalized
-            candidate["reasons"] = (
+            retrieval_reasons = candidate.get("_retrieval_reasons") or []
+            feature_reasons = (
                 self._explanations(all_time, candidate, idf)
                 if personalized else ["Popular with TMDB viewers"]
             )
+            candidate["reasons"] = list(dict.fromkeys(
+                [*retrieval_reasons, *feature_reasons]
+            ))[:2]
             scored.append(candidate)
             by_key[self._key(candidate)] = candidate
 
@@ -588,47 +739,8 @@ class TasteRecommendationService:
             candidate["match_percent"] = percentile if personalized else None
 
         primary_keys = {self._key(candidate) for candidate in primary_ranked}
-        wildcard_keys = {self._key(candidate) for candidate in wildcard_ranked}
         scored_primary = [by_key[key] for key in primary_keys if key in by_key]
         scored_primary.sort(key=lambda candidate: candidate["raw_score"], reverse=True)
-        safe = scored_primary[0] if scored_primary else None
-
-        adjacent = None
-        if scored_primary:
-            remaining = [candidate for candidate in scored_primary if candidate is not safe]
-            if remaining:
-                adjacent = max(
-                    remaining,
-                    key=lambda candidate: mmr_score(
-                        candidate["raw_score"],
-                        feature_jaccard(candidate["features"], safe["features"]),
-                    ),
-                )
-
-        chosen_keys = {
-            self._key(candidate)
-            for candidate in (safe, adjacent)
-            if candidate is not None
-        }
-        wildcard_pool = [
-            by_key[key] for key in wildcard_keys
-            if key in by_key and key not in chosen_keys
-        ]
-        if wildcard_pool:
-            wildcard = max(
-                wildcard_pool,
-                key=lambda candidate: (
-                    0.55 * self._wildcard_novelty(candidate, all_time)
-                    + 0.45 * self._quality(candidate)
-                    - max(0.0, -candidate["raw_score"] - 0.2)
-                ),
-            )
-            wildcard["reasons"] = [
-                "Explores genres less represented in your watch history",
-                *wildcard["reasons"][:1],
-            ]
-        else:
-            wildcard = None
 
         def public_candidate(candidate: dict[str, Any] | None) -> dict[str, Any] | None:
             if candidate is None:
@@ -652,30 +764,64 @@ class TasteRecommendationService:
                 "reasons": candidate["reasons"],
             }
 
-        return {
-            "generated_at": datetime.now(timezone.utc),
-            "algorithm_version": 1,
-            "personalized": personalized,
-            "match_score_semantics": (
-                "Percentile rank within this request's enriched candidate pool; not a probability of liking."
-                if personalized else "No complete taste signal is available; results use TMDB quality/popularity."
+        primary_pool = [
+            {
+                "public": public_candidate(candidate),
+                "features": candidate["features"],
+                "raw_score": candidate["raw_score"],
+            }
+            for candidate in scored_primary
+        ]
+        wildcard_pool = []
+        for candidate in wildcard_ranked:
+            scored_candidate = by_key.get(self._key(candidate))
+            if scored_candidate is None:
+                continue
+            wildcard_pool.append({
+                "public": public_candidate(scored_candidate),
+                "features": scored_candidate["features"],
+                "raw_score": scored_candidate["raw_score"],
+            })
+        wildcard_pool.sort(
+            key=lambda item: (
+                0.55 * self._wildcard_novelty({"features": item["features"]}, all_time)
+                + 0.45 * (
+                    (_number(item["public"].get("vote_average")) / 10.0)
+                    * (0.65 + 0.35 * min(1.0, _number(item["public"].get("vote_count")) / 500.0))
+                )
+                - max(0.0, -_number(item.get("raw_score")) - 0.2)
             ),
-            "profile_status": {
-                "watched_titles": len(watched),
-                "metadata_ready_titles": len(ready),
-                "pending_titles": pending,
-                "metadata_unavailable_titles": unavailable,
-                "backfill_complete": pending == 0,
+            reverse=True,
+        )
+
+        cache_data = {
+            "profile_version": profile_version,
+            "generated_at": datetime.now(timezone.utc),
+            "metadata": {
+                "generated_at": datetime.now(timezone.utc),
+                "algorithm_version": 2,
+                "personalized": personalized,
+                "match_score_semantics": (
+                    "Percentile rank within this request's enriched candidate pool; not a probability of liking."
+                    if personalized else "No complete taste signal is available; results use TMDB quality/popularity."
+                ),
+                "profile_status": {
+                    "watched_titles": len(watched),
+                    "metadata_ready_titles": len(ready),
+                    "pending_titles": pending,
+                    "metadata_unavailable_titles": unavailable,
+                    "profiled_titles": all_time_count,
+                    "backfill_complete": pending == 0,
+                },
+                "recent_profile": {
+                    "half_life_days": RECENT_HALF_LIFE_DAYS,
+                    "recently_weighted_titles": recent_count,
+                    "all_time_blend": 1.0 - RECENT_ALL_TIME_BLEND,
+                    "recent_blend": RECENT_ALL_TIME_BLEND,
+                },
             },
-            "recent_profile": {
-                "half_life_days": RECENT_HALF_LIFE_DAYS,
-                "recently_weighted_titles": recent_count,
-                "all_time_blend": 1.0 - RECENT_ALL_TIME_BLEND,
-                "recent_blend": RECENT_ALL_TIME_BLEND,
-            },
-            "slots": {
-                "safe": public_candidate(safe),
-                "adjacent": public_candidate(adjacent),
-                "wildcard": public_candidate(wildcard),
-            },
+            "primary_candidates": primary_pool,
+            "wildcard_candidates": wildcard_pool,
         }
+        await cache_ref.set(cache_data)
+        return self._sample_cached_recommendations(cache_data)

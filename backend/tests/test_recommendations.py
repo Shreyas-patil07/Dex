@@ -127,26 +127,155 @@ class FakeIdfDatabase:
         return FakeIdfCollection(self, (name,))
 
 
-def test_idf_cache_reuses_document_frequency_for_five_minutes(monkeypatch):
-    from app.services.recommendations import TasteRecommendationService
+def test_local_idf_uses_watched_titles_and_current_candidate_pool():
+    from app.services.recommendations import build_local_idf, _empty_profile
 
-    database = FakeIdfDatabase()
-    service = TasteRecommendationService(None, None)
-    profile = {
-        group: {"positive": {}, "negative": {}}
-        for group in ("genres", "keywords", "people", "decades")
+    profile = _empty_profile()
+    profile["genres"]["positive"]["18"] = 0.8
+    watches = [
+        {
+            "status": "watched",
+            "taste_features": {"genres": ["18"], "decades": ["1990s"]},
+        },
+        {
+            "status": "want_to_watch",
+            "taste_features": {"genres": ["99"]},
+        },
+    ]
+    candidates = [
+        {"features": {"genres": ["18"], "decades": ["1990s"]}},
+        {"features": {"genres": ["53"]}},
+    ]
+
+    idf = build_local_idf(profile, watches, candidates)
+    assert idf["genres"]["18"] == pytest.approx(calculate_idf(3, 2))
+    assert idf["genres"]["53"] == pytest.approx(calculate_idf(3, 1))
+    assert idf["decades"]["1990s"] == pytest.approx(calculate_idf(2, 2))
+    assert "99" not in idf["genres"]
+
+
+def test_retrieval_uses_item_to_item_sources_from_highly_rated_watches():
+    import asyncio
+
+    from app.services.recommendations import TasteRecommendationService, _empty_profile
+
+    calls = []
+
+    class FakeTMDB:
+        async def get(self, path, params):
+            calls.append((path, params))
+            if path == "/movie/550/recommendations":
+                return {"results": [{"id": 680, "title": "Pulp Fiction"}]}
+            if path == "/movie/550/similar":
+                return {"results": [{"id": 13, "title": "Forrest Gump"}]}
+            if path.startswith("/discover/"):
+                return {"results": []}
+            raise AssertionError(f"Unexpected TMDB path: {path}")
+
+        async def trending(self, media_type, time_window):
+            return {"results": []}
+
+    watch = {
+        "status": "watched",
+        "media_type": "movie",
+        "tmdb_id": 550,
+        "title": "Fight Club",
+        "rating": 9.0,
+        "taste_contribution": {
+            "direction": "positive",
+            "sentiment": 0.875,
+            "weights": {"genres": {"18": 0.5}},
+        },
     }
-    profile["genres"]["positive"]["18"] = 1.0
 
     async def scenario():
-        first = await service._load_idf(database, profile)
-        first_reads = database.reads
-        second = await service._load_idf(database, profile)
+        service = TasteRecommendationService(FakeTMDB(), None)
+        primary, wildcard = await service._retrieve_candidates(_empty_profile(), [watch])
+        assert {item["id"] for item in primary} == {680, 13}
+        assert wildcard == []
+        assert {path for path, _ in calls} == {
+            "/movie/550/recommendations",
+            "/movie/550/similar",
+        }
+        assert all(
+            item["_retrieval_reasons"] == ["Because you rated Fight Club 9.0/10"]
+            for item in primary
+        )
 
-        assert first["genres"]["18"] == pytest.approx(calculate_idf(100, 10))
-        assert second == first
-        assert first_reads > 0
-        assert database.reads == first_reads
-
-    import asyncio
     asyncio.run(scenario())
+
+
+def test_discover_retrieval_fetches_multiple_pages():
+    import asyncio
+
+    from app.services.recommendations import TasteRecommendationService
+
+    calls = []
+
+    class FakeTMDB:
+        async def get(self, path, params):
+            calls.append(params["page"])
+            return {"results": [{"id": params["page"], "title": f"Page {params['page']}"}]}
+
+    async def scenario():
+        service = TasteRecommendationService(FakeTMDB(), None)
+        results = await service._discover("movie", "with_genres", ["18"])
+        assert {item["id"] for item in results} == {1, 2}
+        assert sorted(calls) == [1, 2]
+
+    asyncio.run(scenario())
+
+
+def test_all_time_profile_rebuilds_exact_signed_totals_from_watch_contributions():
+    from app.services.recommendations import build_all_time_profile
+
+    contribution = {
+        "direction": "positive",
+        "weights": {"genres": {"18": 0.8}},
+    }
+    watches = [
+        {"status": "watched", "taste_contribution": contribution},
+        {
+            "status": "watched",
+            "taste_contribution": {
+                "direction": "negative",
+                "weights": {"genres": {"18": 0.3}},
+            },
+        },
+        {"status": "want_to_watch", "taste_contribution": contribution},
+    ]
+
+    profile, count = build_all_time_profile(watches)
+    assert count == 2
+    assert profile["genres"]["positive"]["18"] == pytest.approx(0.8)
+    assert profile["genres"]["negative"]["18"] == pytest.approx(0.3)
+
+
+def test_cached_recommendations_sample_distinct_slots_from_top_k(monkeypatch):
+    from app.services.recommendations import TasteRecommendationService
+
+    service = TasteRecommendationService(None, None)
+    monkeypatch.setattr(
+        "app.services.recommendations.random.choices",
+        lambda pool, weights, k: [pool[-1]],
+    )
+    cached = {
+        "metadata": {"personalized": True},
+        "primary_candidates": [
+            {"public": {"id": 1, "media_type": "movie"}, "features": {"genres": ["18"]}, "raw_score": 0.9},
+            {"public": {"id": 2, "media_type": "movie"}, "features": {"genres": ["53"]}, "raw_score": 0.8},
+            {"public": {"id": 3, "media_type": "movie"}, "features": {"genres": ["18", "53"]}, "raw_score": 0.7},
+        ],
+        "wildcard_candidates": [
+            {"public": {"id": 1, "media_type": "movie"}, "features": {"genres": ["18"]}, "raw_score": 0.9},
+            {"public": {"id": 4, "media_type": "movie"}, "features": {"genres": ["99"]}, "raw_score": 0.2},
+        ],
+    }
+
+    result = service._sample_cached_recommendations(cached)
+    ids = [
+        result["slots"][slot]["id"]
+        for slot in ("safe", "adjacent", "wildcard")
+    ]
+    assert len(ids) == len(set(ids)) == 3
+    assert result["personalized"] is True
