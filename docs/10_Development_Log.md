@@ -175,3 +175,11 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 - **Evidence:** [CI run 42286609985](https://github.com/Shreyas-patil07/Dex/actions/runs/42286609985).
 - **Outcome:** Backend compileall passed; Pytest reported 30 passed and 1 warning; frontend npm ci, typecheck and build passed; Vercel status was success. Render live deploy was not verified.
 - **Next action:** Complete Render smoke testing and close the production API mismatch only after live route checks pass.
+
+
+### 2026-11-07 — Added Watching library status
+
+- **Type:** Feature / Watch lifecycle
+- **Summary:** Added a fourth watch status, `watching`, to represent titles currently in progress. It is available from media details and the profile library, and can be selected when moving an existing record between lists.
+- **Taste behaviour:** A Watching record does not fetch or contribute taste metadata. Moving it to Watched sets the completion timestamp, loads metadata and creates the normal taste contribution transactionally.
+- **Validation:** Added an API regression test covering creation as Watching and transition to Watched.

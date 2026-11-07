@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, CalendarDays, Check, ChevronDown, Film, LogOut, PlayCircle, Plus, Settings2, ShieldCheck, Star, Tv2 } from 'lucide-react';
+import { ArrowUpRight, Bookmark, CalendarDays, Check, ChevronDown, Film, LogOut, PlayCircle, Plus, Settings2, ShieldCheck, Star, Tv2 } from 'lucide-react';
 import { EmailAuthProvider, GoogleAuthProvider, linkWithCredential, linkWithPopup, onAuthStateChanged, sendPasswordResetEmail, signOut, User as FirebaseUser } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { auth } from '../lib/firebase';
@@ -15,19 +15,26 @@ async function request(user: FirebaseUser, path: string, options: RequestInit = 
   return apiFetch(path, options, user);
 }
 
-const iconForStatus = (status: string) => status === 'watched' ? <Check size={17} /> : status === 'want_to_watch' ? <PlayCircle size={17} /> : <CalendarDays size={17} />;
+const iconForStatus = (status: string) => {
+  if (status === 'watched') return <Check size={17} />;
+  if (status === 'watching') return <PlayCircle size={17} />;
+  if (status === 'want_to_watch') return <Bookmark size={17} />;
+  return <CalendarDays size={17} />;
+};
 
-const statusTone = (status: string) => status === 'watched'
-  ? 'border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-200'
-  : status === 'want_to_watch'
-    ? 'border-violet-400/25 bg-violet-400/[0.09] text-violet-200'
-    : 'border-sky-400/20 bg-sky-400/[0.08] text-sky-200';
+const statusTone = (status: string) => {
+  if (status === 'watched') return 'border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-200';
+  if (status === 'watching') return 'border-amber-300/20 bg-amber-300/[0.08] text-amber-100';
+  if (status === 'want_to_watch') return 'border-violet-400/25 bg-violet-400/[0.09] text-violet-200';
+  return 'border-sky-400/20 bg-sky-400/[0.08] text-sky-200';
+};
 
-const statusDotTone = (status: string) => status === 'watched'
-  ? 'bg-emerald-300'
-  : status === 'want_to_watch'
-    ? 'bg-violet-300'
-    : 'bg-sky-300';
+const statusDotTone = (status: string) => {
+  if (status === 'watched') return 'bg-emerald-300';
+  if (status === 'watching') return 'bg-amber-300';
+  if (status === 'want_to_watch') return 'bg-violet-300';
+  return 'bg-sky-300';
+};
 
 const TMDB_POSTER_BASE = 'https://image.tmdb.org/t/p/w342';
 
@@ -206,20 +213,24 @@ export const ProfilePage: React.FC = () => {
       <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{[[hasMoreWatches ? 'Loaded titles' : 'Total titles', watches.length], ['Movies', movies], ['Series', series], ['Avg. rating', average]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5"><p className="text-xs uppercase tracking-[0.15em] text-[#64748B]">{label}</p><p className="mt-2 inline-flex items-center gap-2 text-2xl font-bold">{value}{label === 'Avg. rating' && average !== '—' && <Star size={17} className="text-[#A78BFA]" />}</p></div>)}</section>
 
       <section className="mt-10">
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          {statuses.slice(0, 3).map(status => {
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {statuses.map(status => {
             const active = activeStatus === status.value;
             const count = statusCounts[status.value] || 0;
             const accent = status.value === 'watched'
               ? { icon: 'bg-emerald-400/10 text-emerald-300 ring-emerald-300/15', glow: 'bg-emerald-400/10', count: 'text-emerald-200' }
-              : status.value === 'want_to_watch'
-                ? { icon: 'bg-violet-400/10 text-violet-300 ring-violet-300/15', glow: 'bg-violet-400/10', count: 'text-violet-200' }
-                : { icon: 'bg-sky-400/10 text-sky-300 ring-sky-300/15', glow: 'bg-sky-400/10', count: 'text-sky-200' };
+              : status.value === 'watching'
+                ? { icon: 'bg-amber-300/10 text-amber-200 ring-amber-200/15', glow: 'bg-amber-300/10', count: 'text-amber-100' }
+                : status.value === 'want_to_watch'
+                  ? { icon: 'bg-violet-400/10 text-violet-300 ring-violet-300/15', glow: 'bg-violet-400/10', count: 'text-violet-200' }
+                  : { icon: 'bg-sky-400/10 text-sky-300 ring-sky-300/15', glow: 'bg-sky-400/10', count: 'text-sky-200' };
             const description = status.value === 'watched'
               ? 'Movies and series you have completed'
-              : status.value === 'want_to_watch'
-                ? 'Your personal watchlist for later'
-                : 'Titles saved for the future';
+              : status.value === 'watching'
+                ? 'Movies and series currently in progress'
+                : status.value === 'want_to_watch'
+                  ? 'Your personal watchlist for later'
+                  : 'Titles saved for the future';
 
             return (
               <button

@@ -82,6 +82,7 @@ USERNAME_REGISTRY = "usernames"
 WATCH_REGION = "IN"
 WATCH_STATUSES = (
     {"value": "watched", "label": "Watched"},
+    {"value": "watching", "label": "Watching"},
     {"value": "want_to_watch", "label": "Want to Watch"},
     {"value": "in_future", "label": "In Future"},
 )
