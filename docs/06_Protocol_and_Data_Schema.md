@@ -40,6 +40,7 @@ All protected routes require a Firebase ID token in the Authorization Bearer hea
 | PATCH | /api/watches/{watch_id} | Protected | None | Update watch record |
 | DELETE | /api/watches/{watch_id} | Protected | None | Delete watch record |
 | GET | /api/recommendations | Protected | 10/minute | Return Safe, Adjacent and Wildcard slots |
+| GET | /api/taste/profile | Protected | 10/minute | Read-only Taste DNA summary from stored watch contributions and cached labels |
 | POST | /api/taste/backfill | Protected | 5/minute | Enrich legacy watched records page by page |
 
 Rate limits are applied by SlowAPI using the configured storage backend. The default configuration is memory://; this is not a shared counter across multiple API instances.
@@ -123,7 +124,23 @@ Watch responses include id, tmdb_id, media_type, title, status, rating, watched_
 - Choosing `watched` sets `watched_at` in the backend if omitted and attempts to load taste metadata/build a contribution. Watching, Want to watch and In future do not contribute to taste. Moving a Watching record to Watched triggers metadata lookup and contribution creation.
 - If a concurrent create wins after the lookup, the frontend handles HTTP 409 by fetching the current user's record again.
 
-## 6. Recommendation API contract
+## 6. Taste profile API contract
+
+GET /api/taste/profile requires authentication and is limited to 10 requests per minute.
+
+The endpoint rebuilds all-time and recent signed signals from stored watched-title contributions. It reads display labels from the shared TMDB catalogue cache, does not call TMDB, and performs no Firestore writes.
+
+The response includes:
+- overview counts: watched, profiled, rated, metadata-ready, pending and unavailable titles; profile coverage and recent profiled-title count.
+- groups for genres, themes (TMDB keywords), directors/creators and decades.
+- positive signals and lower-rated patterns, each with a relative within-group strength and the number of watched titles containing that feature.
+- recent positive signals using the same 90-day half-life as recommendations.
+
+Strength bars are normalized within each feature group; they are not probabilities or calibrated preference scores. Lower-rated signals reflect ratings below the taste engine's neutral midpoint, not a permanent dislike. Unrated watched titles contribute a weak positive signal.
+
+Watching, Want to Watch and In Future records are excluded. This is a derived read-only view; it does not add behavioural-event collection or write a separate profile snapshot.
+
+## 7. Recommendation API contract
 
 GET /api/recommendations requires authentication and is limited to 10 requests per minute.
 

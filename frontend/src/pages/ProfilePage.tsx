@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, Bookmark, CalendarDays, Check, ChevronDown, Film, LogOut, PlayCircle, Plus, Settings2, ShieldCheck, Star, Tv2 } from 'lucide-react';
+import { ArrowUpRight, Bookmark, CalendarDays, Check, ChevronDown, Film, LogOut, PlayCircle, Plus, Settings2, ShieldCheck, Sparkles, Star, ThumbsDown, Tv2 } from 'lucide-react';
 import { EmailAuthProvider, GoogleAuthProvider, linkWithCredential, linkWithPopup, onAuthStateChanged, sendPasswordResetEmail, signOut, User as FirebaseUser } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { auth } from '../lib/firebase';
@@ -9,6 +9,32 @@ type User = { id: string; email: string; username: string | null; display_name: 
 type Watch = { id: string; tmdb_id: number; media_type: 'movie' | 'tv'; title: string; status: string; rating: number | null; watched_at: string | null; notes?: string | null; poster_path?: string | null; backdrop_path?: string | null };
 type WatchStatus = { value: string; label: string };
 type WatchPage = { items: Watch[]; next_cursor: string | null; has_more: boolean };
+type TasteFeature = { id: string; label: string; strength: number; watch_count: number };
+type TasteGroup = {
+  key: string;
+  label: string;
+  positive: TasteFeature[];
+  lower_rated: TasteFeature[];
+  recent: TasteFeature[];
+};
+type TasteProfile = {
+  model_version: number;
+  profile_version: number;
+  generated_at: string;
+  recent_half_life_days: number;
+  overview: {
+    watched_titles: number;
+    profiled_titles: number;
+    rated_titles: number;
+    unrated_profiled_titles: number;
+    metadata_ready_titles: number;
+    pending_titles: number;
+    metadata_unavailable_titles: number;
+    coverage_percent: number;
+    recent_profiled_titles: number;
+  };
+  groups: TasteGroup[];
+};
 
 
 async function request(user: FirebaseUser, path: string, options: RequestInit = {}) {
@@ -66,6 +92,9 @@ export const ProfilePage: React.FC = () => {
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [watches, setWatches] = useState<Watch[]>([]);
+  const [tasteProfile, setTasteProfile] = useState<TasteProfile | null>(null);
+  const [tasteProfileLoading, setTasteProfileLoading] = useState(true);
+  const [tasteProfileError, setTasteProfileError] = useState('');
   const [watchCursor, setWatchCursor] = useState<string | null>(null);
   const [hasMoreWatches, setHasMoreWatches] = useState(false);
   const [loadingMoreWatches, setLoadingMoreWatches] = useState(false);
@@ -116,6 +145,9 @@ export const ProfilePage: React.FC = () => {
   useEffect(() => {
     if (!authReady || !firebaseUser) { if (authReady) setLoading(false); return; }
     let active = true;
+    setTasteProfile(null);
+    setTasteProfileLoading(true);
+    setTasteProfileError('');
     (async () => {
       try {
         setLoading(true); setError('');
@@ -137,7 +169,26 @@ export const ProfilePage: React.FC = () => {
           setWatchCursor(historyData.next_cursor);
           setHasMoreWatches(historyData.has_more);
         }
-      } catch (e) { if (active) setError(e instanceof Error ? e.message : 'Could not load your profile.'); }
+
+        try {
+          const tasteResponse = await request(firebaseUser, '/api/taste/profile');
+          if (!tasteResponse.ok) {
+            const data = await tasteResponse.json().catch(() => ({}));
+            throw new Error(data.detail || 'Taste profile is temporarily unavailable.');
+          }
+          const tasteData: TasteProfile = await tasteResponse.json();
+          if (active) setTasteProfile(tasteData);
+        } catch (tasteError) {
+          if (active) setTasteProfileError(tasteError instanceof Error ? tasteError.message : 'Taste profile is temporarily unavailable.');
+        } finally {
+          if (active) setTasteProfileLoading(false);
+        }
+      } catch (e) {
+        if (active) {
+          setError(e instanceof Error ? e.message : 'Could not load your profile.');
+          setTasteProfileLoading(false);
+        }
+      }
       finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
@@ -211,6 +262,126 @@ export const ProfilePage: React.FC = () => {
       <section className="relative overflow-hidden rounded-[2rem] border border-white/[0.08] bg-white/[0.025] shadow-[0_20px_60px_rgba(0,0,0,0.2)]"><div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[#8B5CF6]/10 blur-3xl" /><div className="relative p-7 sm:p-10"><div className="flex flex-col gap-7 lg:flex-row lg:items-center lg:justify-between"><div className="flex items-center gap-5 sm:gap-7"><div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-[#7C3AED]/25 to-[#A855F7]/10 text-3xl font-bold text-[#D8B4FE] ring-1 ring-[#A855F7]/25 shadow-[0_10px_30px_rgba(124,58,237,0.14)]">{initial}</div><div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#A78BFA]">Your profile</p><h1 className="mt-2 truncate text-3xl font-bold tracking-tight sm:text-4xl">{user?.display_name || user?.username || 'Dex User'}</h1><p className="mt-1 text-sm text-[#64748B]">@{user?.username || 'username'}{user?.tagline ? ` · ${user.tagline}` : ''}</p></div></div><div className="flex flex-wrap gap-2"><a href="/" className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-4 py-2.5 text-sm font-semibold text-[#CBD5E1] hover:bg-white/[0.05] hover:text-white"><Plus size={15} /> Discover</a><button onClick={() => setShowSecurity(v => !v)} className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${showSecurity ? 'border-[#8B5CF6]/30 bg-[#8B5CF6]/[0.06] text-[#C4B5FD]' : 'border-white/[0.08] text-[#94A3B8] hover:bg-white/[0.04] hover:text-white'}`}><Settings2 size={15} /> Account</button></div></div></div></section>
 
       <section className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">{[[hasMoreWatches ? 'Loaded titles' : 'Total titles', watches.length], ['Movies', movies], ['Series', series], ['Avg. rating', average]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5"><p className="text-xs uppercase tracking-[0.15em] text-[#64748B]">{label}</p><p className="mt-2 inline-flex items-center gap-2 text-2xl font-bold">{value}{label === 'Avg. rating' && average !== '—' && <Star size={17} className="text-[#A78BFA]" />}</p></div>)}</section>
+
+      <section className="mt-10 scroll-mt-6" aria-labelledby="taste-dna-heading">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-[#A78BFA]">
+              <Sparkles size={15} />
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em]">Taste intelligence</p>
+            </div>
+            <h2 id="taste-dna-heading" className="mt-2 text-2xl font-bold tracking-tight">Your Taste DNA</h2>
+            <p className="mt-1 text-sm text-[#8491A5]">What Dex has learned from the titles you've watched and rated.</p>
+          </div>
+          {tasteProfile && (
+            <p className="text-[10px] text-[#64748B]">
+              Recent signals use a {tasteProfile.recent_half_life_days}-day half-life
+            </p>
+          )}
+        </div>
+
+        {tasteProfileLoading && (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Loading taste profile">
+            {Array.from({ length: 4 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.025]" />)}
+          </div>
+        )}
+
+        {tasteProfileError && (
+          <div role="alert" className="mt-5 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] p-4 text-sm text-rose-200">
+            {tasteProfileError}
+          </div>
+        )}
+
+        {!tasteProfileLoading && tasteProfile && (
+          <>
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: 'Profile coverage', value: `${tasteProfile.overview.coverage_percent}%`, detail: `${tasteProfile.overview.profiled_titles} of ${tasteProfile.overview.watched_titles} watched titles` },
+                { label: 'Rated titles', value: tasteProfile.overview.rated_titles, detail: 'Titles with an explicit rating' },
+                { label: 'Taste signals', value: tasteProfile.overview.profiled_titles, detail: 'Titles contributing to your profile' },
+                { label: 'Recent signals', value: tasteProfile.overview.recent_profiled_titles, detail: 'With recent-time weighting' },
+              ].map(metric => (
+                <div key={metric.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#64748B]">{metric.label}</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums text-white">{metric.value}</p>
+                  <p className="mt-1 text-[10px] text-[#8491A5]">{metric.detail}</p>
+                </div>
+              ))}
+            </div>
+
+            {tasteProfile.overview.watched_titles === 0 ? (
+              <div className="mt-4 rounded-2xl border border-dashed border-white/[0.10] bg-white/[0.015] p-7 text-center">
+                <p className="text-sm font-semibold text-white">Your Taste DNA is waiting for its first signals</p>
+                <p className="mt-2 text-xs text-[#8491A5]">Mark titles as Watched and add ratings. Watching and watchlist titles are not treated as completed viewing.</p>
+                <a href="/" className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#7C3AED] px-4 py-2.5 text-xs font-semibold text-white"><Plus size={14} /> Discover titles</a>
+              </div>
+            ) : (
+              <>
+                {tasteProfile.overview.pending_titles > 0 && (
+                  <p className="mt-3 text-xs text-amber-200/90">
+                    {tasteProfile.overview.pending_titles} watched {tasteProfile.overview.pending_titles === 1 ? 'title is' : 'titles are'} waiting for metadata. Your profile may be incomplete.
+                  </p>
+                )}
+                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  {tasteProfile.groups.map(group => (
+                    <article key={group.key} className="overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#171727]/80 via-[#10101B] to-[#0A0A12]">
+                      <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
+                        <h3 className="text-sm font-semibold text-white">{group.label}</h3>
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">All-time signals</span>
+                      </div>
+                      <div className="space-y-4 p-5">
+                        {group.positive.length > 0 ? (
+                          <div className="space-y-3">
+                            {group.positive.slice(0, 4).map(feature => (
+                              <div key={feature.id}>
+                                <div className="mb-1.5 flex items-center justify-between gap-3">
+                                  <span className="truncate text-xs font-medium text-[#DCE3EF]">{feature.label}</span>
+                                  <span className="shrink-0 text-[10px] tabular-nums text-[#8491A5]">{feature.watch_count} {feature.watch_count === 1 ? 'title' : 'titles'}</span>
+                                </div>
+                                <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                                  <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-400" style={{ width: `${feature.strength}%` }} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-[#64748B]">Not enough positive evidence in this category yet.</p>
+                        )}
+
+                        {group.lower_rated.length > 0 && (
+                          <div className="border-t border-white/[0.06] pt-3">
+                            <p className="mb-2 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.15em] text-rose-200/80"><ThumbsDown size={12} /> Lower-rated patterns</p>
+                            <div className="flex flex-wrap gap-2">
+                              {group.lower_rated.map(feature => <span key={feature.id} title={`Appears in ${feature.watch_count} watched titles`} className="rounded-lg border border-rose-300/10 bg-rose-300/[0.05] px-2.5 py-1.5 text-[10px] text-rose-100/90">{feature.label}</span>)}
+                            </div>
+                          </div>
+                        )}
+
+                        {group.recent.length > 0 && (
+                          <div className="border-t border-white/[0.06] pt-3">
+                            <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.15em] text-sky-200/80">Recent signals</p>
+                            <div className="flex flex-wrap gap-2">
+                              {group.recent.slice(0, 3).map(feature => <span key={feature.id} className="rounded-lg border border-sky-300/10 bg-sky-300/[0.05] px-2.5 py-1.5 text-[10px] text-sky-100/90">{feature.label}</span>)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <p className="mt-3 text-[10px] leading-relaxed text-[#64748B]">
+                  Bars compare signals within each category; they are relative strengths, not probabilities or percentages of your personality. Lower-rated patterns come from ratings below Dex's neutral midpoint. Unrated watched titles contribute only a weak positive signal.
+                </p>
+                {tasteProfile.overview.metadata_unavailable_titles > 0 && (
+                  <p className="mt-1 text-[10px] text-[#64748B]">
+                    Metadata unavailable for {tasteProfile.overview.metadata_unavailable_titles} watched {tasteProfile.overview.metadata_unavailable_titles === 1 ? 'title' : 'titles'}; these are excluded from feature-level insights.
+                  </p>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </section>
 
       <section className="mt-10">
         <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

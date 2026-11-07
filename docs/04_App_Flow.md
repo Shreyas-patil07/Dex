@@ -12,7 +12,7 @@
 | Visitor | Search | Find title | Search query |
 | Visitor | Media details | Inspect media | Valid media ID |
 | User | Sign-in | Establish account | Firebase-supported sign-in |
-| User | Profile | Review identity/history | Authenticated session |
+| User | Profile | Review identity, history and Taste DNA | Authenticated session |
 | User | Watch management | Record viewing activity and inspect current list state | Authenticated API access |
 | User | For You | Refresh Safe/Adjacent/Wildcard suggestions and build taste history | Signed-in home page |
 
@@ -75,6 +75,10 @@ Status choices map to the existing API values:
 - Watching → `watching`; marks a title as in progress without adding a taste contribution until it is marked Watched.
 - Want to watch → `want_to_watch`; saved in the watchlist, no taste contribution.
 - In future → `in_future`; saved as a later plan, no taste contribution.
+
+### Taste DNA profile
+
+The Profile page requests `GET /api/taste/profile` after account sync. The endpoint rebuilds all-time and recent signed signals from completed-watch contributions and reads labels from the shared TMDB catalogue cache. It does not write data or fetch TMDB metadata. The UI separates stronger positive signals from lower-rated patterns and recent signals; relative bars are not probabilities. Watching, Want to Watch and In Future entries do not affect Taste DNA.
 
 ### For You and profile backfill
 

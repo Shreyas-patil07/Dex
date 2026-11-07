@@ -378,6 +378,123 @@ def test_watching_status_is_saved_without_taste_signal_until_marked_watched(api_
     assert api_client.database.documents[profile_path]["profiled_watch_count"] == 1
 
 
+def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client):
+    sync_account(api_client, "taste-dna-user")
+    database = api_client.database
+    now = main.datetime.now(main.timezone.utc)
+
+    database.documents[("users", "taste-dna-user", "watches", "movie_1")] = {
+        "tmdb_id": 1,
+        "media_type": "movie",
+        "title": "Positive signal",
+        "status": "watched",
+        "watched_at": now,
+        "taste_metadata_status": "ready",
+        "taste_features": {
+            "genres": ["18"],
+            "keywords": ["100"],
+            "people": ["7467"],
+            "decades": ["1990s"],
+        },
+        "taste_contribution": {
+            "direction": "positive",
+            "rated": True,
+            "weights": {
+                "genres": {"18": 0.8},
+                "keywords": {"100": 0.7},
+                "people": {"7467": 0.6},
+                "decades": {"1990s": 0.5},
+            },
+        },
+    }
+    database.documents[("users", "taste-dna-user", "watches", "movie_2")] = {
+        "tmdb_id": 2,
+        "media_type": "movie",
+        "title": "Lower-rated signal",
+        "status": "watched",
+        "watched_at": now,
+        "taste_metadata_status": "ready",
+        "taste_features": {
+            "genres": ["27"],
+            "keywords": ["200"],
+            "people": ["999"],
+            "decades": ["2000s"],
+        },
+        "taste_contribution": {
+            "direction": "negative",
+            "rated": True,
+            "weights": {
+                "genres": {"27": 0.7},
+                "keywords": {"200": 0.6},
+                "people": {"999": 0.5},
+                "decades": {"2000s": 0.4},
+            },
+        },
+    }
+    database.documents[("users", "taste-dna-user", "watches", "movie_3")] = {
+        "tmdb_id": 3,
+        "media_type": "movie",
+        "title": "Currently watching",
+        "status": "watching",
+        "taste_features": {"genres": ["18"]},
+        "taste_contribution": {
+            "direction": "positive",
+            "weights": {"genres": {"18": 10.0}},
+        },
+    }
+    database.documents[("users", "taste-dna-user", "taste", "profile")] = {
+        "profile_version": 4,
+    }
+    database.documents[("tmdb_catalog", "movie_1")] = {
+        "labels": {
+            "genres": {"18": "Drama"},
+            "keywords": {"100": "Psychological"},
+            "people": {"7467": "David Fincher"},
+            "decades": {"1990s": "1990s"},
+        },
+    }
+    database.documents[("tmdb_catalog", "movie_2")] = {
+        "labels": {
+            "genres": {"27": "Horror"},
+            "keywords": {"200": "Supernatural"},
+            "people": {"999": "Example Creator"},
+            "decades": {"2000s": "2000s"},
+        },
+    }
+    before = deepcopy(database.documents)
+
+    response = api_client.get(
+        "/api/taste/profile",
+        headers=auth_headers("taste-dna-user"),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["model_version"] == 1
+    assert payload["profile_version"] == 4
+    assert payload["overview"] == {
+        "watched_titles": 2,
+        "profiled_titles": 2,
+        "rated_titles": 2,
+        "unrated_profiled_titles": 0,
+        "metadata_ready_titles": 2,
+        "pending_titles": 0,
+        "metadata_unavailable_titles": 0,
+        "coverage_percent": 100.0,
+        "recent_profiled_titles": 2,
+    }
+
+    groups = {group["key"]: group for group in payload["groups"]}
+    assert groups["genres"]["positive"][0]["label"] == "Drama"
+    assert groups["genres"]["negative"][0]["label"] == "Horror"
+    assert groups["genres"]["positive"][0]["watch_count"] == 1
+    assert groups["keywords"]["positive"][0]["label"] == "Psychological"
+    assert groups["people"]["positive"][0]["label"] == "David Fincher"
+    assert groups["decades"]["positive"][0]["label"] == "1990s"
+    assert groups["genres"]["recent"][0]["label"] == "Drama"
+    assert database.documents == before
+
+
 def test_watch_crud_is_isolated_by_firebase_uid(api_client):
     sync_account(api_client, "alice")
     sync_account(api_client, "bob")
