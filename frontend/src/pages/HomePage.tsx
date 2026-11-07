@@ -84,7 +84,7 @@ const RecommendationCard: React.FC<{
     </div>
     {items.length ? (
       <div className="divide-y divide-white/[0.055]">
-        {items.map((item, index) => (
+        {items.map(item => (
           <a key={`${item.media_type}-${item.id}`} href={`/${item.media_type}/${item.id}`} className="group flex gap-4 p-4">
             <div className="h-36 w-24 shrink-0 overflow-hidden rounded-xl bg-white/[0.05] ring-1 ring-white/[0.08]">
               {item.poster_path
