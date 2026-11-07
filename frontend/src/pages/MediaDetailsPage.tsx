@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Bookmark, CalendarDays, Check, Clock3, ExternalLink, LogIn, Star } from 'lucide-react';
+import { ArrowLeft, Bookmark, CalendarDays, Check, Clock3, ExternalLink, LogIn, PlayCircle, Star } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { getCachedAuthState, subscribeToAuthSession } from '../lib/authSession';
@@ -8,6 +8,7 @@ import { apiFetch } from '../lib/api';
 
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w1280';
 
+type WatchStatus = 'watched' | 'watching' | 'want_to_watch' | 'in_future';
 type Provider = { provider_id: number; provider_name: string; logo_path?: string | null };
 type Media = {
   id: number;
@@ -39,9 +40,9 @@ export const MediaDetailsPage: React.FC = () => {
   const [error, setError] = useState('');
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const [signedIn, setSignedIn] = useState(getCachedAuthState() === 'signed_in');
-  const [addingStatus, setAddingStatus] = useState<'watched' | 'want_to_watch' | 'in_future' | null>(null);
+  const [addingStatus, setAddingStatus] = useState<WatchStatus | null>(null);
   const [checkingList, setCheckingList] = useState(false);
-  const [existingStatus, setExistingStatus] = useState<'watched' | 'want_to_watch' | 'in_future' | null>(null);
+  const [existingStatus, setExistingStatus] = useState<WatchStatus | null>(null);
   const [listError, setListError] = useState('');
 
   useEffect(() => subscribeToAuthSession((currentUser) => {
@@ -106,7 +107,7 @@ export const MediaDetailsPage: React.FC = () => {
         if (active) {
           const status = data.status;
           setExistingStatus(
-            status === 'watched' || status === 'want_to_watch' || status === 'in_future'
+            status === 'watched' || status === 'watching' || status === 'want_to_watch' || status === 'in_future'
               ? status
               : 'want_to_watch'
           );
@@ -138,7 +139,7 @@ export const MediaDetailsPage: React.FC = () => {
     });
   }, [providers]);
 
-  const addToList = async (status: 'watched' | 'want_to_watch' | 'in_future') => {
+  const addToList = async (status: WatchStatus) => {
     if (!isSignedIn || existingStatus || addingStatus || !item || !mediaType || !tmdbId) return;
     const currentUser = auth.currentUser;
     if (!currentUser) {
@@ -170,7 +171,7 @@ export const MediaDetailsPage: React.FC = () => {
           const existingData = await existingResponse.json();
           const existing = existingData.status;
           setExistingStatus(
-            existing === 'watched' || existing === 'want_to_watch' || existing === 'in_future'
+            existing === 'watched' || existing === 'watching' || existing === 'want_to_watch' || existing === 'in_future'
               ? existing
               : 'want_to_watch'
           );
@@ -239,9 +240,11 @@ export const MediaDetailsPage: React.FC = () => {
             <Check size={17} />
             {existingStatus === 'watched'
               ? 'Already watched'
-              : existingStatus === 'want_to_watch'
-                ? 'In your watchlist'
-                : 'Planned for later'}
+              : existingStatus === 'watching'
+                ? 'Currently watching'
+                : existingStatus === 'want_to_watch'
+                  ? 'In your watchlist'
+                  : 'Planned for later'}
           </div>
         ) : (
           <>
@@ -249,7 +252,7 @@ export const MediaDetailsPage: React.FC = () => {
               <h2 className="text-sm font-semibold text-white">Add to your list</h2>
               <p className="mt-1 text-sm text-[#64748B]">Where should this title go?</p>
             </div>
-            <div className="grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid max-w-5xl grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <button
                 onClick={() => addToList('watched')}
                 disabled={!isSignedIn || !user || checkingList || addingStatus !== null}
@@ -259,6 +262,17 @@ export const MediaDetailsPage: React.FC = () => {
                 <span>
                   <span className="block text-sm font-semibold text-[#99F6E4]">{addingStatus === 'watched' ? 'Saving…' : 'Watched'}</span>
                   <span className="mt-1 block text-xs text-[#94A3B8]">I've seen it</span>
+                </span>
+              </button>
+              <button
+                onClick={() => addToList('watching')}
+                disabled={!isSignedIn || !user || checkingList || addingStatus !== null}
+                className="group flex min-h-[84px] items-center gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-left transition-colors hover:border-amber-300/50 hover:bg-amber-300/[0.12] disabled:cursor-wait disabled:opacity-60"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-300/10 text-amber-200"><PlayCircle size={19} /></span>
+                <span>
+                  <span className="block text-sm font-semibold text-amber-100">{addingStatus === 'watching' ? 'Saving…' : 'Watching'}</span>
+                  <span className="mt-1 block text-xs text-[#94A3B8]">Currently in progress</span>
                 </span>
               </button>
               <button

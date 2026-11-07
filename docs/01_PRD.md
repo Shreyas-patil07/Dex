@@ -28,7 +28,7 @@ Entertainment activity is fragmented across streaming services, search engines, 
 - Hosting, streaming, downloading, or redistributing content.
 - Replacing streaming subscriptions or guaranteeing provider availability.
 - Claiming perfect recommendations from limited watch history.
-- Treating want-to-watch or in-future records as watched for taste scoring.
+- Treating watching, want-to-watch or in-future records as completed watches for taste scoring.
 
 ## 4. Users and use cases
 
@@ -61,7 +61,7 @@ Out of scope: video playback, content licensing, scraping private streaming acco
 | FR-006 | Enforce unique normalized usernames | MUST | Distinct users cannot claim same name |
 | FR-007 | Maintain watch records | MUST | CRUD scoped to authenticated user |
 | FR-008 | Validate watch fields | MUST | Invalid type/status/rating/text rejected |
-| FR-009 | Only watched titles affect taste | MUST | Other statuses do not contribute |
+| FR-009 | Only completed watched titles affect taste | MUST | Watching, want-to-watch and in-future records do not contribute |
 | FR-010 | Reverse taste contributions on edit/delete | MUST | Watch and vectors mutate atomically |
 | FR-011 | Expose health endpoint | MUST | GET /api/health returns HTTP 200 |
 | FR-012 | Support responsive core flows | SHOULD | Core pages usable on mobile/desktop |

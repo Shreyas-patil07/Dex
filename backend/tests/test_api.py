@@ -319,6 +319,65 @@ def test_username_rename_transaction_releases_old_claim(api_client):
     assert api_client.database.documents[("usernames", "filmfan")]["firebase_uid"] == "bob"
 
 
+def test_watching_status_is_saved_without_taste_signal_until_marked_watched(api_client, monkeypatch):
+    sync_account(api_client, "watching-user")
+    feature_calls = []
+
+    async def fake_get_features(db, tmdb_service, media_type, tmdb_id):
+        feature_calls.append((media_type, tmdb_id))
+        return {
+            "genres": ["18"],
+            "keywords": ["100"],
+            "people": ["7467"],
+            "decades": ["2020s"],
+        }
+
+    monkeypatch.setattr(main.tmdb_catalog, "get_features", fake_get_features)
+
+    statuses = api_client.get("/api/watch-statuses")
+    assert statuses.status_code == 200
+    assert {item["value"] for item in statuses.json()["statuses"]} == {
+        "watched", "watching", "want_to_watch", "in_future"
+    }
+
+    created = api_client.post(
+        "/api/watches",
+        headers=auth_headers("watching-user"),
+        json={
+            "tmdb_id": 550,
+            "media_type": "movie",
+            "title": "Fight Club",
+            "status": "watching",
+            "rating": 9.0,
+        },
+    )
+
+    assert created.status_code == 201, created.text
+    assert created.json()["status"] == "watching"
+    assert created.json()["watched_at"] is None
+    assert feature_calls == []
+
+    watch_path = ("users", "watching-user", "watches", "movie_550")
+    profile_path = ("users", "watching-user", "taste", "profile")
+    stored = api_client.database.documents[watch_path]
+    assert stored["taste_metadata_status"] == "not_applicable"
+    assert stored["taste_contribution"] is None
+    assert api_client.database.documents[profile_path].get("profiled_watch_count", 0) == 0
+
+    moved_to_watched = api_client.patch(
+        "/api/watches/movie_550",
+        headers=auth_headers("watching-user"),
+        json={"status": "watched"},
+    )
+
+    assert moved_to_watched.status_code == 200, moved_to_watched.text
+    assert moved_to_watched.json()["status"] == "watched"
+    assert moved_to_watched.json()["watched_at"] is not None
+    assert feature_calls == [("movie", 550)]
+    assert api_client.database.documents[watch_path]["taste_contribution"]["direction"] == "positive"
+    assert api_client.database.documents[profile_path]["profiled_watch_count"] == 1
+
+
 def test_watch_crud_is_isolated_by_firebase_uid(api_client):
     sync_account(api_client, "alice")
     sync_account(api_client, "bob")
