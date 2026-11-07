@@ -183,3 +183,12 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 - **Summary:** Added a fourth watch status, `watching`, to represent titles currently in progress. It is available from media details and the profile library, and can be selected when moving an existing record between lists.
 - **Taste behaviour:** A Watching record does not fetch or contribute taste metadata. Moving it to Watched sets the completion timestamp, loads metadata and creates the normal taste contribution transactionally.
 - **Validation:** Added an API regression test covering creation as Watching and transition to Watched.
+
+
+### 2026-11-07 — Taste DNA profile foundation
+
+- **Type:** Product / Taste intelligence
+- **Summary:** Added an authenticated read-only `GET /api/taste/profile` response and a Profile-page Taste DNA section for genres, themes, directors/creators and decades.
+- **Signals:** Separates stronger positive contributions, lower-rated patterns, and recent positive signals using the existing 90-day half-life. Displays profile coverage, rated/profiled counts and metadata readiness.
+- **Data boundary:** Rebuilds from stored watched-title contributions and reads cached TMDB labels only. No TMDB API calls, event tracking, or Firestore writes.
+- **Validation:** Added API coverage for labels, signed signals, rated/profiled counts, exclusion of Watching, and read-only behaviour.

@@ -30,6 +30,7 @@ from .services.taste import (
 from .services.tmdb_catalog import TMDBCatalog
 from .services.taste_backfill import backfill_watched_page, MAX_BACKFILL_PAGE_SIZE
 from .services.recommendations import TasteRecommendationService
+from .services.taste_profile import build_taste_profile
 
 
 tmdb = TMDBService(
@@ -122,6 +123,7 @@ def _is_protected_api_path(path: str) -> bool:
             "/api/me",
             "/api/watches",
             "/api/recommendations",
+            "/api/taste/profile",
             "/api/taste/backfill",
         }
         or path.startswith("/api/watches/")
@@ -562,6 +564,18 @@ async def recommendations(
         )
     except TMDBError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/taste/profile")
+@limiter.limit("10/minute", key_func=get_authenticated_rate_limit_key)
+async def taste_profile(
+    request: Request,
+    response: Response,
+    current=Depends(current_user),
+    db=Depends(get_firestore),
+) -> dict:
+    firebase_uid, _ = current
+    return await build_taste_profile(db, user_ref(db, firebase_uid))
 
 
 @app.post("/api/taste/backfill")

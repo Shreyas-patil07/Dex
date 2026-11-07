@@ -23,6 +23,7 @@ Entertainment activity is fragmented across streaming services, search engines, 
 - Generate explainable Safe, Adjacent, and Wildcard recommendations.
 - Migrate legacy watched records into the taste profile through safe, repeatable backfill.
 - Provide responsive web access with deployed frontend/API.
+- Explain taste-profile signals in a read-only Taste DNA view.
 
 ### Non-goals
 - Hosting, streaming, downloading, or redistributing content.
@@ -45,7 +46,7 @@ Primary journeys: browse trending titles; search/open a title; sign in and synch
 
 Current: trending, search, media details, Firebase authentication, normalized unique usernames, profile/watch CRUD, taste feature extraction and incremental updates, historical taste backfill, personalized three-slot recommendations, per-title library status lookup, Vercel/Render configuration.
 
-Potential future scope (not a commitment): taste visualisations, expanded social features, account export/deletion, recommendation-quality evaluation, and broader regional provider coverage.
+Potential future scope (not a commitment): richer interactive taste controls, expanded social features, account export/deletion, recommendation-quality evaluation, and broader regional provider coverage.
 
 Out of scope: video playback, content licensing, scraping private streaming accounts, and storing streaming credentials.
 
@@ -68,6 +69,7 @@ Out of scope: video playback, content licensing, scraping private streaming acco
 | FR-013 | Read one user's watch entry | MUST | `GET /api/watches/{watch_id}` returns only the authenticated user's entry; absent/other-user entry returns 404 |
 | FR-014 | Generate personalized discovery slots | SHOULD | Authenticated recommendations return Safe, Adjacent, and Wildcard slots with explicit score semantics |
 | FR-015 | Backfill historical watched titles | MUST | Idempotent cursor pagination enriches only watched records and applies each taste contribution transactionally |
+| FR-016 | Explain inferred taste profile | SHOULD | Authenticated read-only API and Profile view show labelled positive, lower-rated and recent signals from watched-title contributions |
 
 ## 7. Non-functional requirements
 

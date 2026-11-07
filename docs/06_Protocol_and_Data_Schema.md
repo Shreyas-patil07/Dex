@@ -40,6 +40,7 @@ All protected routes require a Firebase ID token in the Authorization Bearer hea
 | PATCH | /api/watches/{watch_id} | Protected | None | Update watch record |
 | DELETE | /api/watches/{watch_id} | Protected | None | Delete watch record |
 | GET | /api/recommendations | Protected | 10/minute | Return Safe, Adjacent and Wildcard slots |
+| GET | /api/taste/profile | Protected | 10/minute | Read-only Taste DNA summary from stored watch contributions and cached labels |
 | POST | /api/taste/backfill | Protected | 5/minute | Enrich legacy watched records page by page |
 
 Rate limits are applied by SlowAPI using the configured storage backend. The default configuration is memory://; this is not a shared counter across multiple API instances.
@@ -123,7 +124,23 @@ Watch responses include id, tmdb_id, media_type, title, status, rating, watched_
 - Choosing `watched` sets `watched_at` in the backend if omitted and attempts to load taste metadata/build a contribution. Watching, Want to watch and In future do not contribute to taste. Moving a Watching record to Watched triggers metadata lookup and contribution creation.
 - If a concurrent create wins after the lookup, the frontend handles HTTP 409 by fetching the current user's record again.
 
-## 6. Recommendation API contract
+## 6. Taste profile API contract
+
+GET /api/taste/profile requires authentication and is limited to 10 requests per minute.
+
+The endpoint rebuilds all-time and recent signed signals from stored watched-title contributions. It reads display labels from the shared TMDB catalogue cache, does not call TMDB, and performs no Firestore writes.
+
+The response includes:
+- overview counts: watched, profiled, rated, metadata-ready, pending and unavailable titles; profile coverage and recent profiled-title count.
+- groups for genres, themes (TMDB keywords), directors/creators and decades.
+- positive signals and lower-rated patterns, each with a relative within-group strength and the number of watched titles containing that feature.
+- recent positive signals using the same 90-day half-life as recommendations.
+
+Strength bars are normalized within each feature group; they are not probabilities or calibrated preference scores. Lower-rated signals reflect ratings below the taste engine's neutral midpoint, not a permanent dislike. Unrated watched titles contribute a weak positive signal.
+
+Watching, Want to Watch and In Future records are excluded. This is a derived read-only view; it does not add behavioural-event collection or write a separate profile snapshot.
+
+## 7. Recommendation API contract
 
 GET /api/recommendations requires authentication and is limited to 10 requests per minute.
 
@@ -172,7 +189,7 @@ Each non-null slot candidate contains:
 
 Important: match_percent is a within-request candidate-pool percentile, **not** a probability of liking the title, calibrated confidence, or promise of user satisfaction. When no complete taste signal is available, the endpoint can return non-personalized quality/popularity-based candidates and match_percent is null.
 
-## 7. Historical taste backfill contract
+## 8. Historical taste backfill contract
 
 POST /api/taste/backfill is authenticated and rate-limited to 5 requests per minute.
 
@@ -209,7 +226,7 @@ The values above illustrate the shape, not a live result. The actual response re
 
 Continue with next_cursor until complete is true. If pending_watch_ids is non-empty, rerun later **without a cursor** to retry pending records. Completed records are skipped, so retry passes are idempotent. The operation does not run in the background and one frontend click processes one page.
 
-## 8. Firestore data model
+## 9. Firestore data model
 
 ~~~text
 users/{firebase_uid}
@@ -237,7 +254,7 @@ tmdb_catalog/{media_type}_{tmdb_id}
 
 The shared catalogue is an application-wide metadata cache; user watch, taste profile, and recommendation cache records remain UID-scoped. Per-feature taste-vector documents and global tmdb_feature_stats counters are no longer written or read. Existing legacy documents may remain in Firestore and are not currently cleaned up. Treat legacy per-user taste documents as part of export/deletion until a verified cleanup migration has run. See [Data Lifecycle and Privacy Readiness](14_Data_Lifecycle_and_Privacy_Readiness.md) for retention, export, deletion and access-control gaps.
 
-## 9. Taste Engine V2 invariants
+## 10. Taste Engine V2 invariants
 
 - Only watched records contribute.
 - Rating baseline is 5.5. Ratings below 5.5 map to negative sentiment; ratings above 5.5 map to positive sentiment, bounded to [-1, 1].
@@ -251,7 +268,7 @@ The shared catalogue is an application-wide metadata cache; user watch, taste pr
 - TMDB metadata failure can leave a watched record in pending state without pretending that its taste contribution was applied.
 - Model and schema versions are persisted; change scoring/extraction rules only with an explicit migration strategy.
 
-## 10. Shared cache and errors
+## 11. Shared cache and errors
 
 TMDB feature metadata cache TTL is 180 days. The in-memory TMDB client cache has endpoint-specific short TTLs and is not a durable source of truth.
 
@@ -269,7 +286,7 @@ TMDB feature metadata cache TTL is 180 days. The in-memory TMDB client cache has
 
 Use runtime OpenAPI for exact response schemas. Do not interpret a 404/405 from the live host as proof of the current main-branch route definition; compare the deployed version in /api/health.
 
-## 11. Versioning and related docs
+## 12. Versioning and related docs
 
 The HTTP API has no /v1 URL prefix. Coordinate breaking changes with the frontend. Taste model and recommendation algorithm versions are separately versioned.
 
