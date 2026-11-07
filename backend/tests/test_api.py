@@ -486,7 +486,7 @@ def test_taste_profile_returns_signed_labelled_signals_without_writes(api_client
 
     groups = {group["key"]: group for group in payload["groups"]}
     assert groups["genres"]["positive"][0]["label"] == "Drama"
-    assert groups["genres"]["negative"][0]["label"] == "Horror"
+    assert groups["genres"]["lower_rated"][0]["label"] == "Horror"
     assert groups["genres"]["positive"][0]["watch_count"] == 1
     assert groups["keywords"]["positive"][0]["label"] == "Psychological"
     assert groups["people"]["positive"][0]["label"] == "David Fincher"
