@@ -27,16 +27,22 @@ KEYWORD_NOISE_SLUGS = {
     "aftercreditsstinger",
     "duringcreditsstinger",
     "aftercreditscene",
+    "aftercreditsscene",
     "duringcreditscene",
+    "duringcreditsscene",
     "postcreditscene",
+    "postcreditsscene",
     "midcreditscene",
+    "midcreditsscene",
     "endcreditscene",
+    "endcreditsscene",
     "creditstinger",
 }
 KEYWORD_LABEL_OVERRIDES = {
     "basedoncomic": "Comic-book adaptation",
     "basedoncomicbook": "Comic-book adaptation",
     "basedoncomicbooks": "Comic-book adaptation",
+    "comicbookadaptation": "Comic-book adaptation",
     "superhero": "Superheroes",
     "superheroes": "Superheroes",
     "marvelcinematicuniverse": "Marvel Cinematic Universe (MCU)",
@@ -182,18 +188,19 @@ async def build_taste_profile(db: Any, user_document: Any) -> dict[str, Any]:
             if isinstance(group_labels, dict):
                 for feature_id, raw_label in group_labels.items():
                     if raw_label:
-                        normalized = _normalize_feature_label(group, str(raw_label))
-                        if normalized:
-                            labels[group].setdefault(str(feature_id), normalized)
+                        labels[group].setdefault(str(feature_id), str(raw_label))
 
     for watch in watched:
         contribution = watch.get("taste_contribution") or {}
         weights = contribution.get("weights") or {}
         for group in FEATURE_GROUPS:
             title_labels = {
-                _label_key(label)
+                _label_key(normalized)
                 for feature_id in (weights.get(group) or {})
-                if (label := labels[group].get(str(feature_id)))
+                if (
+                    raw_label := labels[group].get(str(feature_id))
+                )
+                and (normalized := _normalize_feature_label(group, raw_label))
             }
             for label_key in title_labels:
                 evidence[group][label_key] = evidence[group].get(label_key, 0) + 1
