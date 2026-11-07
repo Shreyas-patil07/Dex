@@ -16,6 +16,14 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 
 ## Entries
 
+### 2026-11-07 — Render health source fingerprint merged
+
+- **Type:** Deployment diagnostics
+- **Summary:** Added `source_commit` to GET /api/health using Render's documented `RENDER_GIT_COMMIT` environment variable. The field is null outside Render when the variable is absent. HEAD /api/health remains bodyless.
+- **Evidence:** [PR #23](https://github.com/Shreyas-patil07/Dex/pull/23); merge commit [a5c96b1](https://github.com/Shreyas-patil07/Dex/commit/a5c96b12d4d292b62420cd12d130d34f42faa1cb); [Render environment variables](https://render.com/docs/environment-variables).
+- **Outcome:** Backend tests/compile/pip-audit and frontend typecheck/build passed. The pre-existing seven-high npm audit job remains failing. The live source_commit has not yet been captured.
+- **Next action:** After Render deploys main, confirm the returned source_commit matches the deployed main SHA and run authenticated smoke tests.
+
 ### 2026-11-07 — Data lifecycle and privacy source audit
 
 - **Type:** Security / Data governance
@@ -46,7 +54,7 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 - **Summary:** Added five synthetic, predeclared profiles covering sparse history, mixed genres, explicit negative preferences, recent preference shifts and anime-heavy taste. The evaluator scores with the production V2 all-time/recent scoring functions, reports NDCG@3, Precision@3, Recall@3, intra-list diversity and positive-feature coverage, and includes a deterministic greedy MMR ranking diagnostic.
 - **Evidence:** backend/evaluation/recommendation_fixtures.json; backend/scripts/evaluate_recommendations.py; backend/tests/test_recommendation_evaluation.py.
 - **Outcome:** Synthetic fixtures avoid personal data and TMDB calls. CI reported 55 backend tests passing and executed the CLI. The five-profile baseline produced relevance-only macro NDCG@3 1.0000 / Precision@3 1.0000 / Recall@3 0.9000 / diversity 0.8013; greedy MMR produced NDCG@3 0.9966 / Precision@3 0.6667 / Recall@3 1.0000 / diversity 0.9286. These are fixture-alignment diagnostics, not independent relevance labels or real-world quality evidence.
-- **Next action:** Run the harness, review rankings against the predeclared judgements, and only then consider future ranking changes.
+- **Next action:** Keep the synthetic report as a regression baseline. Collect no behavioural events until privacy/data-lifecycle gates are satisfied.
 
 ### 2026-11-07 — Media detail page status selection
 

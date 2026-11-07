@@ -3,107 +3,97 @@
 > **Status:** Main-branch implementation status — 2026-11-07  
 > **Owner:** Dex maintainers  
 > **Source branch:** main  
- > **Current backend source version:** 0.5.1 (health also reports Render source_commit)
+> **Backend app version:** 0.5.1  
+> **Main commit:** `a5c96b12d4d292b62420cd12d130d34f42faa1cb`
 
 ## 1. Delivery summary
 
-Dex has a deployed frontend and a FastAPI backend. The latest user-provided screenshots now show the signed-in For You section loading Safe, Adjacent and Wildcard recommendation cards, and the media detail page correctly showing an existing title as Already watched. This supersedes the earlier screenshot evidence of 404 for GET /api/recommendations and 405 for GET /api/watches/{watch_id} for these observed UI flows. The live API health version, a new-title Add to list create flow, and full authenticated route smoke tests are still not independently confirmed.
+Dex is a React/TypeScript frontend and FastAPI backend using Firebase Authentication, Cloud Firestore and TMDB. The current source includes Recommendation Engine V2, an offline synthetic evaluation harness, and a Render source-commit fingerprint on the public health endpoint.
 
-Implementation status and production status are separate. PR #20 (reliability), PR #21 (Recommendation Engine V2), PR #22 (offline evaluation) and PR #23 (Render source fingerprint) are merged into main. A feature marked implemented below means that the code exists in main and is covered by automated tests. A user-provided screenshot can confirm a visible UI flow, but does not establish the exact backend version, response status codes, or every edge case.
+**Code state and production state are separate.** The last user-provided PowerShell route probes were executed before PRs #20 and #21 merged. They returned health 200/version 0.5.1 and 401 for unauthenticated recommendation and watch routes. Those results confirm the older deployment's route/auth behaviour, not that Render has deployed V2. PR #23 adds `source_commit` to `/api/health`; the live value has not yet been confirmed.
 
 ## 2. Delivered milestones
 
-| Area | Delivered behaviour | Main evidence | Status |
+| Area | Delivered behaviour | Evidence | Status |
 |---|---|---|---|
-| Discovery | Trending, search and media details backed by TMDB | backend/app/main.py and TMDB service | Implemented |
-| Identity | Firebase token verification, Dex profile sync and normalized unique usernames | Firebase auth service and API tests | Implemented |
-| Watch library | User-scoped create/list/update/delete | watch API and regression tests | Implemented |
-| Detail-page status | Show Watched / Want to watch / In future choices; load existing status and handle create conflicts | commit 8731aa2; `MediaDetailsPage.tsx`; existing `POST /api/watches` status contract | Implemented in source |
-| Taste Engine V2 | Exact per-watch contribution snapshots; all-time and recent profiles rebuilt from watches; no per-feature vector writes | recommendations.py, taste.py; PR #21; 48 backend tests before merge | Implemented |
-| Legacy backfill | Authenticated, idempotent cursor pagination, max 50 per page | taste_backfill.py; commit 7b477b1; API tests | Implemented |
-| Local IDF | Document frequency computed from this user's watched titles plus the current candidate pool; global counters removed | recommendations.py; PR #21 | Implemented |
-| Recommendations V2 | TMDB item-to-item retrieval, discover fallback, local IDF, versioned six-hour candidate cache, weighted top-k sampling and three distinct slots | recommendations.py; PR #21 | Implemented in source; post-merge Render verification pending |
-| Homepage For You | Signed-in recommendation section, refresh and historical profile setup | HomePage.tsx; commits c80af93, 4ae1e22, 86b6356 | Implemented in source |
-| API deployment diagnostics | GET/HEAD health returns API version, expected watch write route and Render source commit SHA | PR #23; /api/health | Implemented in source; live source SHA pending |
-| Render source alignment | Blueprint sets branch main, backend root, auto deploy and health check | render.yaml; commit 2101f34 | UI flows now work; active source version and service settings still unverified |
+| Discovery | Trending, search and media details backed by TMDB | FastAPI routes and frontend pages | Implemented |
+| Identity | Firebase token verification, profile sync and unique usernames | Firebase Admin auth service; API tests | Implemented |
+| Watch library | User-scoped create/list/update/delete and single-watch lookup | `backend/app/main.py`; API tests | Implemented in source |
+| Taste Engine V2 | Watch-level signed contribution snapshots; all-time/recent profiles rebuilt from watches; no per-feature vector writes | PR #21; `taste.py`, `recommendations.py` | Implemented |
+| Local IDF | Feature rarity computed from watched titles plus current candidate pool; global stats removed | PR #21; `recommendations.py` | Implemented |
+| Recommendations V2 | TMDB item-to-item retrieval, discover fallback, six-hour versioned cache, top-k exploration and Safe/Adjacent/Wildcard slots | PR #21; `recommendations.py` | Implemented in source; Render verification pending |
+| Historical backfill | Authenticated, idempotent cursor-paginated enrichment, up to 50 records per page | `taste_backfill.py`; API tests | Implemented |
+| Offline evaluation | Five synthetic profiles, NDCG/Precision/Recall/diversity metrics and deterministic MMR diagnostic | PR #22; `backend/scripts/evaluate_recommendations.py` | Implemented |
+| Deployment fingerprint | Health response reports Render's deployed commit SHA as `source_commit` | PR #23; `/api/health` | Implemented in source; live value pending |
+| CI | Backend audit/compile/tests; frontend typecheck/build; separate npm audit | `.github/workflows/ci.yml` | Functional; frontend audit remains red |
 
-The media detail page now offers three explicit save actions for unsaved titles: **Watched**, **Want to watch**, and **In future**. These map to the existing status contract, so no backend schema migration is required. A successful save is replaced by the corresponding existing-status label. The watched path triggers the backend's existing taste metadata/contribution logic; the other two statuses are excluded from taste.
+The media detail page offers three save actions for unsaved titles: **Watched**, **Want to watch**, and **In future**. The watched path creates taste contribution metadata; the two planned states do not contribute to taste.
 
 ## 3. Recommendation and profile lifecycle
 
-1. When a user marks a title watched, the backend attempts to load shared TMDB feature metadata.
-2. If metadata is available, the exact signed contribution is stored on the watch record; profile counters and profile_version are updated transactionally.
-3. If metadata is unavailable, the watched record can remain pending; the watch itself is not silently discarded.
-4. Legacy watched records are processed using POST /api/taste/backfill with cursor pagination. The endpoint skips records already current and can retry pending records on a later pass.
-5. GET /api/recommendations rebuilds all-time and recent profiles from watch contributions, retrieves TMDB item-to-item candidates with discover fallback, enriches candidates, computes local IDF, and caches versioned candidate pools before sampling Safe, Adjacent and Wildcard slots.
-6. The signed-in homepage displays the slots and lets the user refresh. One backfill page is run per action, not as an unbounded client loop.
+1. A watched title is enriched using shared TMDB catalogue metadata when available.
+2. The exact signed contribution snapshot is stored on the watch record. Profile counters and `profile_version` are updated transactionally.
+3. If TMDB metadata is unavailable, the watch can persist as pending and be retried through the bounded backfill endpoint.
+4. Recommendation generation rebuilds all-time and recent profiles from watch snapshots, retrieves item-to-item candidates with discover fallback, computes local IDF, and caches versioned candidate pools.
+5. The API samples Safe/Adjacent/Wildcard slots from the cached candidate pools. Match percentages remain candidate-pool percentiles, not probabilities.
 
 ## 4. Current validation evidence
 
-Latest checked commit: 2101f34e2b9408b965b1d92658e424b04a47db9a.  
-GitHub Actions run: https://github.com/Shreyas-patil07/Dex/actions/runs/42286609985
+**PR #22 evaluation CI:** [run 42348154051](https://github.com/Shreyas-patil07/Dex/actions/runs/42348154051)
 
 - Backend compileall passed.
-- Backend Pytest reported 30 passed, 1 warning.
-- Frontend npm ci, npm run typecheck and npm run build passed.
-- Vercel status check was successful.
-- User-provided UI screenshots now show For You populated with Safe, Adjacent and Wildcard recommendations and a media details page showing Already watched. This is a successful visual smoke test for those two paths.
-- The current API health version and HTTP response codes were not captured in the latest screenshots. A fresh-title POST /api/watches create flow and complete authenticated CRUD smoke test remain unverified.
+- Backend Pytest: **55 passed, 1 warning**.
+- Backend pip-audit passed.
+- Offline evaluator CLI ran successfully and printed five-profile macro metrics.
+- Frontend typecheck and production build passed.
+- Frontend npm audit remains the only failing job, with seven high-severity findings in the pre-existing dependency tree. The recommendation/evaluation PRs did not change frontend dependency versions.
 
-Earlier browser diagnostics received on 2026-11-07 reported:
-- GET /api/recommendations returned HTTP 404.
-- GET /api/watches/{watch_id} returned HTTP 405.
-- The detail-page status check therefore displayed Method Not Allowed at that time. The later screenshot showing Already watched demonstrates that the detail-status UI path subsequently became operational for an existing record.
-- Console messages from chrome-extension://.../processor.js and content-script MaxListeners warnings originate from a browser extension context and are not evidence of a Dex application defect.
+**PR #23 health fingerprint CI:** [run 42348387889](https://github.com/Shreyas-patil07/Dex/actions/runs/42348387889)
 
-## 5. Immediate next work — release blocker and v0.6 gate
+- Backend tests/compile/pip-audit passed.
+- Frontend typecheck/build passed.
+- The same frontend npm audit job failed.
+
+**Production evidence:** the user-provided PowerShell checks before PRs #20/#21 returned:
+- `GET /api/health`: HTTP 200, version 0.5.1.
+- Unauthenticated `GET /api/recommendations`: HTTP 401.
+- Unauthenticated `GET /api/watches/movie_550`: HTTP 401.
+
+These checks were pre-merge. A new health response must show `source_commit` equal to the expected merged main SHA before claiming the V2 deployment is live. Authenticated operations have not yet been independently verified.
+
+The synthetic evaluator's reported baseline is documented in [Testing and Validation](09_Testing.md). Its fixture grades are assumptions, not independent human judgements or real-user recommendation evidence.
+
+## 5. Release gates and immediate backlog
 
 | Priority | Task | Acceptance condition | Status |
 |---|---|---|---|
-| P0 | Confirm Render service is linked to Shreyas-patil07/Dex, branch main, rootDir backend | Dashboard/service settings match root render.yaml | UI paths operational; dashboard settings unverified |
-| P0 | Audit production Firestore Rules and Firebase IAM | Access policy reviewed and evidence recorded; no public/private data leakage | Pending |
-| P0 | Define event retention, pause/clear, export and deletion semantics before event collection | Data lifecycle approved and deletion coverage designed | Pending |
-| P0 | Stop unnecessary Vercel frontend builds | Docs-only and backend-only commits skip frontend build; frontend changes still build | Config added; live behaviour unverified |
-| P0 | Confirm Render Blueprint changes were applied and latest main commit deployed | Render deploy history shows a successful deployment containing 2101f34 or later | Pending |
-| P0 | Verify GET /api/health | JSON reports version 0.5.1 or later and `source_commit` matches merged main SHA | Pending post-PR #23 deploy |
-| P0 | Verify protected recommendation and watch routes | With valid auth: recommendation endpoint returns 200; watch lookup returns 200 or 404, never 405 | UI smoke test passed; exact HTTP codes/version pending |
-| P0 | Retest detail-page Add to list flow | Existing title renders existing status; missing title can be created once; duplicate race is handled | Existing-title status confirmed; fresh-title create/duplicate race pending |
-| P1 | Backfill actual existing user histories | Run pages until complete; retry pending IDs; verify profile counts match watched records with contributions | Not yet evidenced |
-| P1 | Run offline recommendation regression baseline | Five predeclared synthetic profiles; NDCG/Precision/Recall/diversity report; no claim of real-user quality | Implemented in PR #22; user-history evaluation pending |
-| P1 | Add automated browser tests | Home, For You, detail status, add flow and mobile/desktop smoke checks pass | Pending |
+| P0 | Verify Render service settings and deploy | Render uses repo `Shreyas-patil07/Dex`, branch `main`, root `backend`, correct secrets and expected auto-deploy | Pending external dashboard check |
+| P0 | Verify Render source fingerprint | `/api/health.source_commit` equals the latest deployed main commit | Pending post-PR #23 deployment |
+| P0 | Verify protected routes after deploy | Unauthenticated recommendation/watch probes return 401; authenticated recommendation returns 200; watch lookup returns 200/404 | Pending |
+| P0 | Verify watch lifecycle end to end | Fresh watch create 201; reload persists; duplicate create returns 409 and UI recovers | Pending |
+| P1 | Complete historical taste backfill | Follow cursors to `complete=true`; retry pending IDs; reconcile counts | Pending for production account |
+| P0 | Audit production Firestore Rules and Firebase IAM | Live rules reviewed; client access denied unless explicitly needed; backend service account least-privilege confirmed | Pending external Firebase/Google Cloud review |
+| P1 | Implement account export | Authenticated, versioned, paginated, UID-scoped export with cross-user tests | Not implemented |
+| P1 | Implement account deletion | Resumable recursive Firestore deletion, username release and Firebase Auth deletion | Not implemented |
+| P1 | Reconcile privacy notice with actual collection | Current/future data distinguished; event purpose, retention and controls explained | Pending review |
+| P1 | Recommendation event pipeline | Batched, idempotent, server-UID-derived, retention/clear/export/delete-aware | Blocked by data lifecycle gates |
+| P1 | Explicit recommendation feedback | More like this / Less like this / Not interested; do not infer dislike from silence | Blocked by data lifecycle gates |
+| P2 | Browser E2E suite | Home/recommendation/detail/watch flows across desktop/mobile | Not established |
+| P2 | Frontend dependency security remediation | Resolve seven high-severity npm audit findings without unsafe forced downgrade | Open follow-up |
 
-See [Deployment Runbook](12_Deployment_Runbook.md) for exact probes and Render settings.
+The source-based collection inventory, retention analysis, export/deletion contract and Firebase Rules/IAM checklist are in [Data Lifecycle and Privacy Readiness](14_Data_Lifecycle_and_Privacy_Readiness.md).
 
-## 6. Approved v0.6 direction
+## 6. Approved v0.6 build order
 
-The approved next release is **Reliability and Discovery Intelligence**. The PR #21 recommendation architecture is now merged; it is a code-level milestone, not proof that the new backend revision has completed its Render deployment. Render verification is the release gate. After production V2 verification and the Firebase Rules/IAM audit, implement first-party recommendation events in Firestore (batched per page view, idempotent, server-derived UID), explicit More like this / Less like this / Not interested feedback, and an offline evaluation harness with 3–5 predeclared fixture profiles. Do not infer dislike from silence or tune model parameters by eye.
+1. Complete the post-merge Render verification and authenticated smoke tests.
+2. Audit the actual Firebase Firestore Rules and IAM/service-account permissions.
+3. Implement account export and resumable account deletion, including legacy per-user taste documents.
+4. Approve event purpose, notice/consent, raw-event retention, pause/clear and aggregate deletion.
+5. Only then add batched recommendation-event ingestion and explicit card feedback.
+6. Use the synthetic evaluator as a regression baseline; do not tune the ranking weights from its authored labels.
 
-The v0.6 event pipeline must not collect tokens or free text and must have retention, pause/clear, export and deletion semantics before production collection. Audit Firestore Rules and IAM first. Keep TMDB as the sole catalogue. Defer Kafka/Flink, vector databases, neural recommenders, social features, streaming, watch parties and gamification.
+Keep the current modular monolith and Firestore architecture. Do not add Kafka, Flink, a vector database, or an online experimentation platform without measured need.
 
-Detailed scope, event fields, decision register, bias controls and exit gates: [v0.6 Reliability and Discovery Intelligence](13_v0.6_Reliability_and_Discovery_Intelligence.md). The source-based data inventory and export/deletion design are in [Data Lifecycle and Privacy Readiness](14_Data_Lifecycle_and_Privacy_Readiness.md).
+## 7. Definition of done
 
-## 7. Engineering backlog
-
-| Priority | Work item | Rationale |
-|---|---|---|
-| P1 | Production Firebase Security Rules and IAM audit | Rules/config are not represented in the repository |
-| P1 | Account export, deletion and retention implementation | Source inventory/design in doc 14; endpoints, recursive deletion and tests still missing |
-| P1 | Firestore backup and restore exercise | Protect user history and aggregate state |
-| P1 | Shared rate-limit store before multi-instance scaling | memory:// counters are per process |
-| P1 | Operational metrics and alerting | CI/health alone do not provide production SLO evidence |
-| P2 | Taste model offline evaluation | Ranking quality is not established by unit tests |
-| P2 | Recommendation cold-start and sparse-history UX review | Small profiles can produce weak or generic recommendations |
-| P2 | Accessibility and formal browser support matrix | Responsive utility classes are present; full audit is not evidenced |
-| P2 | Dependency/action warning maintenance | Latest CI reports deprecation warnings that should be tracked |
-
-## 8. Definition of done
-
-A delivery is complete only when acceptance criteria are met, tests pass, authentication and data isolation are preserved, taste contribution reversal remains correct, docs are updated, secrets remain protected, and deployment is verified at the correct hosting platform. Do not close a production deployment task based only on GitHub Actions or Vercel status when the backend is hosted separately on Render.
-
-## 9. Work tracking
-
-- Repository: https://github.com/Shreyas-patil07/Dex
-- CI: https://github.com/Shreyas-patil07/Dex/actions
-- Frontend: https://dex-list.vercel.app/
-- Backend: https://dex-connect.onrender.com/
-- API docs: https://dex-connect.onrender.com/docs
+A delivery is complete only when acceptance criteria are met, tests pass, UID isolation is preserved, watch/taste transaction invariants remain correct, data lifecycle hooks are updated, secrets remain protected, documentation reflects the implementation, and production deployment is verified at the correct host. A green GitHub or Vercel check does not prove Render is serving the same source revision.
