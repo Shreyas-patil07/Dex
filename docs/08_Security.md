@@ -17,7 +17,7 @@ Protect Firebase identity, private profile data, watch history/notes, taste data
 | Firebase ID token | Sensitive credential | HTTPS; verify server-side; never log |
 | Email/profile | Personal data | UID-scoped access |
 | Watch notes/history | Personal data | Per-user authorization |
-| Taste vectors | Inferred preference data | User-scoped access/retention |
+| Taste profile and watch contribution snapshots | Inferred preference data | User-scoped access/retention |
 | TMDB metadata | Third-party data | Follow terms/attribution |
 
 ## 3. Threat model
@@ -50,7 +50,7 @@ Firebase Authentication is the client sign-in provider. Frontend sends an ID tok
 
 ## 6. Data protection and privacy
 
-Minimise collected data. Never log ID tokens, service account JSON, API keys, or private notes. Define retention/deletion for account, watches, taste vectors, and shared cache. Align the public privacy notice with actual collection and processing. Do not present taste inference as definitive personal traits.
+Minimise collected data. Never log ID tokens, service account JSON, API keys, or private notes. Recommendation Engine V2 rebuilds taste profiles from per-watch contribution snapshots; per-feature taste_vectors are no longer active, though legacy Firestore documents may remain. Define retention/deletion for accounts, watches, contribution snapshots, recommendation caches and shared TMDB metadata. Align the public privacy notice with actual collection and processing. Do not present taste inference as definitive personal traits.
 
 ## 7. Platform and supply chain
 
@@ -87,6 +87,10 @@ Triage scope; rotate/revoke credentials; restrict affected routes if needed; pre
 
 A passing GitHub Actions run or Vercel status does not prove that the Render API process is running the same source revision. Production checks must verify the `/api/health` source version and exercise protected watch/recommendation routes with an authenticated account. On 2026-11-07, user-provided browser evidence showed `/api/recommendations` returning 404 and `GET /api/watches/{watch_id}` returning 405; the active Render deployment was therefore still unverified. See [Deployment Runbook](12_Deployment_Runbook.md). Do not weaken authentication or make personal recommendation routes public to work around missing production routes.
 
-## 12. Legal and data dependencies
+## 12. Data lifecycle readiness
+
+The browser Firebase module currently uses Firebase Authentication only; the backend uses the Firebase Admin SDK for Firestore. No Firestore Rules file is tracked in the repository, and the live Firebase project's Rules/IAM settings have not been audited. Firestore Rules do not constrain privileged Admin SDK calls. Verify UID-scoped backend authorization and least-privilege service-account IAM separately. There is no account-wide export or deletion endpoint/worker. See [Data Lifecycle and Privacy Readiness](14_Data_Lifecycle_and_Privacy_Readiness.md) for the collection inventory, legacy-document handling, retention policy and release gates. Recommendation-event ingestion must remain blocked until those gates are satisfied.
+
+## 13. Legal and data dependencies
 
 Dex has no license file; absent an explicit license, all rights are reserved. TMDB is a third-party provider; follow current terms, attribution, branding, and image requirements. This documentation grants no rights to media or third-party data. Do not copy the Template repository's MIT license into Dex without a deliberate decision.

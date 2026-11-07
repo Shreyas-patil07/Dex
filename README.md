@@ -212,7 +212,7 @@ pytest -q
 python scripts/evaluate_recommendations.py
 ```
 
-CI runs frontend typechecking/build and backend compilation/tests on pushes and pull requests targeting `main`.
+CI runs backend compilation/tests, frontend typechecking/build, and `npm audit --audit-level=high` on pushes and pull requests targeting `main`. The current dependency lockfile includes patched transitive versions and the audit passed on main commit `eab2af2`.
 
 ## Deployment
 
@@ -243,6 +243,7 @@ The backend defaults to `memory://` for rate-limit storage. Use shared storage s
 | [11 — Recommendation Engine](docs/11_Recommendations_Engine.md) | Recommendation retrieval, scoring, slots, and semantics |
 | [12 — Deployment Runbook](docs/12_Deployment_Runbook.md) | Render/Vercel configuration and production smoke tests |
 | [13 — v0.6 Plan](docs/13_v0.6_Reliability_and_Discovery_Intelligence.md) | Approved release scope, decisions, evidence and gates |
+| [14 — Data Lifecycle](docs/14_Data_Lifecycle_and_Privacy_Readiness.md) | Data inventory, retention, export/deletion and Firebase Rules/IAM gates |
 | [Documentation index](docs/README.md) | Start here; current implementation and evidence |
 | [ADR index](ADR/README.md) | Durable architecture decisions |
 
