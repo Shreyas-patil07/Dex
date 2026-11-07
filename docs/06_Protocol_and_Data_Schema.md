@@ -189,7 +189,7 @@ Each non-null slot candidate contains:
 
 Important: match_percent is a within-request candidate-pool percentile, **not** a probability of liking the title, calibrated confidence, or promise of user satisfaction. When no complete taste signal is available, the endpoint can return non-personalized quality/popularity-based candidates and match_percent is null.
 
-## 7. Historical taste backfill contract
+## 8. Historical taste backfill contract
 
 POST /api/taste/backfill is authenticated and rate-limited to 5 requests per minute.
 
@@ -226,7 +226,7 @@ The values above illustrate the shape, not a live result. The actual response re
 
 Continue with next_cursor until complete is true. If pending_watch_ids is non-empty, rerun later **without a cursor** to retry pending records. Completed records are skipped, so retry passes are idempotent. The operation does not run in the background and one frontend click processes one page.
 
-## 8. Firestore data model
+## 9. Firestore data model
 
 ~~~text
 users/{firebase_uid}
@@ -254,7 +254,7 @@ tmdb_catalog/{media_type}_{tmdb_id}
 
 The shared catalogue is an application-wide metadata cache; user watch, taste profile, and recommendation cache records remain UID-scoped. Per-feature taste-vector documents and global tmdb_feature_stats counters are no longer written or read. Existing legacy documents may remain in Firestore and are not currently cleaned up. Treat legacy per-user taste documents as part of export/deletion until a verified cleanup migration has run. See [Data Lifecycle and Privacy Readiness](14_Data_Lifecycle_and_Privacy_Readiness.md) for retention, export, deletion and access-control gaps.
 
-## 9. Taste Engine V2 invariants
+## 10. Taste Engine V2 invariants
 
 - Only watched records contribute.
 - Rating baseline is 5.5. Ratings below 5.5 map to negative sentiment; ratings above 5.5 map to positive sentiment, bounded to [-1, 1].
@@ -268,7 +268,7 @@ The shared catalogue is an application-wide metadata cache; user watch, taste pr
 - TMDB metadata failure can leave a watched record in pending state without pretending that its taste contribution was applied.
 - Model and schema versions are persisted; change scoring/extraction rules only with an explicit migration strategy.
 
-## 10. Shared cache and errors
+## 11. Shared cache and errors
 
 TMDB feature metadata cache TTL is 180 days. The in-memory TMDB client cache has endpoint-specific short TTLs and is not a durable source of truth.
 
@@ -286,7 +286,7 @@ TMDB feature metadata cache TTL is 180 days. The in-memory TMDB client cache has
 
 Use runtime OpenAPI for exact response schemas. Do not interpret a 404/405 from the live host as proof of the current main-branch route definition; compare the deployed version in /api/health.
 
-## 11. Versioning and related docs
+## 12. Versioning and related docs
 
 The HTTP API has no /v1 URL prefix. Coordinate breaking changes with the frontend. Taste model and recommendation algorithm versions are separately versioned.
 

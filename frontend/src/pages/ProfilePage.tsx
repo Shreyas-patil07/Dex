@@ -211,6 +211,19 @@ export const ProfilePage: React.FC = () => {
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Could not update status.');
       const updated: Watch = await response.json();
       setWatches(current => current.map(w => w.id === watchId ? updated : w));
+      if (previous === 'watched' || nextStatus === 'watched') {
+        setTasteProfileLoading(true);
+        setTasteProfileError('');
+        try {
+          const tasteResponse = await request(firebaseUser, '/api/taste/profile');
+          if (!tasteResponse.ok) throw new Error('Could not refresh Taste DNA.');
+          setTasteProfile(await tasteResponse.json() as TasteProfile);
+        } catch (tasteError) {
+          setTasteProfileError(tasteError instanceof Error ? tasteError.message : 'Could not refresh Taste DNA.');
+        } finally {
+          setTasteProfileLoading(false);
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not update status.');
       if (previous) setWatches(current => current.map(w => w.id === watchId ? { ...w, status: previous } : w));
@@ -271,7 +284,7 @@ export const ProfilePage: React.FC = () => {
               <p className="text-[10px] font-bold uppercase tracking-[0.22em]">Taste intelligence</p>
             </div>
             <h2 id="taste-dna-heading" className="mt-2 text-2xl font-bold tracking-tight">Your Taste DNA</h2>
-            <p className="mt-1 text-sm text-[#8491A5]">What Dex has learned from the titles you've watched and rated.</p>
+            <p className="mt-1 text-sm text-[#8491A5]">What Dex has learned from completed titles and your ratings.</p>
           </div>
           {tasteProfile && (
             <p className="text-[10px] text-[#64748B]">
