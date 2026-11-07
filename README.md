@@ -212,7 +212,7 @@ pytest -q
 python scripts/evaluate_recommendations.py
 ```
 
-CI runs frontend typechecking/build and backend compilation/tests on pushes and pull requests targeting `main`.
+CI runs backend compilation/tests, frontend typechecking/build, and `npm audit --audit-level=high` on pushes and pull requests targeting `main`. The current dependency lockfile includes patched transitive versions and the audit passed on main commit `eab2af2`.
 
 ## Deployment
 

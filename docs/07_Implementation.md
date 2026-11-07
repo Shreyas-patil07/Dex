@@ -4,7 +4,7 @@
 > **Owner:** Dex maintainers  
 > **Source branch:** main  
 > **Backend app version:** 0.5.1  
-> **Main commit:** `a5c96b12d4d292b62420cd12d130d34f42faa1cb`
+> **Main commit:** `eab2af2a3c9641801d5c639dccd8f612831c4329`
 
 ## 1. Delivery summary
 
@@ -25,7 +25,7 @@ Dex is a React/TypeScript frontend and FastAPI backend using Firebase Authentica
 | Historical backfill | Authenticated, idempotent cursor-paginated enrichment, up to 50 records per page | `taste_backfill.py`; API tests | Implemented |
 | Offline evaluation | Five synthetic profiles, NDCG/Precision/Recall/diversity metrics and deterministic MMR diagnostic | PR #22; `backend/scripts/evaluate_recommendations.py` | Implemented |
 | Deployment fingerprint | Health response reports Render's deployed commit SHA as `source_commit` | PR #23; `/api/health` | Implemented in source; live value pending |
-| CI | Backend audit/compile/tests; frontend typecheck/build; separate npm audit | `.github/workflows/ci.yml` | Functional; frontend audit remains red |
+| CI | Backend audit/compile/tests; frontend typecheck/build; npm audit | `.github/workflows/ci.yml`; PR #25 | All jobs green on merge commit `eab2af2` |
 
 The media detail page offers three save actions for unsaved titles: **Watched**, **Want to watch**, and **In future**. The watched path creates taste contribution metadata; the two planned states do not contribute to taste.
 
@@ -46,13 +46,19 @@ The media detail page offers three save actions for unsaved titles: **Watched**,
 - Backend pip-audit passed.
 - Offline evaluator CLI ran successfully and printed five-profile macro metrics.
 - Frontend typecheck and production build passed.
-- Frontend npm audit remains the only failing job, with seven high-severity findings in the pre-existing dependency tree. The recommendation/evaluation PRs did not change frontend dependency versions.
+- Frontend npm audit now passes after PR #25 upgraded Vite within major 8 and pinned patched transitive `@grpc/grpc-js`, `re2js` and `source-map-js` versions. Firebase remains on major 12; no UI/application source changed.
 
 **PR #23 health fingerprint CI:** [run 42348387889](https://github.com/Shreyas-patil07/Dex/actions/runs/42348387889)
 
 - Backend tests/compile/pip-audit passed.
 - Frontend typecheck/build passed.
-- The same frontend npm audit job failed.
+- The pre-PR25 frontend audit failed on seven existing dependency findings.
+
+**PR #25 dependency remediation CI:** [run 42349337748](https://github.com/Shreyas-patil07/Dex/actions/runs/42349337748)
+
+- Backend compilation, pip-audit, 55 tests and offline evaluator passed.
+- Frontend `npm ci`, `npm audit --audit-level=high`, typecheck and production build passed.
+- The merge-triggered main CI run [42349393265](https://github.com/Shreyas-patil07/Dex/actions/runs/42349393265) also passed all three jobs.
 
 **Production evidence:** the user-provided PowerShell checks before PRs #20/#21 returned:
 - `GET /api/health`: HTTP 200, version 0.5.1.
@@ -79,7 +85,7 @@ The synthetic evaluator's reported baseline is documented in [Testing and Valida
 | P1 | Recommendation event pipeline | Batched, idempotent, server-UID-derived, retention/clear/export/delete-aware | Blocked by data lifecycle gates |
 | P1 | Explicit recommendation feedback | More like this / Less like this / Not interested; do not infer dislike from silence | Blocked by data lifecycle gates |
 | P2 | Browser E2E suite | Home/recommendation/detail/watch flows across desktop/mobile | Not established |
-| P2 | Frontend dependency security remediation | Resolve seven high-severity npm audit findings without unsafe forced downgrade | Open follow-up |
+| P2 | Frontend dependency security remediation | Resolve high-severity npm audit findings without downgrading Firebase or changing UI | Completed in PR #25; main CI green |
 
 The source-based collection inventory, retention analysis, export/deletion contract and Firebase Rules/IAM checklist are in [Data Lifecycle and Privacy Readiness](14_Data_Lifecycle_and_Privacy_Readiness.md).
 

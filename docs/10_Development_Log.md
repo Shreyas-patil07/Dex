@@ -16,12 +16,20 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 
 ## Entries
 
+### 2026-11-07 — Frontend dependency audit remediated
+
+- **Type:** Security / Dependency maintenance
+- **Summary:** Updated Vite within major version 8 and added npm overrides for patched transitive dependencies: `@grpc/grpc-js@1.14.6`, `re2js@2.8.7` and `source-map-js@1.2.2`. Firebase remains on major version 12. No frontend UI/application source changed and no forced Firebase downgrade was used.
+- **Evidence:** [PR #25](https://github.com/Shreyas-patil07/Dex/pull/25); merge commit [eab2af2](https://github.com/Shreyas-patil07/Dex/commit/eab2af2a3c9641801d5c639dccd8f612831c4329); [PR CI run 42349337748](https://github.com/Shreyas-patil07/Dex/actions/runs/42349337748); [main CI run 42349393265](https://github.com/Shreyas-patil07/Dex/actions/runs/42349393265).
+- **Outcome:** `npm ci`, `npm audit --audit-level=high`, frontend typecheck and production build passed. Main-branch backend compilation, pip-audit, Pytest and offline evaluator also passed. All three main CI jobs are green.
+- **Next action:** Confirm Render's `/api/health.source_commit` matches the deployed main revision; complete authenticated production smoke tests.
+
 ### 2026-11-07 — Render health source fingerprint merged
 
 - **Type:** Deployment diagnostics
 - **Summary:** Added `source_commit` to GET /api/health using Render's documented `RENDER_GIT_COMMIT` environment variable. The field is null outside Render when the variable is absent. HEAD /api/health remains bodyless.
 - **Evidence:** [PR #23](https://github.com/Shreyas-patil07/Dex/pull/23); merge commit [a5c96b1](https://github.com/Shreyas-patil07/Dex/commit/a5c96b12d4d292b62420cd12d130d34f42faa1cb); [Render environment variables](https://render.com/docs/environment-variables).
-- **Outcome:** Backend tests/compile/pip-audit and frontend typecheck/build passed. The pre-existing seven-high npm audit job remains failing. The live source_commit has not yet been captured.
+- **Outcome:** Backend tests/compile/pip-audit and frontend typecheck/build passed. The then-existing seven-high npm audit findings were remediated in PR #25. The live source_commit has not yet been captured.
 - **Next action:** After Render deploys main, confirm the returned source_commit matches the deployed main SHA and run authenticated smoke tests.
 
 ### 2026-11-07 — Data lifecycle and privacy source audit

@@ -42,7 +42,7 @@ This directory documents the product, software architecture, API/data contracts,
 
 ## Validation snapshot
 
-PR #22's CI run validated the offline evaluator and reported 55 backend tests passed, compileall and backend pip-audit passed, and frontend typecheck/build passed. The frontend npm audit remains the only failing job because of seven high-severity findings in the existing dependency tree. PR #23 adds the deployed Render commit SHA to the health response. The live Render revision after PR #23 has not yet been independently confirmed; a passing GitHub Actions or Vercel check is not proof of a successful Render deploy.
+PR #25's CI and merge-triggered main run passed all jobs: backend compile, pip-audit, 55 tests and evaluator CLI; frontend typecheck/build; and frontend `npm audit --audit-level=high`. PR #25 preserves Firebase 12 and resolves the prior high-severity dependency findings. PR #23 adds the deployed Render commit SHA to the health response. The live Render revision after PR #23 has not yet been independently confirmed; a passing GitHub Actions or Vercel check is not proof of a successful Render deploy.
 
 See [testing evidence](09_Testing.md) and [deployment diagnostics](12_Deployment_Runbook.md).
 
