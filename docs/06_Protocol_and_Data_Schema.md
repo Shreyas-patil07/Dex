@@ -136,7 +136,7 @@ The response includes:
 - positive signals and lower-rated patterns, each with a relative within-group strength and the number of watched titles containing that feature.
 - recent positive signals using the same 90-day half-life as recommendations.
 
-Strength bars are normalized within each feature group; they are not probabilities or calibrated preference scores. Lower-rated signals reflect ratings below the taste engine's neutral midpoint, not a permanent dislike. Unrated watched titles contribute a weak positive signal.
+Strength bars are normalized within each feature group; they are not probabilities or calibrated preference scores. Lower-rated signals reflect ratings below the taste engine's neutral midpoint, not a permanent dislike. Unrated watched titles contribute a weak positive signal. Theme labels are normalized for display: obvious credit-scene metadata tags are suppressed, common comic-book/superhero/MCU variants are presented consistently, and duplicate display labels are grouped. This is presentation-only; TMDB feature IDs, stored contributions and recommendation scoring are unchanged.
 
 Watching, Want to Watch and In Future records are excluded. This is a derived read-only view; it does not add behavioural-event collection or write a separate profile snapshot.
 
