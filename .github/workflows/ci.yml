@@ -23,6 +23,7 @@ jobs:
       - run: pip-audit -r requirements.lock --progress-spinner off
       - run: python -m compileall app tests
       - run: pytest -q
+      - run: python scripts/evaluate_recommendations.py
 
   frontend:
     runs-on: ubuntu-latest
