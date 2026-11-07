@@ -21,6 +21,8 @@ type RecommendationItem = {
   match_semantics?: string;
   reasons: string[];
 };
+type RecommendationSlot = 'safe' | 'adjacent' | 'wildcard';
+
 type RecommendationResponse = {
   personalized: boolean;
   match_score_semantics: string;
@@ -36,12 +38,19 @@ type RecommendationResponse = {
     all_time_blend: number;
     recent_blend: number;
   };
-  slots: {
-    safe: RecommendationItem | null;
-    adjacent: RecommendationItem | null;
-    wildcard: RecommendationItem | null;
-  };
+  slot_groups?: Record<RecommendationSlot, RecommendationItem[]>;
+  slots: Record<RecommendationSlot, RecommendationItem | null>;
 };
+
+function getRecommendationItems(
+  response: RecommendationResponse,
+  slot: RecommendationSlot,
+): RecommendationItem[] {
+  const group = response.slot_groups?.[slot];
+  if (Array.isArray(group)) return group;
+  const legacyItem = response.slots?.[slot];
+  return legacyItem ? [legacyItem] : [];
+}
 type BackfillResponse = {
   scanned: number;
   enriched: number;
@@ -60,11 +69,11 @@ async function loadRecommendations(currentUser: User, signal?: AbortSignal): Pro
 }
 
 const RecommendationCard: React.FC<{
-  item: RecommendationItem | null;
+  items: RecommendationItem[];
   slot: 'Safe' | 'Adjacent' | 'Wildcard';
   description: string;
   tone: string;
-}> = ({ item, slot, description, tone }) => (
+}> = ({ items, slot, description, tone }) => (
   <article className="overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-[#171727]/90 via-[#10101B] to-[#0A0A12]">
     <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
       <div>
@@ -73,31 +82,35 @@ const RecommendationCard: React.FC<{
       </div>
       <Compass size={16} className={tone} />
     </div>
-    {item ? (
-      <a href={`/${item.media_type}/${item.id}`} className="group flex gap-4 p-4">
-        <div className="h-36 w-24 shrink-0 overflow-hidden rounded-xl bg-white/[0.05] ring-1 ring-white/[0.08]">
-          {item.poster_path
-            ? <img src={`https://image.tmdb.org/t/p/w342${item.poster_path}`} alt={`${item.title} poster`} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]" />
-            : <div className="flex h-full items-center justify-center text-xs text-[#64748B]">No poster</div>}
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
-            <span>{item.media_type === 'tv' ? 'Series' : 'Movie'}</span>
-            {item.release_date && <span>· {item.release_date.slice(0, 4)}</span>}
-            {typeof item.vote_average === 'number' && item.vote_average > 0 && <span>· ★ {item.vote_average.toFixed(1)}</span>}
-          </div>
-          <h3 className="mt-2 line-clamp-2 text-base font-bold leading-snug text-white group-hover:text-[#C4B5FD]">{item.title}</h3>
-          {item.match_percent !== null && item.match_percent !== undefined && (
-            <p title={item.match_semantics} className="mt-2 text-xs font-semibold text-emerald-300">Match percentile: {item.match_percent}/100</p>
-          )}
-          <div className="mt-auto space-y-1 pt-3">
-            {item.reasons.slice(0, 2).map((reason, index) => (
-              <p key={index} className="line-clamp-2 text-[11px] leading-relaxed text-[#8994A8]">{reason}</p>
-            ))}
-            <p className="pt-1 text-xs font-semibold text-[#C4B5FD]">Explore title →</p>
-          </div>
-        </div>
-      </a>
+    {items.length ? (
+      <div className="divide-y divide-white/[0.055]">
+        {items.map((item, index) => (
+          <a key={`${item.media_type}-${item.id}`} href={`/${item.media_type}/${item.id}`} className="group flex gap-4 p-4">
+            <div className="h-36 w-24 shrink-0 overflow-hidden rounded-xl bg-white/[0.05] ring-1 ring-white/[0.08]">
+              {item.poster_path
+                ? <img src={`https://image.tmdb.org/t/p/w342${item.poster_path}`} alt={`${item.title} poster`} loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]" />
+                : <div className="flex h-full items-center justify-center text-xs text-[#64748B]">No poster</div>}
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+                <span>{item.media_type === 'tv' ? 'Series' : 'Movie'}</span>
+                {item.release_date && <span>· {item.release_date.slice(0, 4)}</span>}
+                {typeof item.vote_average === 'number' && item.vote_average > 0 && <span>· ★ {item.vote_average.toFixed(1)}</span>}
+              </div>
+              <h3 className="mt-2 line-clamp-2 text-base font-bold leading-snug text-white group-hover:text-[#C4B5FD]">{item.title}</h3>
+              {item.match_percent !== null && item.match_percent !== undefined && (
+                <p title={item.match_semantics} className="mt-2 text-xs font-semibold text-emerald-300">Match percentile: {item.match_percent}/100</p>
+              )}
+              <div className="mt-auto space-y-1 pt-3">
+                {item.reasons.slice(0, 2).map((reason, reasonIndex) => (
+                  <p key={reasonIndex} className="line-clamp-2 text-[11px] leading-relaxed text-[#8994A8]">{reason}</p>
+                ))}
+                <p className="pt-1 text-xs font-semibold text-[#C4B5FD]">Explore title →</p>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
     ) : (
       <div className="flex min-h-48 items-center justify-center px-5 py-8 text-center text-xs text-[#64748B]">Not enough candidate titles yet. Add more watched titles or refresh recommendations.</div>
     )}
@@ -322,7 +335,7 @@ export const HomePage: React.FC = () => {
                 <p className="text-xs font-bold uppercase tracking-[0.24em]">Personalized discovery</p>
               </div>
               <h2 id="for-you-heading" className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Picked for your taste</h2>
-              <p className="mt-1 max-w-2xl text-sm text-[#8994A8]">Three ways to find your next movie or series, based on what you watch and rate.</p>
+              <p className="mt-1 max-w-2xl text-sm text-[#8994A8]">Six picks across three lanes, based on what you watch and rate.</p>
             </div>
             <button
               type="button"
@@ -391,9 +404,9 @@ export const HomePage: React.FC = () => {
               )}
 
               <div className="grid gap-4 md:grid-cols-3">
-                <RecommendationCard item={recommendations.slots.safe} slot="Safe" description="Closest to your proven taste" tone="text-emerald-300" />
-                <RecommendationCard item={recommendations.slots.adjacent} slot="Adjacent" description="Familiar, with a new angle" tone="text-violet-300" />
-                <RecommendationCard item={recommendations.slots.wildcard} slot="Wildcard" description="Explore beyond your usual picks" tone="text-sky-300" />
+                <RecommendationCard items={getRecommendationItems(recommendations, 'safe')} slot="Safe" description="Closest to your proven taste" tone="text-emerald-300" />
+                <RecommendationCard items={getRecommendationItems(recommendations, 'adjacent')} slot="Adjacent" description="Familiar, with a new angle" tone="text-violet-300" />
+                <RecommendationCard items={getRecommendationItems(recommendations, 'wildcard')} slot="Wildcard" description="Explore beyond your usual picks" tone="text-sky-300" />
               </div>
               <div className="mt-3 flex flex-col gap-1 text-[10px] text-[#64748B] sm:flex-row sm:items-center sm:justify-between">
                 <p>{recommendations.match_score_semantics}</p>

@@ -251,7 +251,7 @@ def test_all_time_profile_rebuilds_exact_signed_totals_from_watch_contributions(
     assert profile["genres"]["negative"]["18"] == pytest.approx(0.3)
 
 
-def test_cached_recommendations_sample_distinct_slots_from_top_k(monkeypatch):
+def test_cached_recommendations_return_two_distinct_items_per_slot(monkeypatch):
     from app.services.recommendations import TasteRecommendationService
 
     service = TasteRecommendationService(None, None)
@@ -259,23 +259,61 @@ def test_cached_recommendations_sample_distinct_slots_from_top_k(monkeypatch):
         "app.services.recommendations.random.choices",
         lambda pool, weights, k: [pool[-1]],
     )
+    primary = [
+        {
+            "public": {"id": index, "media_type": "movie"},
+            "features": {"genres": [str(index)]},
+            "raw_score": 1.0 - index * 0.05,
+        }
+        for index in range(1, 9)
+    ]
+    wildcard = [
+        {
+            "public": {"id": index, "media_type": "movie"},
+            "features": {"genres": [str(index + 100)]},
+            "raw_score": 0.5,
+        }
+        for index in range(1, 13)
+    ]
     cached = {
         "metadata": {"personalized": True},
-        "primary_candidates": [
-            {"public": {"id": 1, "media_type": "movie"}, "features": {"genres": ["18"]}, "raw_score": 0.9},
-            {"public": {"id": 2, "media_type": "movie"}, "features": {"genres": ["53"]}, "raw_score": 0.8},
-            {"public": {"id": 3, "media_type": "movie"}, "features": {"genres": ["18", "53"]}, "raw_score": 0.7},
-        ],
-        "wildcard_candidates": [
-            {"public": {"id": 1, "media_type": "movie"}, "features": {"genres": ["18"]}, "raw_score": 0.9},
-            {"public": {"id": 4, "media_type": "movie"}, "features": {"genres": ["99"]}, "raw_score": 0.2},
-        ],
+        "primary_candidates": primary,
+        "wildcard_candidates": wildcard,
     }
 
     result = service._sample_cached_recommendations(cached)
+    groups = result["slot_groups"]
+    assert set(groups) == {"safe", "adjacent", "wildcard"}
+    assert all(len(groups[slot]) == 2 for slot in groups)
     ids = [
-        result["slots"][slot]["id"]
+        item["id"]
         for slot in ("safe", "adjacent", "wildcard")
+        for item in groups[slot]
     ]
-    assert len(ids) == len(set(ids)) == 3
+    assert len(ids) == len(set(ids)) == 6
+    assert result["slots"] == {
+        slot: groups[slot][0] for slot in ("safe", "adjacent", "wildcard")
+    }
     assert result["personalized"] is True
+
+
+def test_cached_recommendations_return_available_items_when_candidate_pool_is_small():
+    from app.services.recommendations import TasteRecommendationService
+
+    service = TasteRecommendationService(None, None)
+    cached = {
+        "metadata": {},
+        "primary_candidates": [
+            {"public": {"id": 1, "media_type": "movie"}, "features": {"genres": ["18"]}, "raw_score": 0.9},
+        ],
+        "wildcard_candidates": [],
+    }
+
+    result = service._sample_cached_recommendations(cached)
+
+    assert result["slot_groups"]["safe"] == [{"id": 1, "media_type": "movie"}]
+    assert result["slot_groups"]["adjacent"] == []
+    assert result["slot_groups"]["wildcard"] == []
+    assert result["slots"]["safe"] == {"id": 1, "media_type": "movie"}
+    assert result["slots"]["adjacent"] is None
+    assert result["slots"]["wildcard"] is None
