@@ -4,6 +4,13 @@ Notable changes to Dex. Dates use YYYY-MM-DD.
 
 ## [Unreleased]
 
+### Current implementation documentation
+- Documented the shipped read-only Taste DNA profile (positive, lower-rated and recent signals with metadata coverage), four watch statuses, and Google/email-password account flows.
+- Updated the backend guide from the legacy Taste Engine V1 description to the implemented Taste Engine V2 model and added `GET /api/taste/profile`.
+- Reconciled the Render deployment runbook commands with the root `render.yaml` Blueprint.
+- Refreshed CI evidence to the latest recorded main run: 65 backend tests passed and all backend, frontend and frontend-security jobs succeeded. Production Render alignment remains unverified.
+
+
 ### Production verification update
 - User screenshots confirm the For You recommendation cards are populated and the media detail page displays Already watched for an existing record. This supersedes the earlier visible 404/405 state for those UI paths; exact API version, HTTP codes, fresh-title create and duplicate handling remain to be verified.
 

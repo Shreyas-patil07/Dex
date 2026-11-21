@@ -4,9 +4,10 @@
 
 Dex is a movie and series discovery, watch-history, and taste-profiling platform. It brings discovery, viewing records, ratings, and a personal entertainment profile into one place.
 
-> **Documentation status:** Maintained engineering docs — updated 2026-11-07  
+> **Documentation status:** Current implementation snapshot — updated 2026-11-21  
 > **Backend source version:** 0.5.1  
-> **Production API status:** Render deployment still requires live verification  
+> **CI status:** Latest recorded `main` workflow passed (65 backend tests; frontend build/typecheck/security audit passed)  
+> **Production API status:** Active Render revision and authenticated end-to-end flows still require live verification  
 > **Frontend:** https://dex-list.vercel.app/  
 > **Backend API:** https://dex-connect.onrender.com/  
 > **API docs:** https://dex-connect.onrender.com/docs
@@ -16,10 +17,11 @@ Dex is a movie and series discovery, watch-history, and taste-profiling platform
 - Discover trending movies and television series through TMDB.
 - Search titles and filter by media type.
 - View media details, credits/videos, and streaming availability in India when returned by TMDB.
-- Authenticate with Firebase.
+- Authenticate with Firebase using Google or email/password; connect an additional provider and request a password reset from account settings.
 - Create a unique Dex username and profile.
-- Track watched, want-to-watch, and in-future titles with optional ratings, dates, and notes.
-- Maintain an evolving taste profile derived from watched titles.
+- Track Watched, Watching, Want to Watch, and In Future titles with optional ratings, dates, and notes.
+- Explore a read-only Taste DNA profile with positive, lower-rated and recent signals, plus metadata/profile coverage.
+- Maintain an evolving taste profile derived only from watched titles.
 - Generate personalized Safe, Adjacent, and Wildcard recommendations for signed-in users.
 - Backfill historical watched titles into the taste model with a paginated, idempotent operation.
 
@@ -155,6 +157,7 @@ uvicorn app.main:app --reload
 | GET | `/api/watches/{watch_id}` | Read one current-user watch record (404 when absent) |
 | PATCH/DELETE | `/api/watches/{watch_id}` | Update/delete watch record |
 | GET | `/api/recommendations` | Authenticated Safe/Adjacent/Wildcard recommendations |
+| GET | `/api/taste/profile` | Read-only Taste DNA insights and profile coverage |
 | POST | `/api/taste/backfill` | Paginated historical watched-title metadata backfill |
 | GET | `/api/watch-statuses` | Supported watch statuses |
 
@@ -212,7 +215,7 @@ pytest -q
 python scripts/evaluate_recommendations.py
 ```
 
-CI runs backend compilation/tests, frontend typechecking/build, and `npm audit --audit-level=high` on pushes and pull requests targeting `main`. The current dependency lockfile includes patched transitive versions and the audit passed on main commit `eab2af2`.
+CI runs backend compilation, dependency auditing, Pytest, the offline recommendation evaluator, frontend typechecking/build, and `npm audit --audit-level=high` on pushes and pull requests targeting `main`. The latest recorded main run is [42365087448](https://github.com/Shreyas-patil07/Dex/actions/runs/42365087448) for commit `2e97c3e91a5c2ceec4c9f98b0db334430f4550aa`: all three jobs passed, including 65 backend tests (one deprecation warning). This is CI evidence, not a production deployment check.
 
 ## Deployment
 

@@ -38,7 +38,7 @@ Start with `npm run dev`.
 
 ## Responsibilities
 
-Render discovery, search, details, authentication, profile and history. The signed-in Home page loads the authenticated For You recommendation slots and can run one historical taste-backfill page per action. Media detail pages query the user's existing watch state before offering Add to list. Maintain Firebase client session state, send Firebase ID tokens to protected API routes, and render TMDB-backed data returned by backend.
+Render trending discovery (day/week and movie/series filters), search, media details, authentication, profile and watch history. Signed-in users get Safe, Adjacent and Wildcard For You recommendations, a one-page-at-a-time historical taste backfill action, and a read-only Taste DNA profile showing positive, lower-rated and recent signals with profile coverage. Media detail pages show credits/videos, India watch-provider availability and the signed-in user's existing watch status before offering Watched, Watching, Want to watch or In future actions. The profile supports paginated watch history, status changes, Google/email-password provider linking, password reset and sign-out. Maintain Firebase client session state and send Firebase ID tokens to protected API routes.
 
 ## Configuration and security
 
