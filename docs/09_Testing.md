@@ -2,7 +2,7 @@
 
 > **Status:** Current automated test baseline with latest main-branch evidence  
 > **Owner:** Dex maintainers  
-> **Last updated:** 2026-11-07
+> **Last updated:** 2026-11-21
 
 ## 1. Validation objectives
 
@@ -82,18 +82,22 @@ No verified production performance values are recorded. Measure p50/p95 trending
 - Secrets and allowed origins are reviewed.
 - Known limitations are documented.
 
-## 8. Latest merged CI evidence
+## 8. Latest main-branch CI evidence
 
-**Main merge commit:** `0908982512903f3879fa4df3f835b1e1d10d70a2` (PR #21 — Recommendation Engine V2)  
-**Workflow run:** [42347709974](https://github.com/Shreyas-patil07/Dex/actions/runs/42347709974)
+**Main commit:** `2e97c3e91a5c2ceec4c9f98b0db334430f4550aa` (2026-11-07)  
+**Workflow:** [CI run 42365087448](https://github.com/Shreyas-patil07/Dex/actions/runs/42365087448)
 
-- Backend: compilation, dependency audit and **48 pytest tests passed**.
-- Frontend: typecheck and production build passed.
-- Frontend security audit: failed with **7 high-severity dependency findings** in the existing dependency tree. PR #21 did not change frontend dependency versions.
-- Vercel preview ignored the backend/docs-only build as configured.
-- The user-provided route probes performed before the merges returned health 200/version 0.5.1 and 401 for both unauthenticated protected endpoints. They do not verify the post-merge V2 Render deployment or authenticated operations.
+All three jobs completed successfully:
 
-CI passing does not prove the active Render deployment is running the latest main revision. See [Deployment Runbook](12_Deployment_Runbook.md).
+- **Backend:** dependency audit passed; `python -m compileall app tests` passed; Pytest reported **65 passed, 1 warning**; offline recommendation evaluator passed.
+- **Frontend:** `npm ci`, `npm run typecheck` and `npm run build` passed.
+- **Frontend security:** `npm audit --audit-level=high` passed.
+
+The Pytest warning is a Starlette deprecation warning about using `httpx` with `starlette.testclient`; it did not fail the suite. This should be reviewed when updating the test-client dependency stack.
+
+This is the latest recorded main-branch CI evidence available in the repository as of 2026-11-21. No new application-code commit followed that main commit in the inspected history. The documentation refresh is isolated on a separate branch and does not change application code.
+
+CI proves the checked source passed these automated jobs at that commit. It does **not** prove the currently active Render deployment is using that SHA, that Firebase/TMDB production credentials are valid, or that signed-in user journeys succeed in production. Browser end-to-end and production smoke tests remain unestablished; see [Deployment Runbook](12_Deployment_Runbook.md).
 
 ## 9. Offline recommendation evaluation
 
