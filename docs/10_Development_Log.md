@@ -192,3 +192,13 @@ Keep entries factual and chronological. Dates below use the project owner's loca
 - **Signals:** Separates stronger positive contributions, lower-rated patterns, and recent positive signals using the existing 90-day half-life. Displays profile coverage, rated/profiled counts and metadata readiness.
 - **Data boundary:** Rebuilds from stored watched-title contributions and reads cached TMDB labels only. No TMDB API calls, event tracking, or Firestore writes.
 - **Validation:** Added API coverage for labels, signed signals, rated/profiled counts, exclusion of Watching, and read-only behaviour.
+
+### 2026-11-21 — Current functionality and repository documentation audit
+
+- **Type:** Maintenance / documentation verification
+- **Summary:** Reconciled the root, backend and frontend guides with the implementation in `frontend/src` and `backend/app`. Documented Taste Engine V2 and the read-only Taste DNA profile endpoint, four watch statuses, supported authentication/provider flows, and the existing recommendation/backfill behavior. Corrected the Render runbook build and start commands to match `render.yaml`.
+- **Evidence:** Main source baseline `2e97c3e91a5c2ceec4c9f98b0db334430f4550aa`; [latest recorded main CI run 42365087448](https://github.com/Shreyas-patil07/Dex/actions/runs/42365087448).
+- **Validation:** All three CI jobs passed on that main commit. Backend compilation and dependency audit passed, Pytest reported 65 passed with one Starlette/httpx deprecation warning, the offline recommendation evaluator passed, frontend typecheck/build passed, and `npm audit --audit-level=high` passed.
+- **Production boundary:** No current Render deployment state or live authenticated end-to-end flow was available as verification for this audit. The health source-commit fingerprint is implemented, but must still be compared with the active service's deployment. Earlier user-provided screenshots from 2026-11-07 are historical UI evidence only.
+- **Change scope:** Documentation-only changes are isolated on branch `docs/current-functionality-audit-2026-11-21`; application code and deployment configuration were not changed.
+- **Next action:** Review and merge the documentation PR, then run the production smoke tests in [the deployment runbook](12_Deployment_Runbook.md) against the currently active Render revision.
