@@ -1,7 +1,7 @@
 # Deployment and Production Smoke-Test Runbook
 
 > **Status:** Current source configuration and open production verification  
-> **Last updated:** 2026-11-07  
+> **Last updated:** 2026-11-21  
 > **Backend source version:** 0.5.1
 
 ## 1. Services and ownership
@@ -26,8 +26,8 @@ The current root render.yaml defines one Render web service:
 | Runtime | python |
 | Branch | main |
 | Root directory | backend |
-| Build command | pip install -r requirements.txt |
-| Start command | uvicorn app.main:app --host 0.0.0.0 --port $PORT |
+| Build command | `pip install -r requirements.lock` |
+| Start command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips='*'` |
 | Auto deploy trigger | commit |
 | Health check path | /api/health |
 | Python version | 3.11.11 |
@@ -99,6 +99,10 @@ Expected: HTTP 200.
 ## 6. Route smoke tests
 
 These probes distinguish a missing route from an authentication failure. Do not disable auth to make them pass.
+
+### Taste DNA profile route
+
+`GET /api/taste/profile` is authenticated. An unauthenticated request should return HTTP 401; a signed-in, synchronized account should receive a read-only profile response with overview coverage and signal groups. It rebuilds from stored watch contributions and cached catalogue labels, so the route should not require a TMDB call.
 
 ### Recommendation route
 
