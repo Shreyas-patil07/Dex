@@ -54,16 +54,23 @@ Firebase Authentication is the identity source. Protected requests send `Authori
 | GET | /api/watches/{watch_id} | Read one current-user watch (404 if absent) |
 | PATCH | /api/watches/{watch_id} | Update watch |
 | DELETE | /api/watches/{watch_id} | Delete watch |
-| GET | /api/recommendations | Personalized Safe/Adjacent/Wildcard suggestions |
+| GET | /api/recommendations | Authenticated Safe/Adjacent/Wildcard suggestions |
+| GET | /api/taste/profile | Read-only Taste DNA insights and profile coverage |
 | POST | /api/taste/backfill | Paginated historical taste metadata backfill |
 | GET | /api/watch-statuses | Status options |
 | GET, HEAD | /api/health | Health and backend source version |
 
 Live OpenAPI: https://dex-connect.onrender.com/docs
 
-## Taste engine V1
+## Taste Engine V2
 
-Only watched titles contribute. Current feature groups: genres, keywords, people (movie directors or TV creators), decades. Group weights: 1.0, 1.2, 1.0, 0.35. Rating baseline: 5.5 mapped into signed sentiment [-1, 1]; unrated watched title: +0.15. Each feature group is L2-normalized independently. Exact contributions are stored on watch records and are the source of truth for all-time and recent profile reconstruction. The compact taste/profile document stores counters and profile_version only; no per-feature taste_vectors are written. Local IDF is calculated from the user's watched set plus the current candidate pool; global feature-stat counters are not used. TMDB metadata failure may leave taste metadata pending while watch write succeeds.
+Only records with status `watched` contribute to taste. `watching`, `want_to_watch`, and `in_future` records are excluded. Each watched record stores the exact `taste_contribution` snapshot used for reconstruction, so edits and deletes can reverse the prior contribution transactionally.
+
+Feature groups are genres (weight 1.0), keywords (1.2), people (1.0; movie directors or TV creators), and release decade (0.35). Each group is independently L2-normalized. Ratings use a 5.5 baseline mapped to signed sentiment in [-1, 1]; an unrated watched title contributes +0.15. The profile combines an all-time vector with a recent profile using a 90-day half-life and a 75/25 all-time/recent blend.
+
+The profile is rebuilt from the persisted per-watch contribution snapshots. The compact `users/{uid}/taste/profile` document stores counters and `profile_version`, not feature vectors. Shared TMDB catalogue records cache extracted metadata and feature document-frequency statistics used by recommendation scoring.
+
+`GET /api/taste/profile` is a read-only endpoint used by the Profile page's Taste DNA section. It exposes profile coverage and the strongest positive, lower-rated, and recent signals; it reads stored contributions and cached catalogue labels rather than calling TMDB or writing derived taste state.
 
 Firestore paths:
 
@@ -74,7 +81,7 @@ users/{uid}/watches/{media_type}_{tmdb_id}
 tmdb_catalog/{media_type}_{tmdb_id}
 ```
 
-See [data schema](../docs/06_Protocol_and_Data_Schema.md) and [test strategy](../docs/09_Testing.md).
+See [Recommendation Engine](../docs/11_Recommendations_Engine.md), [data schema](../docs/06_Protocol_and_Data_Schema.md), and [test strategy](../docs/09_Testing.md).
 
 ## Tests
 
